@@ -1,8 +1,53 @@
 @import "tailwindcss";
+@source "../app";
+@source "../lib";
+@source "../components";
+@source "./**/*.tsx";
+@source "../**/*.tsx";
 
 :root {
   --background: #ffffff;
   --foreground: #0f172a;
+}
+
+html, body {
+  background-color: #ffffff !important;
+  color: #0f172a;
+}
+
+/* Force Tailwind-like gradients inline since dynamic classes sometimes get purged in custom builds */
+._dbg-grad-bg {
+  background-image: linear-gradient(135deg, #f8fafc 0%, #eff6ff 45%, #eef2ff 100%);
+}
+._dbg-grad-calendar-head {
+  background-image: linear-gradient(135deg, #f8fafccc 0%, #ffffff 55%, #eff6ff99 100%);
+}
+._dbg-grad-sidebar-user {
+  background-image: linear-gradient(135deg, #f8fafce6 0%, #ffffffff 100%);
+}
+._dbg-grad-badge-admin {
+  background-image: linear-gradient(90deg, #1e293b, #020617);
+}
+._dbg-grad-badge-disp {
+  background-image: linear-gradient(90deg, #2563eb, #4338ca);
+}
+._dbg-grad-avatar-admin {
+  background-image: linear-gradient(135deg, #334155 0%, #1e293b 55%, #020617 100%);
+}
+._dbg-grad-avatar-disp {
+  background-image: linear-gradient(135deg, #3b82f6 0%, #2563eb 55%, #4338ca 100%);
+}
+._dbg-grad-star {
+  background-image: linear-gradient(135deg, #fbbf24, #d97706);
+}
+._dbg-grad-nav-active {
+  background-image: linear-gradient(90deg, #0f172a, #1e293b);
+}
+._dbg-grad-btn-new-booking {
+  background-image: linear-gradient(90deg, #2563eb, #4338ca);
+}
+._dbg-grad-btn-today {
+  background-image: linear-gradient(90deg, #2563eb, #4338ca);
 }
 
 @theme inline {
@@ -80,13 +125,6 @@
 .animate-gradient {
   background-size: 200% 200%;
   animation: gradientShift 8s ease infinite;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 html, body {

@@ -55,10 +55,11 @@ type NavItemId =
 interface SidebarNavItem {
   id: NavItemId;
   label: string;
-  subtitle?: string;
+  subtitle: string;
   icon: React.ReactNode;
   accent?: string;
   badge?: string | number;
+  locked?: boolean;
 }
 
 const HUN_MONTHS = [
@@ -241,7 +242,7 @@ export default function DispatcherDashboardClient({
       {
         id: "drivers",
         label: "Sofőrök",
-        subtitle: "Sofőr igazolások",
+        subtitle: "Munkatársak kezelése",
         icon: <UserCircle2 className="w-5 h-5" />,
       },
       {
@@ -255,12 +256,14 @@ export default function DispatcherDashboardClient({
         label: "Útvonalak",
         subtitle: "Mentett útvonalak",
         icon: <MapPin className="w-5 h-5" />,
+        locked: true,
       },
       {
         id: "reports",
         label: "Jelentések",
         subtitle: "Statisztikák",
         icon: <FileBarChart className="w-5 h-5" />,
+        locked: true,
       },
       {
         id: "settings",
@@ -435,6 +438,13 @@ export default function DispatcherDashboardClient({
                           <span className={`text-[10.5px] font-medium mt-0.5 ${isActive ? "text-slate-300" : "text-slate-400"}`}>{item.subtitle}</span>
                         )}
                       </span>
+                      {item.locked && (
+                        <div className="shrink-0 w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-amber-50 group-hover:text-amber-500 transition-colors">
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                          </svg>
+                        </div>
+                      )}
                       {item.badge !== undefined && (
                         <span className={`shrink-0 h-5 min-w-[1.25rem] px-1.5 rounded-full text-[10px] font-black flex items-center justify-center ${
                           isActive

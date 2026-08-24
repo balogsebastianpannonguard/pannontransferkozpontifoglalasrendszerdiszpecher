@@ -28,6 +28,8 @@ import {
   Gauge,
 } from "lucide-react";
 
+import { ClientsView } from "./ClientsView";
+
 interface DispatcherDashboardUser {
   email: string;
   name: string;
@@ -537,9 +539,12 @@ export default function DispatcherDashboardClient({
 
           {/* Content */}
           <div className="flex-1 px-8 py-6 pb-10 overflow-x-hidden">
-            <div className="flex flex-col lg:flex-row gap-6">
-              {/* === LEFT: STAT CARDS === */}
-              <div className="lg:w-[26%] xl:w-[22%] shrink-0 flex flex-col gap-5">
+            {active === "clients" ? (
+              <ClientsView />
+            ) : (
+              <div className="flex flex-col lg:flex-row gap-6">
+                {/* === LEFT: STAT CARDS === */}
+                <div className="lg:w-[26%] xl:w-[22%] shrink-0 flex flex-col gap-5">
                 <StatCardRaw
                   title="MAI FOGLALÁSOK"
                   subtitle="Napi menetrend"
@@ -847,6 +852,7 @@ export default function DispatcherDashboardClient({
                 </section>
               </div>
             </div>
+            )}
           </div>
         </main>
       </div>

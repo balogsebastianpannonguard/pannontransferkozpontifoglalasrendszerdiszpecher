@@ -15,7 +15,7 @@ export type VehicleType =
   | "Skoda Superb (Újabb, Barna)";
 
 export interface Vehicle {
-  _id?: ObjectId;
+  _id?: string | ObjectId;
   name: string;
   type: VehicleType | string;
   plates?: string;
@@ -49,7 +49,10 @@ export async function listVehicles(): Promise<Vehicle[]> {
   await initVehicleIndexes();
   const col = await getVehicleCollection();
   const docs = await col.find().sort({ createdAt: -1 }).toArray();
-  return docs.map((d) => d as unknown as Vehicle);
+  return docs.map((d) => ({
+    ...d,
+    _id: d._id.toString(),
+  })) as unknown as Vehicle[];
 }
 
 export async function createVehicle(data: Omit<Vehicle, "_id" | "createdAt" | "updatedAt">): Promise<Vehicle> {
@@ -60,7 +63,10 @@ export async function createVehicle(data: Omit<Vehicle, "_id" | "createdAt" | "u
   const r = await col.insertOne(v as any);
   const created = await col.findOne({ _id: r.insertedId });
   if (!created) throw new Error("Vehicle insert failed");
-  return created as Vehicle;
+  return {
+    ...created,
+    _id: created._id.toString(),
+  } as unknown as Vehicle;
 }
 
 export async function updateVehicle(id: ObjectId | string, patch: Partial<Omit<Vehicle, "_id" | "createdAt">>): Promise<boolean> {

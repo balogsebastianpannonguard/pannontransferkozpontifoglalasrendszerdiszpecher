@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   LogOut,
@@ -26,6 +26,9 @@ import {
   Search,
   MapPin,
   Gauge,
+  X,
+  Loader2,
+  RefreshCw,
 } from "lucide-react";
 
 import { ClientsView } from "./ClientsView";
@@ -69,7 +72,7 @@ const HUN_MONTHS = [
 const HUN_WEEKDAYS_LONG = ["Vasárnap", "Hétfő", "Kedd", "Szerda", "Csütörtök", "Péntek", "Szombat"];
 const HUN_WEEKDAYS_SHORT = ["V", "H", "K", "Sz", "Cs", "P", "Szo"];
 
-type BookingStatus = "confirmed" | "pending" | "in-progress" | "completed" | "cancelled";
+type BookingStatus = "confirmed" | "pending" | "in-progress" | "completed" | "cancelled" | "modified";
 type BookingCategory = "airport" | "city" | "long-distance" | "vip" | "partner";
 
 interface DemoBooking {
@@ -84,7 +87,62 @@ interface DemoBooking {
   pax: number;
   status: BookingStatus;
   category: BookingCategory;
+  isCatl: boolean;
   price?: number;
+  createdAt?: number;
+}
+
+interface RealBooking {
+  _id: string;
+  bookingCode: string;
+  travelerName: string;
+  travelerEmail: string;
+  travelerPhone: string;
+  companyName?: string;
+  userEmail?: string;
+  fromAddress: string;
+  toAddress: string;
+  pickupDate: string;
+  pickupTime: string;
+  travelers: number;
+  luggage: number;
+  transferType: string;
+  paymentMethod: string;
+  status: BookingStatus;
+  category: BookingCategory;
+  assignedDriverName?: string;
+  assignedVehicleName?: string;
+  price?: number;
+  comment?: string;
+  createdAt: number;
+}
+
+interface RecentBookingNotif {
+  _id: string;
+  bookingCode: string;
+  travelerName: string;
+  companyName?: string;
+  travelerEmail?: string;
+  userEmail?: string;
+  pickupDate: string;
+  pickupTime: string;
+  status: BookingStatus;
+  category: BookingCategory;
+  createdAt: number;
+  get isCatl(): boolean;
+}
+
+function bookingIsCatl(b: { companyName?: string; travelerEmail?: string; userEmail?: string }) {
+  return Boolean(
+    (b.companyName && (b.companyName.toUpperCase().includes("CATL") || b.companyName.toUpperCase().includes("宁德时代"))) ||
+    (b.travelerEmail && /catl/i.test(b.travelerEmail)) ||
+    (b.userEmail && /catl/i.test(b.userEmail))
+  );
+}
+
+interface NotificationsResponse {
+  pendingCount: number;
+  recentBookings: RecentBookingNotif[];
 }
 
 function monogramOf(name: string) {
@@ -118,6 +176,13 @@ function statusColor(status: BookingStatus) {
         bar: "bg-gradient-to-r from-amber-500 to-orange-500",
         label: "Függőben",
       };
+    case "modified":
+      return {
+        dot: "bg-blue-500",
+        chip: "bg-blue-50 text-blue-700 border-blue-200",
+        bar: "bg-gradient-to-r from-blue-500 to-indigo-500",
+        label: "Módosítva",
+      };
     case "in-progress":
       return {
         dot: "bg-blue-500",
@@ -142,7 +207,9 @@ function statusColor(status: BookingStatus) {
   }
 }
 
-function categoryGradient(cat: BookingCategory) {
+function categoryGradient(cat: BookingCategory, isNewOrModified: boolean = false, isCatl: boolean = false) {
+  if (isCatl) return "from-blue-500 to-indigo-600 shadow-blue-500/25";
+  if (isNewOrModified) return "from-blue-500 to-indigo-600 shadow-blue-500/25";
   switch (cat) {
     case "airport":
       return "from-sky-500 to-indigo-600 shadow-sky-500/25";
@@ -167,6 +234,14 @@ function categoryLabel(cat: BookingCategory) {
   }[cat];
 }
 
+function todayString() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export default function DispatcherDashboardClient({
   initialUser,
 }: {
@@ -184,9 +259,32 @@ export default function DispatcherDashboardClient({
     `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`
   );
 
+  const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [recentBookings, setRecentBookings] = useState<RecentBookingNotif[]>([]);
+  const [pendingCount, setPendingCount] = useState(0);
+  const lastPollTimestamp = useRef<number>(0);
+
+  const [realBookings, setRealBookings] = useState<RealBooking[]>([]);
+  const [bookingsLoading, setBookingsLoading] = useState(true);
+  const [bookingsMeta, setBookingsMeta] = useState({ pendingCount: 0, totalCount: 0 });
+
+  const notificationsRef = useRef<HTMLDivElement>(null);
+  const [popoverKey, setPopoverKey] = useState<string | null>(null);
+
   useEffect(() => {
     const t = setInterval(() => setHour(new Date().getHours()), 60_000);
     return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (notificationsRef.current && !notificationsRef.current.contains(e.target as Node)) {
+        setShowNotificationsDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const greeting = useMemo(() => formatGreeting(hour, user.name || user.email), [hour, user.name, user.email]);
@@ -232,6 +330,7 @@ export default function DispatcherDashboardClient({
         label: "Foglalások",
         subtitle: "Összes rendelés",
         icon: <ListChecks className="w-5 h-5" />,
+        badge: pendingCount > 0 ? pendingCount : undefined,
       },
       {
         id: "vehicles",
@@ -272,33 +371,58 @@ export default function DispatcherDashboardClient({
         icon: <Settings className="w-5 h-5" />,
       },
     ],
-    []
+    [pendingCount]
   );
 
-  const demoBookings = useMemo<DemoBooking[]>(() => {
-    return [];
-  }, []);
+  const transformedBookings: DemoBooking[] = useMemo(() => {
+    return realBookings.map((b) => {
+      const parts = b.pickupDate.split("-");
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      const isCatl = Boolean(
+        (b.companyName && (b.companyName.toUpperCase().includes("CATL") || b.companyName.toUpperCase().includes("宁德时代"))) ||
+        (b.travelerEmail && /catl/i.test(b.travelerEmail)) ||
+        (b.userEmail && /catl/i.test(b.userEmail))
+      );
+      return {
+        id: b._id,
+        day: d,
+        month: m,
+        year: y,
+        time: b.pickupTime,
+        client: b.travelerName + (b.companyName ? ` · ${b.companyName}` : ""),
+        route: b.fromAddress + " → " + b.toAddress,
+        vehicle: b.assignedVehicleName || "Hozzárendelés függőben",
+        pax: b.travelers,
+        status: b.status,
+        category: b.category,
+        isCatl,
+        price: b.price,
+        createdAt: b.createdAt,
+      };
+    });
+  }, [realBookings]);
 
   const monthBookings = useMemo(() => {
     const y = cursorDate.getFullYear();
     const m = cursorDate.getMonth();
     const map = new Map<string, DemoBooking[]>();
-    for (const b of demoBookings) {
+    for (const b of transformedBookings) {
       if (b.year !== y || b.month !== m) continue;
       const key = `${y}-${m}-${b.day}`;
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(b);
     }
     return map;
-  }, [demoBookings, cursorDate]);
+  }, [transformedBookings, cursorDate]);
 
   const stats = useMemo(() => {
-    const todayBookings = demoBookings.filter(
-      (b) => b.day === today.getDate() && b.month === today.getMonth() && b.year === today.getFullYear()
-    );
-    const confirmed = demoBookings.filter((b) => b.status === "confirmed").length;
-    const pending = demoBookings.filter((b) => b.status === "pending").length;
-    const revenue = demoBookings
+    const todayStr = todayString();
+    const todayBookings = realBookings.filter((b) => b.pickupDate === todayStr);
+    const confirmed = realBookings.filter((b) => b.status === "confirmed" || b.status === "in-progress").length;
+    const pending = realBookings.filter((b) => b.status === "pending" || b.status === "modified").length;
+    const revenue = realBookings
       .filter((b) => b.price && (b.status === "confirmed" || b.status === "in-progress" || b.status === "completed"))
       .reduce((s, b) => s + (b.price || 0), 0);
     return {
@@ -306,9 +430,9 @@ export default function DispatcherDashboardClient({
       confirmed,
       pending,
       revenue,
-      inProgress: demoBookings.filter((b) => b.status === "in-progress").length,
+      inProgress: realBookings.filter((b) => b.status === "in-progress").length,
     };
-  }, [demoBookings, today]);
+  }, [realBookings]);
 
   const calendarCells = useMemo(() => {
     const y = cursorDate.getFullYear();
@@ -350,6 +474,51 @@ export default function DispatcherDashboardClient({
     selectedDateParts[1] === today.getMonth() &&
     selectedDateParts[2] === today.getDate();
 
+  async function fetchNotifications(showLoading = false) {
+    if (showLoading) setNotifLoading(true);
+    try {
+      const res = await fetch("/api/notifications", { credentials: "include" });
+      if (res.ok) {
+        const data: NotificationsResponse = await res.json();
+        setPendingCount(data.pendingCount);
+        setRecentBookings(data.recentBookings || []);
+        lastPollTimestamp.current = Date.now();
+      }
+    } catch {}
+    if (showLoading) setNotifLoading(false);
+  }
+
+  async function fetchBookings() {
+    setBookingsLoading(true);
+    try {
+      const res = await fetch("/api/bookings", { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setRealBookings(data.bookings || []);
+        if (data.meta) {
+          setBookingsMeta(data.meta);
+          if (typeof data.meta.pendingCount === "number") {
+            setPendingCount(data.meta.pendingCount);
+          }
+        }
+      }
+    } catch {}
+    setBookingsLoading(false);
+  }
+
+  useEffect(() => {
+    fetchBookings();
+    fetchNotifications();
+
+    const notifTimer = setInterval(() => fetchNotifications(false), 30_000);
+    const bookingTimer = setInterval(() => fetchBookings(), 60_000);
+
+    return () => {
+      clearInterval(notifTimer);
+      clearInterval(bookingTimer);
+    };
+  }, []);
+
   function gotoMonth(offset: number) {
     setCursorDate(new Date(cursorDate.getFullYear(), cursorDate.getMonth() + offset, 1));
   }
@@ -358,9 +527,28 @@ export default function DispatcherDashboardClient({
     setSelectedDateKey(`${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`);
   }
 
+  function scrollToCalendar() {
+    const el = document.querySelector('[data-calendar-section="true"]');
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function toggleNotifications() {
+    const willOpen = !showNotificationsDropdown;
+    setShowNotificationsDropdown(willOpen);
+    if (willOpen) {
+      fetchNotifications(true);
+    }
+  }
+
   async function handleLogout() {
     try { await fetch("/api/auth/logout", { method: "POST" }); } catch {}
     router.replace("/login");
+  }
+
+  function isNewBooking(b: { status: BookingStatus; createdAt?: number }) {
+    if (b.status !== "pending") return false;
+    if (!b.createdAt) return false;
+    return Date.now() - b.createdAt < 24 * 60 * 60 * 1000;
   }
 
   return (
@@ -416,6 +604,10 @@ export default function DispatcherDashboardClient({
                         }
                         if (item.id === "drivers") {
                           router.push("/drivers");
+                          return;
+                        }
+                        if (item.id === "bookings") {
+                          router.push("/bookings");
                           return;
                         }
                         setActive(item.id);
@@ -511,9 +703,9 @@ export default function DispatcherDashboardClient({
         </aside>
 
         {/* ========== MAIN ========== */}
-        <main className="flex-1 min-w-0 flex flex-col">
+        <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
           {/* Top bar */}
-          <header className="sticky top-0 z-20 bg-white/70 backdrop-blur-2xl border-b border-slate-200/70 px-8 py-4">
+          <header className="shrink-0 z-20 bg-white/70 backdrop-blur-2xl border-b border-slate-200/70 px-8 py-4">
             <div className="flex items-center justify-between gap-6">
               <div>
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
@@ -531,19 +723,135 @@ export default function DispatcherDashboardClient({
               </div>
               <div className="flex items-center gap-3">
                 <div className="hidden md:flex items-center gap-2 px-4 py-2 rounded-2xl bg-white border border-slate-200 shadow-sm">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-xs font-bold text-slate-600">Rendszer OK</span>
+                  {pendingCount > 0 ? (
+                    <>
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                      <span className="text-xs font-bold text-amber-700">Figyelem: {pendingCount} függő</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="text-xs font-bold text-slate-600">Rendszer OK</span>
+                    </>
+                  )}
                   <span className="w-px h-4 bg-slate-200 mx-1" />
                   <Clock className="w-3.5 h-3.5 text-slate-400" />
                   <span className="text-xs font-mono font-bold text-slate-700 tabular-nums">
                     {today.toLocaleDateString("hu-HU", { year: "numeric", month: "2-digit", day: "2-digit" })}
                   </span>
                 </div>
-                <button className="relative w-10 h-10 rounded-2xl bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:shadow-md transition-all flex items-center justify-center">
-                  <Bell className="w-[18px] h-[18px]" />
-                  <span className="absolute top-2 right-2.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white" />
-                </button>
-                <button className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 text-white text-xs font-black tracking-wider uppercase shadow-lg shadow-blue-600/30 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-blue-600/40 transition-all flex items-center gap-2">
+                <div className="relative" ref={notificationsRef}>
+                  <button
+                    onClick={toggleNotifications}
+                    className={`relative w-10 h-10 rounded-2xl bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:shadow-md transition-all flex items-center justify-center ${
+                      pendingCount > 0 ? "ring-2 ring-rose-200 ring-offset-1 animate-pulse" : ""
+                    }`}
+                  >
+                    {notifLoading ? (
+                      <Loader2 className="w-[18px] h-[18px] animate-spin" />
+                    ) : (
+                      <Bell className="w-[18px] h-[18px]" />
+                    )}
+                    {pendingCount > 0 && (
+                      <span className="absolute top-1 right-1.5 px-1.5 py-0.5 text-[9px] font-black rounded-full bg-rose-500 text-white ring-2 ring-white min-w-[1.1rem] flex items-center justify-center">
+                        {pendingCount > 99 ? "99+" : pendingCount}
+                      </span>
+                    )}
+                  </button>
+                  {showNotificationsDropdown && (
+                    <div className="absolute top-full right-0 mt-2 w-[420px] shadow-2xl border border-slate-200 rounded-2xl bg-white overflow-hidden z-50">
+                      <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 bg-gradient-to-br from-slate-50 to-white">
+                        <div className="flex items-center gap-2.5">
+                          <span className="font-bold text-slate-900 text-[14px]">Értesítések</span>
+                          {pendingCount > 0 && (
+                            <span className="h-5 min-w-[1.25rem] px-1.5 rounded-full text-[10px] font-black flex items-center justify-center bg-gradient-to-r from-rose-500 to-red-500 text-white shadow-sm">
+                              {pendingCount}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => fetchNotifications(true)}
+                            className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition flex items-center gap-1"
+                          >
+                            <RefreshCw className={`w-3 h-3 ${notifLoading ? "animate-spin" : ""}`} />
+                            Frissítés
+                          </button>
+                          <button
+                            onClick={() => setShowNotificationsDropdown(false)}
+                            className="w-7 h-7 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition flex items-center justify-center"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="max-h-[420px] overflow-y-auto">
+                        {pendingCount === 0 && recentBookings.length === 0 ? (
+                          <div className="py-14 px-8 flex flex-col items-center justify-center text-center">
+                            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 flex items-center justify-center mb-3">
+                              <Bell className="w-7 h-7 text-slate-300" strokeWidth={1.5} />
+                            </div>
+                            <div className="font-bold text-sm text-slate-700 mb-1">Nincs új értesítés</div>
+                            <div className="text-xs text-slate-500">Minden foglalás feldolgozva van.</div>
+                          </div>
+                        ) : (
+                          <ul className="divide-y divide-slate-100">
+                            {recentBookings.map((rb) => {
+                              const s = statusColor(rb.status);
+                              const isNew = rb.status === "pending" || rb.status === "modified";
+                              const catl = bookingIsCatl(rb);
+                              return (
+                                <li key={rb._id}>
+                                  <button
+                                    onClick={() => {
+                                      router.push(`/bookings/${rb._id}`);
+                                      setShowNotificationsDropdown(false);
+                                    }}
+                                    className="w-full text-left px-5 py-3 hover:bg-slate-50 transition flex items-start gap-3 group"
+                                  >
+                                    <div className={`shrink-0 mt-0.5 w-9 h-9 rounded-xl bg-gradient-to-br ${categoryGradient(rb.category, isNew, catl)} shadow-sm flex items-center justify-center text-white`}>
+                                      <ListChecks className="w-4 h-4" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                                        <span className="font-mono text-[11px] font-black text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{rb.bookingCode}</span>
+                                        <span className="font-bold text-[13px] text-slate-900 truncate">{rb.travelerName}</span>
+                                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[9px] font-black tracking-wider uppercase ${s.chip}`}>
+                                          <span className={`w-1 h-1 rounded-full ${s.dot}`} />
+                                          {s.label}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-2 text-[11.5px] text-slate-600">
+                                        <span>{rb.pickupDate}</span>
+                                        <span className="font-mono font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">{rb.pickupTime}</span>
+                                      </div>
+                                    </div>
+                                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 shrink-0 mt-1.5 transition" />
+                                  </button>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                      </div>
+                      <div className="border-t border-slate-200 px-5 py-3 bg-slate-50/50">
+                        <button
+                          onClick={() => {
+                            router.push("/bookings");
+                            setShowNotificationsDropdown(false);
+                          }}
+                          className="w-full text-center text-[12px] font-bold text-blue-600 hover:text-blue-700 transition py-1 rounded-lg hover:bg-blue-50"
+                        >
+                          Összes foglalás megtekintése →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => router.push("/bookings")}
+                  className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 text-white text-xs font-black tracking-wider uppercase shadow-lg shadow-blue-600/30 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-blue-600/40 transition-all flex items-center gap-2"
+                >
                   <PlusCircle className="w-4 h-4" />
                   Új foglalás
                 </button>
@@ -555,6 +863,295 @@ export default function DispatcherDashboardClient({
           <div className="flex-1 px-8 py-6 pb-10 overflow-x-hidden">
             {active === "clients" ? (
               <ClientsView />
+            ) : active === "calendar" ? (
+              <div className="h-full flex flex-col">
+                <section className="flex-1 flex flex-col rounded-[2.5rem] bg-white shadow-xl shadow-slate-900/[0.04] border border-slate-200/80 min-h-[800px] overflow-hidden">
+                  {/* Calendar toolbar */}
+                  <div className="px-7 pt-6 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/80 w-full bg-gradient-to-br from-slate-50/80 via-white to-blue-50/40 shrink-0">
+                    <div className="flex items-center gap-4 w-full sm:w-auto">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[10px] font-black tracking-[0.22em] uppercase text-slate-400 mb-0.5">Teljes képernyős naptár</div>
+                        <h2 className="font-serif text-[28px] font-bold tracking-tight text-slate-900 leading-tight">
+                          {HUN_MONTHS[cursorDate.getMonth()]} <span className="text-slate-400">{cursorDate.getFullYear()}</span>
+                        </h2>
+                      </div>
+                      <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-100/80 border border-slate-200 shrink-0">
+                        <button
+                          onClick={() => gotoMonth(-1)}
+                          className="w-9 h-9 rounded-xl hover:bg-white text-slate-600 hover:text-slate-900 flex items-center justify-center transition shadow-sm hover:shadow"
+                        >
+                          <ChevronLeft className="w-[18px] h-[18px]" />
+                        </button>
+                        <button
+                          onClick={gotoToday}
+                          className="h-9 px-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 text-white text-[11px] font-black tracking-widest uppercase shadow-md shadow-blue-600/25 hover:-translate-y-0.5 hover:shadow-lg transition-all"
+                        >
+                          Ma
+                        </button>
+                        <button
+                          onClick={() => gotoMonth(1)}
+                          className="w-9 h-9 rounded-xl hover:bg-white text-slate-600 hover:text-slate-900 flex items-center justify-center transition shadow-sm hover:shadow"
+                        >
+                          <ChevronRight className="w-[18px] h-[18px]" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      {(
+                        [
+                          { c: "from-sky-500 to-indigo-600", t: "Repülőtéri" },
+                          { c: "from-violet-500 to-fuchsia-600", t: "Városi" },
+                          { c: "from-orange-500 to-rose-600", t: "Távolsági" },
+                          { c: "from-amber-400 to-amber-600", t: "VIP" },
+                          { c: "from-emerald-500 to-teal-600", t: "Partner" },
+                          { c: "from-blue-500 to-indigo-600", t: "Új / Módosítva" },
+                        ] as { c: string; t: string }[]
+                      ).map((l) => (
+                        <span key={l.t} className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-slate-50 border border-slate-200">
+                          <span className={`w-2.5 h-2.5 rounded-full bg-gradient-to-r ${l.c}`} />
+                          <span className="text-[10.5px] font-bold text-slate-600">{l.t}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Weekday header */}
+                  <div className="grid grid-cols-7 w-full min-w-0 bg-slate-50/60 border-b border-slate-200/80 shrink-0">
+                    {(["Hétfő", "Kedd", "Szerda", "Csütörtök", "Péntek", "Szombat", "Vasárnap"] as const).map((d, i) => {
+                      const weekend = i >= 5;
+                      return (
+                        <div key={d} className={`px-3 py-3 text-[11px] font-black tracking-[0.16em] uppercase text-center ${weekend ? "text-rose-500/80" : "text-slate-500"}`}>
+                          {d}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Calendar grid (Full height) */}
+                  <div className="flex-1 grid grid-cols-7 w-full min-w-0 overflow-y-auto">
+                    {calendarCells.map((cell) => {
+                      const isToday =
+                        cell.inMonth &&
+                        cell.day === today.getDate() &&
+                        cell.month === today.getMonth() &&
+                        cell.year === today.getFullYear();
+                      const isSelected = cell.key === selectedDateKey;
+                      const bookings = (cell.inMonth ? monthBookings.get(cell.key) : null) || [];
+                      const weekend = new Date(cell.year, cell.month, cell.day).getDay() % 6 === 0;
+                      return (
+                        <div
+                          key={cell.key}
+                          onClick={() => {
+                            if (!cell.inMonth) {
+                              setCursorDate(new Date(cell.year, cell.month, 1));
+                            }
+                            setSelectedDateKey(cell.key);
+                            if (bookings.length > 0) {
+                              setPopoverKey(popoverKey === cell.key ? null : cell.key);
+                            }
+                          }}
+                          onMouseLeave={() => {
+                            setPopoverKey(null);
+                          }}
+                          className={`group relative min-h-[140px] p-2.5 text-left border-b border-r border-slate-200/70 transition-all cursor-pointer flex flex-col ${
+                            cell.inMonth ? "bg-white" : "bg-slate-50/40"
+                          } ${isSelected ? "ring-2 ring-blue-500 ring-inset z-10 bg-blue-50/60" : "hover:bg-slate-50"}`}
+                        >
+                          {/* Corner: date number */}
+                          <div className="flex items-center justify-between mb-2 shrink-0">
+                            <span
+                              className={`inline-flex items-center justify-center min-w-[1.9rem] h-7 px-2 rounded-full text-[12px] font-bold transition ${
+                                isToday
+                                  ? "bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-md shadow-blue-600/30 ring-2 ring-blue-100"
+                                  : cell.inMonth
+                                  ? weekend
+                                    ? "text-rose-600/80"
+                                    : "text-slate-700 group-hover:bg-slate-100"
+                                  : "text-slate-400 group-hover:text-slate-500"
+                              }`}
+                            >
+                              {cell.day}
+                            </span>
+                            {bookings.length > 0 && (
+                              <span
+                                className={`select-none px-1.5 h-4 rounded-md text-[9px] font-black flex items-center justify-center transition ${
+                                  bookings.some((b) => b.status === "pending" || b.status === "modified")
+                                    ? "bg-blue-100 text-blue-700 border border-blue-200"
+                                    : "bg-blue-50 text-blue-700 border border-blue-200"
+                                } ${popoverKey === cell.key ? "ring-2 ring-blue-400 scale-105 shadow-md shadow-blue-500/20" : ""}`}
+                              >
+                                {bookings.length}
+                              </span>
+                            )}
+                          </div>
+                          {/* Bookings list */}
+                          <div className="flex-1 space-y-1.5 overflow-hidden">
+                            {bookings.slice(0, 4).map((b) => {
+                              const isNewOrMod = b.status === "pending" || b.status === "modified";
+                              const isNewBadge = isNewBooking(b);
+                              return (
+                                <div
+                                  key={b.id}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    router.push(`/bookings/${b.id}`);
+                                  }}
+                                  className={`relative pl-2 pr-1.5 py-1 rounded-lg text-[10px] leading-tight font-semibold bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.isCatl)} text-white shadow-sm cursor-pointer hover:brightness-105 transition`}
+                                >
+                                  {isNewBadge && (
+                                    <span className="absolute -top-0.5 -left-0.5 px-1 py-[1px] rounded bg-white text-blue-700 text-[7px] font-black shadow-sm border border-blue-200">
+                                      ÚJ
+                                    </span>
+                                  )}
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="font-mono font-black tabular-nums tracking-tight opacity-95">{b.time}</span>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${b.status === "in-progress" ? "animate-pulse" : ""} bg-white/90`} />
+                                  </div>
+                                  <div className="truncate font-bold">{b.client}</div>
+                                </div>
+                              );
+                            })}
+                            {bookings.length > 4 && (
+                              <div className="text-[10px] font-bold text-slate-500 px-1">+{bookings.length - 4} további…</div>
+                            )}
+                          </div>
+                          {/* Status bar */}
+                          {bookings.length > 0 && (
+                            <div className="absolute bottom-1.5 left-2.5 right-2.5 h-1 rounded-full overflow-hidden flex shrink-0">
+                              {bookings.slice(0, 6).map((b) => {
+                                const c = statusColor(b.status);
+                                return <div key={b.id} className={`flex-1 ${c.bar}`} />;
+                              })}
+                            </div>
+                          )}
+
+                          {/* CLICK POPOVER - FELETTÉRE */}
+                          {bookings.length > 0 && (
+                            <div
+                              onMouseLeave={() => {
+                                setPopoverKey(null);
+                              }}
+                              className={`absolute z-[80] left-1/2 -translate-x-1/2 bottom-full w-[380px] max-w-[90vw] transition-all ease-out duration-200 ${
+                                popoverKey === cell.key
+                                  ? "opacity-100 translate-y-0 pointer-events-auto"
+                                  : "opacity-0 translate-y-2 pointer-events-none"
+                              }`}
+                            >
+                              <div className="relative rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/[0.08] overflow-hidden">
+                                <div className="px-4 py-3 border-b border-slate-200/80 bg-gradient-to-r from-slate-50/80 via-white to-blue-50/40 flex items-center justify-between">
+                                  <div>
+                                    <div className="text-[9px] font-black tracking-[0.22em] uppercase text-slate-400 mb-0.5">
+                                      {HUN_WEEKDAYS_LONG[new Date(cell.year, cell.month, cell.day).getDay()]}
+                                    </div>
+                                    <div className="font-serif text-[17px] font-bold tracking-tight text-slate-900">
+                                      {new Date(cell.year, cell.month, cell.day).toLocaleDateString("hu-HU", { month: "long", day: "numeric", year: "numeric" })}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-blue-50 border border-blue-200">
+                                    <CalendarCheck className="w-3.5 h-3.5 text-blue-600" />
+                                    <span className="text-[11px] font-black text-blue-700">{bookings.length} foglalás</span>
+                                  </div>
+                                </div>
+
+                                <div className="max-h-[380px] overflow-y-auto p-2 space-y-1.5">
+                                  {[...bookings]
+                                    .sort((a, b) => a.time.localeCompare(b.time))
+                                    .map((b) => {
+                                      const s = statusColor(b.status);
+                                      const isNewOrMod = b.status === "pending" || b.status === "modified";
+                                      const isNewBadge = isNewBooking(b);
+                                      return (
+                                        <div
+                                          key={b.id}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            router.push(`/bookings/${b.id}`);
+                                          }}
+                                          className="group relative flex items-center gap-3 rounded-xl border border-slate-200/80 bg-white p-3 cursor-pointer hover:shadow-md hover:border-slate-300 hover:-translate-y-[1px] transition-all overflow-hidden"
+                                        >
+                                          <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${categoryGradient(b.category, isNewOrMod, b.isCatl)}`} />
+
+                                          <div className={`shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${categoryGradient(b.category, isNewOrMod, b.isCatl)} shadow-md flex flex-col items-center justify-center text-white relative`}>
+                                            {isNewBadge && (
+                                              <span className="absolute -top-1 -right-1 px-1 py-[1px] rounded bg-white text-blue-700 text-[7px] font-black shadow-sm border border-blue-200">
+                                                ÚJ
+                                              </span>
+                                            )}
+                                            <span className="font-mono font-black text-[12px] leading-none tracking-tight">{b.time.split(":")[0]}</span>
+                                            <span className="font-mono font-bold text-[10px] leading-none opacity-85 mt-0.5">:{b.time.split(":")[1]}</span>
+                                          </div>
+
+                                          <div className="flex-1 min-w-0 pl-1">
+                                            <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                                              <span className="font-bold text-[13px] text-slate-900 truncate">{b.client}</span>
+                                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[8.5px] font-black tracking-wider uppercase ${s.chip}`}>
+                                                <span className={`w-1 h-1 rounded-full ${s.dot} ${b.status === "in-progress" ? "animate-pulse" : ""}`} />
+                                                {s.label}
+                                              </span>
+                                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.isCatl)} text-white text-[8.5px] font-black tracking-wider uppercase shadow-sm`}>
+                                                {b.isCatl ? "CATL" : categoryLabel(b.category)}
+                                              </span>
+                                            </div>
+                                            <div className="flex items-center gap-1 text-[11px] text-slate-500 font-medium">
+                                              <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                                              <span className="truncate">{b.route}</span>
+                                            </div>
+                                          </div>
+
+                                          <div className="shrink-0 flex flex-col items-end gap-1">
+                                            {b.price !== undefined && b.price > 0 && (
+                                              <div className="font-black text-slate-900 text-[13px] tracking-tight tabular-nums whitespace-nowrap">
+                                                {b.price.toLocaleString("hu-HU")}
+                                                <span className="text-[10px] text-slate-400 font-bold ml-0.5">Ft</span>
+                                              </div>
+                                            )}
+                                            <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition" />
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                </div>
+
+                                <div className="px-4 py-2.5 border-t border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
+                                  <span className="text-[10px] font-bold tracking-[0.18em] uppercase text-slate-400">Kattints a részletekért</span>
+                                  <span
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedDateKey(cell.key);
+                                      if (!cell.inMonth) setCursorDate(new Date(cell.year, cell.month, 1));
+                                      setPopoverKey(null);
+                                      setActive("dashboard");
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setSelectedDateKey(cell.key);
+                                        if (!cell.inMonth) setCursorDate(new Date(cell.year, cell.month, 1));
+                                        setPopoverKey(null);
+                                        setActive("dashboard");
+                                      }
+                                    }}
+                                    className="cursor-pointer text-[10.5px] font-black tracking-widest uppercase text-blue-700 hover:text-blue-800 flex items-center gap-1 transition focus:outline-none focus:ring-2 focus:ring-blue-200 rounded-md px-1.5 py-0.5"
+                                  >
+                                    Nap megnyitása
+                                    <ChevronRight className="w-3 h-3" />
+                                  </span>
+                                </div>
+                              </div>
+                              {/* Nyíl: a popover alján, a cella közepére mutat (lefelé, mivel a popup FELETTÉRE van) */}
+                              <div className="absolute left-1/2 -translate-x-1/2 -bottom-1.5 w-3 h-3 rotate-45 bg-white border-r border-b border-slate-200" />
+                            </div>
+                          )}
+                          {/* END POPOVER */}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              </div>
             ) : (
               <div className="flex flex-col lg:flex-row gap-6">
                 {/* === LEFT: STAT CARDS === */}
@@ -567,28 +1164,30 @@ export default function DispatcherDashboardClient({
                   iconBoxClass="bg-gradient-to-br from-blue-500 to-indigo-600"
                   barClass="bg-gradient-to-r from-blue-500 to-indigo-600"
                   icon={<CalendarCheck className="w-5 h-5" />}
-                  trend="Nincs foglalás"
+                  trend={stats.today > 0 ? `${stats.today} foglalás ma` : "Nincs foglalás"}
                 />
                 <StatCardRaw
                   title="MEGERŐSÍTVE"
-                  subtitle="Jövőheti összesen"
+                  subtitle="Aktív foglalások"
                   value={stats.confirmed}
                   suffix="db"
                   iconBoxClass="bg-gradient-to-br from-emerald-500 to-teal-600"
                   barClass="bg-gradient-to-r from-emerald-500 to-teal-600"
                   icon={<ShieldCheck className="w-5 h-5" />}
-                  trend="Nincs adat"
+                  trend={stats.confirmed > 0 ? `${stats.confirmed} megerősítve` : "Nincs adat"}
                 />
-                <StatCardRaw
-                  title="FÜGGŐ BEN LESZ"
-                  subtitle="Jóváhagyásra vár"
-                  value={stats.pending}
-                  suffix="db"
-                  iconBoxClass="bg-gradient-to-br from-amber-400 to-orange-600"
-                  barClass="bg-gradient-to-r from-amber-400 to-orange-600"
-                  icon={<Clock className="w-5 h-5" />}
-                  trend="Nincs adat"
-                />
+                <div onClick={scrollToCalendar} className="cursor-pointer">
+                  <StatCardRaw
+                    title="FÜGGŐ BEN LESZ"
+                    subtitle="Jóváhagyásra vár"
+                    value={stats.pending}
+                    suffix="db"
+                    iconBoxClass="bg-gradient-to-br from-amber-400 to-orange-600"
+                    barClass="bg-gradient-to-r from-amber-400 to-orange-600"
+                    icon={<Clock className="w-5 h-5" />}
+                    trend={stats.pending > 0 ? "Görgessen a naptárhoz" : "Nincs adat"}
+                  />
+                </div>
                 <StatCardRaw
                   title="ELÉRHETŐ JÁRMŰ"
                   subtitle="Aktív flotta"
@@ -602,7 +1201,7 @@ export default function DispatcherDashboardClient({
               </div>
 
               {/* === RIGHT: CALENDAR + SIDE PANEL === */}
-              <div className="flex-1 min-w-0 space-y-6">
+              <div className="flex-1 min-w-0 space-y-6" data-calendar-section="true">
                 {/* Calendar card */}
                 <section className="rounded-[28px] bg-white shadow-xl shadow-slate-900/[0.04] border border-slate-200/80 overflow-hidden w-full">
                   {/* Calendar toolbar */}
@@ -643,6 +1242,7 @@ export default function DispatcherDashboardClient({
                           { c: "from-orange-500 to-rose-600", t: "Távolsági" },
                           { c: "from-amber-400 to-amber-600", t: "VIP" },
                           { c: "from-emerald-500 to-teal-600", t: "Partner" },
+                          { c: "from-blue-500 to-indigo-600", t: "Új / Módosítva" },
                         ] as { c: string; t: string }[]
                       ).map((l) => (
                         <span key={l.t} className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-slate-50 border border-slate-200">
@@ -677,15 +1277,21 @@ export default function DispatcherDashboardClient({
                       const bookings = (cell.inMonth ? monthBookings.get(cell.key) : null) || [];
                       const weekend = new Date(cell.year, cell.month, cell.day).getDay() % 6 === 0;
                       return (
-                        <button
+                        <div
                           key={cell.key}
                           onClick={() => {
                             if (!cell.inMonth) {
                               setCursorDate(new Date(cell.year, cell.month, 1));
                             }
                             setSelectedDateKey(cell.key);
+                            if (bookings.length > 0) {
+                              setPopoverKey(popoverKey === cell.key ? null : cell.key);
+                            }
                           }}
-                          className={`group relative min-h-[120px] p-2.5 text-left border-b border-r border-slate-200/70 transition-all ${
+                          onMouseLeave={() => {
+                            setPopoverKey(null);
+                          }}
+                          className={`group relative min-h-[120px] p-2.5 text-left border-b border-r border-slate-200/70 transition-all cursor-pointer ${
                             cell.inMonth ? "bg-white" : "bg-slate-50/40"
                           } ${isSelected ? "ring-2 ring-blue-500 ring-inset z-10 bg-blue-50/60" : "hover:bg-slate-50"}`}
                         >
@@ -705,11 +1311,13 @@ export default function DispatcherDashboardClient({
                               {cell.day}
                             </span>
                             {bookings.length > 0 && (
-                              <span className={`px-1.5 h-4 rounded-md text-[9px] font-black flex items-center justify-center ${
-                                bookings.some((b) => b.status === "pending")
-                                  ? "bg-amber-100 text-amber-700 border border-amber-200"
-                                  : "bg-blue-50 text-blue-700 border border-blue-200"
-                              }`}>
+                              <span
+                                className={`select-none px-1.5 h-4 rounded-md text-[9px] font-black flex items-center justify-center transition ${
+                                  bookings.some((b) => b.status === "pending" || b.status === "modified")
+                                    ? "bg-blue-100 text-blue-700 border border-blue-200"
+                                    : "bg-blue-50 text-blue-700 border border-blue-200"
+                                } ${popoverKey === cell.key ? "ring-2 ring-blue-400 scale-105 shadow-md shadow-blue-500/20" : ""}`}
+                              >
                                 {bookings.length}
                               </span>
                             )}
@@ -718,11 +1326,22 @@ export default function DispatcherDashboardClient({
                           <div className="space-y-1.5 overflow-hidden">
                             {bookings.slice(0, 3).map((b) => {
                               const c = statusColor(b.status);
+                              const isNewOrMod = b.status === "pending" || b.status === "modified";
+                              const isNewBadge = isNewBooking(b);
                               return (
                                 <div
                                   key={b.id}
-                                  className={`relative pl-2 pr-1.5 py-1 rounded-lg text-[10px] leading-tight font-semibold bg-gradient-to-r ${categoryGradient(b.category)} text-white shadow-sm`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    router.push(`/bookings/${b.id}`);
+                                  }}
+                                  className={`relative pl-2 pr-1.5 py-1 rounded-lg text-[10px] leading-tight font-semibold bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.isCatl)} text-white shadow-sm cursor-pointer hover:brightness-105 transition`}
                                 >
+                                  {isNewBadge && (
+                                    <span className="absolute -top-0.5 -left-0.5 px-1 py-[1px] rounded bg-white text-blue-700 text-[7px] font-black shadow-sm border border-blue-200">
+                                      ÚJ
+                                    </span>
+                                  )}
                                   <div className="flex items-center justify-between gap-1">
                                     <span className="font-mono font-black tabular-nums tracking-tight opacity-95">{b.time}</span>
                                     <span className={`w-1.5 h-1.5 rounded-full ${b.status === "in-progress" ? "animate-pulse" : ""} bg-white/90`} />
@@ -744,7 +1363,127 @@ export default function DispatcherDashboardClient({
                               })}
                             </div>
                           )}
-                        </button>
+
+                          {/* CLICK POPOVER - FELETTÉRE */}
+                          {bookings.length > 0 && (
+                            <div
+                              onMouseLeave={() => {
+                                setPopoverKey(null);
+                              }}
+                              className={`absolute z-[80] left-1/2 -translate-x-1/2 bottom-full w-[380px] max-w-[90vw] transition-all ease-out duration-200 ${
+                                popoverKey === cell.key
+                                  ? "opacity-100 translate-y-0 pointer-events-auto"
+                                  : "opacity-0 translate-y-2 pointer-events-none"
+                              }`}
+                            >
+                              <div className="relative rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/[0.08] overflow-hidden">
+                                <div className="px-4 py-3 border-b border-slate-200/80 bg-gradient-to-r from-slate-50/80 via-white to-blue-50/40 flex items-center justify-between">
+                                  <div>
+                                    <div className="text-[9px] font-black tracking-[0.22em] uppercase text-slate-400 mb-0.5">
+                                      {HUN_WEEKDAYS_LONG[new Date(cell.year, cell.month, cell.day).getDay()]}
+                                    </div>
+                                    <div className="font-serif text-[17px] font-bold tracking-tight text-slate-900">
+                                      {new Date(cell.year, cell.month, cell.day).toLocaleDateString("hu-HU", { month: "long", day: "numeric", year: "numeric" })}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-blue-50 border border-blue-200">
+                                    <CalendarCheck className="w-3.5 h-3.5 text-blue-600" />
+                                    <span className="text-[11px] font-black text-blue-700">{bookings.length} foglalás</span>
+                                  </div>
+                                </div>
+
+                                <div className="max-h-[380px] overflow-y-auto p-2 space-y-1.5">
+                                  {[...bookings]
+                                    .sort((a, b) => a.time.localeCompare(b.time))
+                                    .map((b) => {
+                                      const s = statusColor(b.status);
+                                      const isNewOrMod = b.status === "pending" || b.status === "modified";
+                                      const isNewBadge = isNewBooking(b);
+                                      return (
+                                        <div
+                                          key={b.id}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            router.push(`/bookings/${b.id}`);
+                                          }}
+                                          className="group relative flex items-center gap-3 rounded-xl border border-slate-200/80 bg-white p-3 cursor-pointer hover:shadow-md hover:border-slate-300 hover:-translate-y-[1px] transition-all overflow-hidden"
+                                        >
+                                          <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${categoryGradient(b.category, isNewOrMod, b.isCatl)}`} />
+
+                                          <div className={`shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${categoryGradient(b.category, isNewOrMod, b.isCatl)} shadow-md flex flex-col items-center justify-center text-white relative`}>
+                                            {isNewBadge && (
+                                              <span className="absolute -top-1 -right-1 px-1 py-[1px] rounded bg-white text-blue-700 text-[7px] font-black shadow-sm border border-blue-200">
+                                                ÚJ
+                                              </span>
+                                            )}
+                                            <span className="font-mono font-black text-[12px] leading-none tracking-tight">{b.time.split(":")[0]}</span>
+                                            <span className="font-mono font-bold text-[10px] leading-none opacity-85 mt-0.5">:{b.time.split(":")[1]}</span>
+                                          </div>
+
+                                          <div className="flex-1 min-w-0 pl-1">
+                                            <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                                              <span className="font-bold text-[13px] text-slate-900 truncate">{b.client}</span>
+                                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[8.5px] font-black tracking-wider uppercase ${s.chip}`}>
+                                                <span className={`w-1 h-1 rounded-full ${s.dot} ${b.status === "in-progress" ? "animate-pulse" : ""}`} />
+                                                {s.label}
+                                              </span>
+                                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.isCatl)} text-white text-[8.5px] font-black tracking-wider uppercase shadow-sm`}>
+                                                {b.isCatl ? "CATL" : categoryLabel(b.category)}
+                                              </span>
+                                            </div>
+                                            <div className="flex items-center gap-1 text-[11px] text-slate-500 font-medium">
+                                              <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                                              <span className="truncate">{b.route}</span>
+                                            </div>
+                                          </div>
+
+                                          <div className="shrink-0 flex flex-col items-end gap-1">
+                                            {b.price !== undefined && b.price > 0 && (
+                                              <div className="font-black text-slate-900 text-[13px] tracking-tight tabular-nums whitespace-nowrap">
+                                                {b.price.toLocaleString("hu-HU")}
+                                                <span className="text-[10px] text-slate-400 font-bold ml-0.5">Ft</span>
+                                              </div>
+                                            )}
+                                            <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition" />
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                </div>
+
+                                <div className="px-4 py-2.5 border-t border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
+                                  <span className="text-[10px] font-bold tracking-[0.18em] uppercase text-slate-400">Kattints a részletekért</span>
+                                  <span
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedDateKey(cell.key);
+                                      if (!cell.inMonth) setCursorDate(new Date(cell.year, cell.month, 1));
+                                      setPopoverKey(null);
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setSelectedDateKey(cell.key);
+                                        if (!cell.inMonth) setCursorDate(new Date(cell.year, cell.month, 1));
+                                        setPopoverKey(null);
+                                      }
+                                    }}
+                                    className="cursor-pointer text-[10.5px] font-black tracking-widest uppercase text-blue-700 hover:text-blue-800 flex items-center gap-1 transition focus:outline-none focus:ring-2 focus:ring-blue-200 rounded-md px-1.5 py-0.5"
+                                  >
+                                    Nap megnyitása
+                                    <ChevronRight className="w-3 h-3" />
+                                  </span>
+                                </div>
+                              </div>
+                              {/* Nyíl: a popover alján, a cella közepére mutat (lefelé, mivel a popup FELETTÉRE van) */}
+                              <div className="absolute left-1/2 -translate-x-1/2 -bottom-1.5 w-3 h-3 rotate-45 bg-white border-r border-b border-slate-200" />
+                            </div>
+                          )}
+                          {/* END POPOVER */}
+                        </div>
                       );
                     })}
                   </div>
@@ -771,7 +1510,10 @@ export default function DispatcherDashboardClient({
                           <CalendarCheck className="w-3.5 h-3.5 text-blue-600" />
                           {selectedBookings.length} foglalás
                         </div>
-                        <button className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-slate-900 to-slate-800 text-white text-[11px] font-black tracking-widest uppercase shadow-lg shadow-slate-900/25 hover:-translate-y-0.5 transition flex items-center gap-1.5">
+                        <button
+                          onClick={() => router.push("/bookings")}
+                          className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-slate-900 to-slate-800 text-white text-[11px] font-black tracking-widest uppercase shadow-lg shadow-slate-900/25 hover:-translate-y-0.5 transition flex items-center gap-1.5"
+                        >
                           <PlusCircle className="w-3.5 h-3.5" />
                           Erre a napra
                         </button>
@@ -790,14 +1532,21 @@ export default function DispatcherDashboardClient({
                         <ul className="p-4 space-y-3">
                           {selectedBookings.map((b) => {
                             const s = statusColor(b.status);
+                            const isNewOrMod = b.status === "pending" || b.status === "modified";
+                            const isNewBadge = isNewBooking(b);
                             return (
                               <li
                                 key={b.id}
                                 className="group relative rounded-2xl border border-slate-200 bg-white hover:shadow-lg hover:border-slate-300 transition-all p-4 overflow-hidden"
                               >
-                                <div className={`absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b ${categoryGradient(b.category)}`} />
+                                <div className={`absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b ${categoryGradient(b.category, isNewOrMod, b.isCatl)}`} />
                                 <div className="flex items-start gap-4 pl-2">
-                                  <div className={`shrink-0 w-16 h-16 rounded-2xl bg-gradient-to-br ${categoryGradient(b.category)} shadow-lg flex flex-col items-center justify-center text-white`}>
+                                  <div className={`shrink-0 w-16 h-16 rounded-2xl bg-gradient-to-br ${categoryGradient(b.category, isNewOrMod, b.isCatl)} shadow-lg flex flex-col items-center justify-center text-white relative`}>
+                                    {isNewBadge && (
+                                      <span className="absolute -top-1 -right-1 px-1 py-[1px] rounded bg-white text-blue-700 text-[8px] font-black shadow-sm border border-blue-200">
+                                        ÚJ
+                                      </span>
+                                    )}
                                     <span className="font-mono font-black text-[13px] leading-none tracking-tight">{b.time.split(":")[0]}</span>
                                     <span className="font-mono font-bold text-[11px] leading-none opacity-80 mt-0.5">:{b.time.split(":")[1]}</span>
                                   </div>
@@ -808,9 +1557,14 @@ export default function DispatcherDashboardClient({
                                         <span className={`w-1.5 h-1.5 rounded-full ${s.dot} ${b.status === "in-progress" ? "animate-pulse" : ""}`} />
                                         {s.label}
                                       </span>
-                                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md bg-gradient-to-r ${categoryGradient(b.category)} text-white text-[9.5px] font-black tracking-wider uppercase shadow-sm`}>
-                                        {categoryLabel(b.category)}
+                                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.isCatl)} text-white text-[9.5px] font-black tracking-wider uppercase shadow-sm`}>
+                                        {b.isCatl ? "CATL" : categoryLabel(b.category)}
                                       </span>
+                                      {isNewBadge && (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 border border-blue-200 text-[9.5px] font-black tracking-wider uppercase">
+                                          🔵 ÚJ
+                                        </span>
+                                      )}
                                     </div>
                                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-slate-600 font-medium">
                                       <span className="inline-flex items-center gap-1.5">
@@ -835,8 +1589,18 @@ export default function DispatcherDashboardClient({
                                       </div>
                                     )}
                                     <div className="flex gap-1.5">
-                                      <button className="px-3 py-1.5 rounded-xl border border-slate-200 text-[10.5px] font-bold text-slate-600 hover:bg-slate-50 transition">Részletek</button>
-                                      <button className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-slate-900 to-slate-800 text-white text-[10.5px] font-black tracking-wider uppercase shadow hover:-translate-y-0.5 transition">Szerkesztés</button>
+                                      <button
+                                        onClick={() => router.push(`/bookings/${b.id}`)}
+                                        className="px-3 py-1.5 rounded-xl border border-slate-200 text-[10.5px] font-bold text-slate-600 hover:bg-slate-50 transition"
+                                      >
+                                        Részletek
+                                      </button>
+                                      <button
+                                        onClick={() => router.push(`/bookings/${b.id}`)}
+                                        className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-slate-900 to-slate-800 text-white text-[10.5px] font-black tracking-wider uppercase shadow hover:-translate-y-0.5 transition"
+                                      >
+                                        Szerkesztés
+                                      </button>
                                     </div>
                                   </div>
                                 </div>
@@ -845,22 +1609,6 @@ export default function DispatcherDashboardClient({
                           })}
                         </ul>
                       )}
-                    </div>
-                  </div>
-
-                  {/* Quick actions + today mini */}
-                  <div className="xl:col-span-2 space-y-6">
-                    <div className="rounded-3xl bg-white shadow-xl shadow-slate-900/[0.04] border border-slate-200/80 p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <h4 className="font-black text-[12px] tracking-[0.2em] uppercase text-slate-500">Gyors műveletek</h4>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">shortcut</span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <QuickAction label="Foglalás" subtitle="Új menetrend" color="from-blue-500 to-indigo-600" icon={<PlusCircle className="w-5 h-5" />} />
-                        <QuickAction label="Ügyfél" subtitle="Partner hozzáadása" color="from-violet-500 to-fuchsia-600" icon={<UserPlus className="w-5 h-5" />} />
-                        <QuickAction label="Menetrend" subtitle="Napi és heti" color="from-emerald-500 to-teal-600" icon={<BarChart3 className="w-5 h-5" />} />
-                        <QuickAction label="Jelentés" subtitle="Napi összesítés" color="from-orange-500 to-rose-600" icon={<FileBarChart className="w-5 h-5" />} />
-                      </div>
                     </div>
                   </div>
                 </section>

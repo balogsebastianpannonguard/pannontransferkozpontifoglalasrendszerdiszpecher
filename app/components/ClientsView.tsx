@@ -44,19 +44,7 @@ export function ClientsView() {
             </div>
 
             <div className="mt-6 pt-6 border-t border-slate-100">
-              <div className="flex items-center justify-between mb-6">
-                <span className="text-xs font-bold tracking-widest uppercase text-slate-400">Portál elérés</span>
-                <a href="/catl" target="_blank" rel="noopener noreferrer" className="group/link flex items-center gap-1.5">
-                  <span className="text-sm font-bold text-[#0047BA] group-hover/link:text-[#00B4D8] transition-colors">/catl</span>
-                  <div className="w-6 h-6 rounded-full bg-[#0047BA]/5 flex items-center justify-center group-hover/link:bg-[#00B4D8]/10 transition-colors">
-                    <svg className="w-3 h-3 text-[#0047BA] group-hover/link:text-[#00B4D8]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                    </svg>
-                  </div>
-                </a>
-              </div>
-
-              <div className="flex gap-3 mt-4">
+              <div className="flex gap-3">
                 <button className="flex-1 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-[11px] font-black tracking-widest uppercase transition-colors shadow-lg shadow-slate-900/20">
                   Foglalások
                 </button>

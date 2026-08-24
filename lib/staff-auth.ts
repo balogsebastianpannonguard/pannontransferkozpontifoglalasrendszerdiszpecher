@@ -7,7 +7,7 @@ export const STAFF_BCRYPT_ROUNDS = 12;
 export type StaffRole = "admin" | "dispatcher";
 
 export interface StaffUser {
-  _id?: ObjectId;
+  _id?: string | ObjectId;
   email: string;
   normalizedEmail: string;
   role: StaffRole;
@@ -81,13 +81,14 @@ export async function findStaffUserByEmail(email: string): Promise<StaffUser | n
 }
 
 export async function setStaffUserPasswordAndActivate(
-  id: ObjectId,
+  id: string | ObjectId,
   password: string
 ): Promise<boolean> {
   const col = await getStaffCollection();
+  const oid = typeof id === "string" ? new ObjectId(id) : id;
   const hashedPassword = await hashPassword(password);
   const res = await col.updateOne(
-    { _id: id },
+    { _id: oid },
     {
       $set: {
         hashedPassword,
@@ -119,10 +120,11 @@ export async function setStaffTwoFactorSecret(
   return res.modifiedCount > 0;
 }
 
-export async function recordStaffSuccessfulLogin(id: ObjectId): Promise<void> {
+export async function recordStaffSuccessfulLogin(id: string | ObjectId): Promise<void> {
   const col = await getStaffCollection();
+  const oid = typeof id === "string" ? new ObjectId(id) : id;
   await col.updateOne(
-    { _id: id },
+    { _id: oid },
     {
       $set: {
         lastLoginAt: Date.now(),

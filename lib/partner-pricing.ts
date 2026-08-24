@@ -28,7 +28,7 @@ export interface PricingTerms {
 }
 
 export interface PartnerPricing {
-  _id?: ObjectId;
+  _id?: string | ObjectId;
   partnerKey: string;
   partnerName: string;
   isActive: boolean;

@@ -12,7 +12,7 @@ import {
   CalendarDays, Clock, Users2, Luggage, CreditCard, StickyNote, UserCircle2,
   CarFront, Link2Off, Save, History, CheckCircle2, XCircle, Info,
   Check, Loader2, X, ShieldCheck, Building2, BadgeCheck,
-  WalletCards, RefreshCw, Plus, CircleSlash, ArrowRight
+  WalletCards, RefreshCw, Plus, CircleSlash, ArrowRight, ChevronDown
 } from "lucide-react";
 
 const HUN_MONTHS = [
@@ -139,6 +139,7 @@ export default function BookingDetailClient({
   const [savingPrice, setSavingPrice] = useState(false);
   const [unassigning, setUnassigning] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
 
   const [now, setNow] = useState<number>(Date.now());
   
@@ -430,21 +431,23 @@ export default function BookingDetailClient({
                     : statusLabel(step as BookingStatus);
                   
                   return (
-                    <div key={step} className="flex flex-col items-center gap-3 relative z-10 w-24">
-                      <button
-                        onClick={() => handleStatusChange(step as BookingStatus)}
-                        className={`w-10 h-10 rounded-full flex items-center justify-center border-4 transition-all duration-300 ${
-                          isActive 
-                            ? "bg-blue-600 border-blue-100 text-white scale-110 shadow-lg shadow-blue-500/30" 
-                            : isPast 
-                              ? "bg-blue-600 border-white text-white" 
-                              : "bg-white border-slate-100 text-slate-300 hover:border-slate-200 hover:text-slate-500"
-                        }`}
-                      >
-                        {isPast ? <Check className="w-4 h-4" /> : <span className="text-xs font-black">{idx + 1}</span>}
-                      </button>
-                      <span className={`text-[10px] font-black tracking-wider uppercase text-center ${
-                        isActive ? "text-blue-700" : isPast ? "text-slate-800" : "text-slate-400"
+                    <div key={step} className="flex flex-col items-center gap-3 relative z-10 w-24 group">
+                      <div className="relative">
+                        <button
+                          onClick={() => handleStatusChange(step as BookingStatus)}
+                          className={`relative z-10 w-10 h-10 rounded-full flex items-center justify-center border-4 transition-all duration-300 ${
+                            isActive 
+                              ? "bg-blue-600 border-blue-100 text-white scale-110 shadow-lg shadow-blue-500/30" 
+                              : isPast 
+                                ? "bg-blue-600 border-white text-white hover:scale-105" 
+                                : "bg-white border-slate-100 text-slate-300 hover:border-slate-200 hover:text-slate-500 hover:scale-105"
+                          }`}
+                        >
+                          {isPast ? <Check className="w-4 h-4" /> : <span className="text-xs font-black">{idx + 1}</span>}
+                        </button>
+                      </div>
+                      <span className={`text-[10px] font-black tracking-wider uppercase text-center transition-colors duration-300 ${
+                        isActive ? "text-blue-700" : isPast ? "text-slate-800" : "text-slate-400 group-hover:text-slate-600"
                       }`}>
                         {label}
                       </span>
@@ -454,6 +457,49 @@ export default function BookingDetailClient({
               </div>
             </div>
           )}
+          
+          <div className="mt-8 flex items-center justify-end">
+             <div className="relative">
+                <button
+                  onClick={() => setStatusDropdownOpen((v) => !v)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors text-[10px] font-black tracking-wider uppercase"
+                >
+                  <span>Minden státusz</span>
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${statusDropdownOpen ? "rotate-180" : ""}`} />
+                </button>
+                <AnimatePresence>
+                  {statusDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 top-full mt-2.5 w-56 rounded-2xl bg-white shadow-xl shadow-slate-900/10 border border-slate-200 overflow-hidden z-50"
+                    >
+                      <div className="p-1.5">
+                        {STATUS_OPTIONS.map((opt) => {
+                          const active = opt.value === booking.status;
+                          return (
+                            <button
+                              key={opt.value}
+                              onClick={() => handleStatusChange(opt.value)}
+                              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-left transition-colors ${
+                                active
+                                  ? "bg-slate-50 text-blue-700"
+                                  : "hover:bg-slate-50 text-slate-700"
+                              }`}
+                            >
+                              <span className="text-[11px] font-black tracking-wider uppercase">{opt.label}</span>
+                              {active && <Check className="w-4 h-4 text-blue-600" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+          </div>
         </div>
 
         {/* MIDDLE GRID */}

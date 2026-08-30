@@ -929,7 +929,8 @@ export default function DispatcherDashboardClient({
 
                   {/* Calendar grid (Full height) */}
                   <div className="flex-1 grid grid-cols-7 w-full min-w-0 overflow-y-auto">
-                    {calendarCells.map((cell) => {
+                    {calendarCells.map((cell, idx) => {
+                      const colIndex = idx % 7;
                       const isToday =
                         cell.inMonth &&
                         cell.day === today.getDate() &&
@@ -1031,7 +1032,9 @@ export default function DispatcherDashboardClient({
                               onMouseLeave={() => {
                                 setPopoverKey(null);
                               }}
-                              className={`absolute z-[80] left-1/2 -translate-x-1/2 bottom-full w-[380px] max-w-[90vw] transition-all ease-out duration-200 ${
+                              className={`absolute z-[80] bottom-full w-[380px] max-w-[90vw] transition-all ease-out duration-200 ${
+                                colIndex < 2 ? "left-0" : colIndex > 4 ? "right-0" : "left-1/2 -translate-x-1/2"
+                              } ${
                                 popoverKey === cell.key
                                   ? "opacity-100 translate-y-0 pointer-events-auto"
                                   : "opacity-0 translate-y-2 pointer-events-none"
@@ -1142,7 +1145,9 @@ export default function DispatcherDashboardClient({
                                 </div>
                               </div>
                               {/* Nyíl: a popover alján, a cella közepére mutat (lefelé, mivel a popup FELETTÉRE van) */}
-                              <div className="absolute left-1/2 -translate-x-1/2 -bottom-1.5 w-3 h-3 rotate-45 bg-white border-r border-b border-slate-200" />
+                              <div className={`absolute -bottom-1.5 w-3 h-3 rotate-45 bg-white border-r border-b border-slate-200 ${
+                                colIndex < 2 ? "left-[15%]" : colIndex > 4 ? "right-[15%]" : "left-1/2 -translate-x-1/2"
+                              }`} />
                             </div>
                           )}
                           {/* END POPOVER */}
@@ -1267,7 +1272,8 @@ export default function DispatcherDashboardClient({
 
                   {/* Calendar grid */}
                   <div className="grid grid-cols-7 w-full min-w-0">
-                    {calendarCells.map((cell) => {
+                    {calendarCells.map((cell, idx) => {
+                      const colIndex = idx % 7;
                       const isToday =
                         cell.inMonth &&
                         cell.day === today.getDate() &&
@@ -1370,7 +1376,9 @@ export default function DispatcherDashboardClient({
                               onMouseLeave={() => {
                                 setPopoverKey(null);
                               }}
-                              className={`absolute z-[80] left-1/2 -translate-x-1/2 bottom-full w-[380px] max-w-[90vw] transition-all ease-out duration-200 ${
+                              className={`absolute z-[80] bottom-full w-[380px] max-w-[90vw] transition-all ease-out duration-200 ${
+                                colIndex < 2 ? "left-0" : colIndex > 4 ? "right-0" : "left-1/2 -translate-x-1/2"
+                              } ${
                                 popoverKey === cell.key
                                   ? "opacity-100 translate-y-0 pointer-events-auto"
                                   : "opacity-0 translate-y-2 pointer-events-none"
@@ -1479,7 +1487,9 @@ export default function DispatcherDashboardClient({
                                 </div>
                               </div>
                               {/* Nyíl: a popover alján, a cella közepére mutat (lefelé, mivel a popup FELETTÉRE van) */}
-                              <div className="absolute left-1/2 -translate-x-1/2 -bottom-1.5 w-3 h-3 rotate-45 bg-white border-r border-b border-slate-200" />
+                              <div className={`absolute -bottom-1.5 w-3 h-3 rotate-45 bg-white border-r border-b border-slate-200 ${
+                                colIndex < 2 ? "left-[15%]" : colIndex > 4 ? "right-[15%]" : "left-1/2 -translate-x-1/2"
+                              }`} />
                             </div>
                           )}
                           {/* END POPOVER */}

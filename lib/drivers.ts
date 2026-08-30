@@ -17,54 +17,67 @@ export interface Driver {
   updatedAt: number;
 }
 
-const COLLECTION_NAME = "drivers";
+// A sofőröket a közös 'staff_users' kollekcióból olvassuk (role: 'driver')
+const COLLECTION_NAME = "staff_users";
 
 export async function getDriversCollection() {
   const db = await getMongoDb();
-  return db.collection<Driver>(COLLECTION_NAME);
-}
-
-export async function initDriverIndexes() {
-  const col = await getDriversCollection();
-  try {
-    await col.createIndex({ name: 1 });
-    await col.createIndex({ type: 1 });
-    await col.createIndex({ status: 1 });
-  } catch {}
+  return db.collection(COLLECTION_NAME);
 }
 
 export async function getDrivers(): Promise<Driver[]> {
-  await initDriverIndexes();
   const col = await getDriversCollection();
-  const docs = await col.find().sort({ name: 1 }).toArray();
-  return docs.map((d) => ({
-    ...(d as any),
-    _id: (d as any)._id.toString(),
-  })) as Driver[];
+  // Csak a sofőröket kérjük le
+  const docs = await col.find({ role: "driver" }).sort({ name: 1 }).toArray();
+  
+  return docs.map((d: any) => {
+    // Státusz leképezés a staff_users mezőiből
+    let mappedStatus: DriverStatus = "inactive";
+    if (d.status === "active" || d.isActivated) mappedStatus = "active";
+    if (d.driverStatus) mappedStatus = d.driverStatus; // Ha a diszpécser már felülírta
+    
+    return {
+      _id: d._id.toString(),
+      name: d.name || d.email?.split("@")[0] || "Ismeretlen",
+      type: d.driverType || "permanent",
+      phone: d.phone || "",
+      email: d.email || "",
+      status: mappedStatus,
+      assignedVehicle: d.assignedVehicle || "",
+      note: d.note || "",
+      createdAt: d.createdAt || Date.now(),
+      updatedAt: d.updatedAt || Date.now(),
+    };
+  });
 }
 
 export async function createDriver(data: Partial<Driver>): Promise<Driver> {
-  await initDriverIndexes();
   const col = await getDriversCollection();
   const now = Date.now();
-  const doc: Driver = {
+  
+  const doc = {
+    email: data.email || `driver_${now}@pannontransfer.hu`,
+    normalizedEmail: (data.email || `driver_${now}@pannontransfer.hu`).toLowerCase(),
+    role: "driver",
     name: data.name || "Új Sofőr",
-    type: (data.type as DriverType) || "permanent",
+    driverType: data.type || "permanent",
     phone: data.phone || "",
-    email: data.email || "",
-    status: (data.status as DriverStatus) || "active",
+    driverStatus: data.status || "active",
     assignedVehicle: data.assignedVehicle || "",
     note: data.note || "",
+    isActivated: false,
+    requireTwoFactor: false,
     createdAt: now,
     updatedAt: now,
   };
+  
   const r = await col.insertOne(doc as any);
-  const created = await col.findOne({ _id: r.insertedId });
-  if (!created) throw new Error("Driver insert failed");
   return {
-    ...(created as any),
-    _id: (created as any)._id.toString(),
-  } as Driver;
+    ...doc,
+    _id: r.insertedId.toString(),
+    type: doc.driverType as DriverType,
+    status: doc.driverStatus as DriverStatus,
+  };
 }
 
 export async function updateDriver(
@@ -73,10 +86,20 @@ export async function updateDriver(
 ): Promise<boolean> {
   const col = await getDriversCollection();
   const oid: ObjectId = typeof id === "string" ? new ObjectId(id) : id;
-  const res = await col.updateOne(
-    { _id: oid } as any,
-    { $set: { ...patch, updatedAt: Date.now() } as any }
-  );
+  
+  const updateData: any = { updatedAt: Date.now() };
+  if (patch.name !== undefined) updateData.name = patch.name;
+  if (patch.type !== undefined) updateData.driverType = patch.type;
+  if (patch.phone !== undefined) updateData.phone = patch.phone;
+  if (patch.email !== undefined) {
+    updateData.email = patch.email;
+    updateData.normalizedEmail = patch.email.toLowerCase();
+  }
+  if (patch.status !== undefined) updateData.driverStatus = patch.status;
+  if (patch.assignedVehicle !== undefined) updateData.assignedVehicle = patch.assignedVehicle;
+  if (patch.note !== undefined) updateData.note = patch.note;
+
+  const res = await col.updateOne({ _id: oid }, { $set: updateData });
   return res.modifiedCount > 0;
 }
 
@@ -85,50 +108,12 @@ export async function deleteDriver(
 ): Promise<boolean> {
   const col = await getDriversCollection();
   const oid: ObjectId = typeof id === "string" ? new ObjectId(id) : id;
-  const res = await col.deleteOne({ _id: oid } as any);
+  const res = await col.deleteOne({ _id: oid });
   return res.deletedCount > 0;
 }
 
-const DEFAULT_DRIVER_SEED: Omit<Driver, "_id" | "createdAt" | "updatedAt">[] = [
-  {
-    name: "Kovács Péter",
-    type: "permanent",
-    phone: "+36 30 123 4567",
-    email: "kovacs.p@pannontransfer.hu",
-    status: "active",
-    assignedVehicle: "Skoda Superb Barna",
-    note: "",
-  },
-  {
-    name: "Nagy Sándor",
-    type: "permanent",
-    phone: "+36 20 987 6543",
-    email: "nagy.s@pannontransfer.hu",
-    status: "active",
-    assignedVehicle: "Mercedes V-Klass #1",
-    note: "",
-  },
-  {
-    name: "Tóth Gábor",
-    type: "substitute",
-    phone: "+36 70 555 4444",
-    email: "toth.g@gmail.com",
-    status: "inactive",
-    assignedVehicle: "",
-    note: "Csak hétvégén érhető el",
-  },
-];
-
 export async function seedDriversIfEmpty(): Promise<number> {
-  const col = await getDriversCollection();
-  const count = await col.estimatedDocumentCount();
-  if (count > 0) return 0;
-  const now = Date.now();
-  const docs: Driver[] = DEFAULT_DRIVER_SEED.map((s, i) => ({
-    ...s,
-    createdAt: now + i,
-    updatedAt: now + i,
-  }));
-  const r = await col.insertMany(docs as any[]);
-  return Object.keys(r.insertedIds).length;
+  // A dummy sofőröket kivettük, az igazi sofőrök a staff_users kollekcióba kerülnek
+  // regisztráció/meghívás útján a Foglalási Központból.
+  return 0;
 }

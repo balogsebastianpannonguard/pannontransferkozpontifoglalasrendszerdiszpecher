@@ -59,11 +59,17 @@ export async function GET() {
       .toArray();
 
     const recentBookings = recentDocs.map((doc: any) => ({
+      _id: doc._id.toString(),
       bookingCode: doc.bookingCode,
       travelerName: doc.travelerName,
+      companyName: doc.companyName,
+      travelerEmail: doc.travelerEmail,
+      userEmail: doc.userEmail,
       pickupDate: doc.pickupDate,
       pickupTime: doc.pickupTime,
       status: doc.status,
+      category: doc.category,
+      createdAt: doc.createdAt || Date.now(),
     }));
 
     const dispatchers = await getDispatcherEmails();

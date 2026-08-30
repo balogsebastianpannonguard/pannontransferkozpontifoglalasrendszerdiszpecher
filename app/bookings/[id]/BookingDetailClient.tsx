@@ -472,9 +472,14 @@ export default function BookingDetailClient({
       setBooking(data.booking);
       setStatusValue(data.booking.status);
       pushToast("success", "Sikeres véglegesítés", withDriver ? "Értesítések kiküldve." : "Foglalás megerősítve.");
+      
+      // Frissítsük az audit logokat, hogy egyből látszódjon a naplóban a véglegesítés
+      const aRes = await fetch(`/api/bookings/${bookingId}/audit`).then((r) => r.json().catch(() => ({})));
+      if (Array.isArray(aRes?.logs)) setAuditLogs(aRes.logs.slice(0, 20));
+      
     } catch (err) {
       const msg = err instanceof Error ? err.message : undefined;
-      pushToast("error", "Véglegesítés sikertelen", msg);
+      pushToast("error", "Véglegesítés sikertelen", msg || "Ismeretlen hiba történt");
     } finally {
       setFinalizing(false);
       setFinalizingWithDriver(false);

@@ -335,6 +335,10 @@ export default function BookingDetailClient({
       setBooking(data.booking);
       setStatusValue(newStatus);
       pushToast("success", "Státusz módosítva", `${statusLabel(booking.status)} → ${STATUS_OPTIONS.find((o) => o.value === newStatus)?.label}`);
+      
+      const aRes = await fetch(`/api/bookings/${bookingId}/audit`).then((r) => r.json().catch(() => ({})));
+      if (Array.isArray(aRes?.logs)) setAuditLogs(aRes.logs.slice(0, 20));
+      
     } catch (err) {
       const msg = err instanceof Error ? err.message : undefined;
       pushToast("error", "Sikertelen státuszváltás", msg);

@@ -465,17 +465,65 @@ export default function BookingDetailClient({
       if (withDriver) setFinalizingWithDriver(true);
       else setFinalizing(true);
 
+      // #region debug-point A:finalize-click
+      fetch("http://127.0.0.1:7777/event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: "booking-finalize-not-found",
+          runId: "pre-fix",
+          hypothesisId: "A",
+          location: "BookingDetailClient.tsx:handleFinalize:before-fetch",
+          msg: "[DEBUG] finalize clicked",
+          data: {
+            bookingId,
+            bookingStateId: booking._id,
+            bookingCode: booking.bookingCode,
+            withDriver,
+            assignedDriverId: booking.assignedDriverId || null,
+          },
+          ts: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
+
       const res = await fetch(`/api/bookings/${bookingId}/finalize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ withDriver }),
       });
       const data = await res.json().catch(() => ({}));
+
+      // #region debug-point A:finalize-response
+      fetch("http://127.0.0.1:7777/event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: "booking-finalize-not-found",
+          runId: "pre-fix",
+          hypothesisId: "A",
+          location: "BookingDetailClient.tsx:handleFinalize:after-fetch",
+          msg: "[DEBUG] finalize response received",
+          data: {
+            bookingId,
+            responseOk: res.ok,
+            responseStatus: res.status,
+            responseError: data?.error || null,
+            responseBookingId: data?.booking?._id || null,
+          },
+          ts: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
+
       if (!res.ok || !data?.booking) throw new Error(data?.error || "Hiba");
       
       setBooking(data.booking);
       setStatusValue(data.booking.status);
       pushToast("success", "Sikeres véglegesítés", withDriver ? "Értesítések kiküldve." : "Foglalás megerősítve.");
+      if (data?.warning) {
+        pushToast("info", "E-mail figyelmeztetés", data.warning);
+      }
       
       // Frissítsük az audit logokat, hogy egyből látszódjon a naplóban a véglegesítés
       const aRes = await fetch(`/api/bookings/${bookingId}/audit`).then((r) => r.json().catch(() => ({})));
@@ -544,11 +592,11 @@ export default function BookingDetailClient({
               </div>
             </div>
 
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="relative">
+            <div className="w-full lg:w-auto flex flex-col gap-3">
+              <div className="relative w-full sm:w-auto">
                 <button
                   onClick={() => setStatusDropdownOpen((v) => !v)}
-                  className={`inline-flex items-center gap-3 px-5 py-3 rounded-3xl ${sMeta.pill} shadow-lg hover:-translate-y-0.5 hover:shadow-xl transition-all`}
+                  className={`w-full sm:w-auto inline-flex items-center justify-center gap-3 px-5 py-3 rounded-3xl ${sMeta.pill} shadow-lg hover:-translate-y-0.5 hover:shadow-xl transition-all`}
                 >
                   <span className={`w-3 h-3 rounded-full ${sMeta.dot} ${statusValue === "in-progress" ? "animate-ping absolute" : ""}`} />
                   <span className={`w-3 h-3 rounded-full ${sMeta.dot}`} />
@@ -592,32 +640,38 @@ export default function BookingDetailClient({
                 </AnimatePresence>
               </div>
 
-              <button
-                onClick={handleRefresh}
-                disabled={refreshing}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white border border-slate-200 text-slate-700 text-xs font-black tracking-wider uppercase shadow-sm hover:bg-slate-50 hover:shadow-md hover:-translate-y-0.5 transition-all disabled:opacity-60"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
-                Frissítés
-              </button>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <button
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-white border border-slate-200 text-slate-700 text-xs font-black tracking-wider uppercase shadow-sm hover:bg-slate-50 hover:shadow-md hover:-translate-y-0.5 transition-all disabled:opacity-60"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${refreshing ? "animate-spin" : ""}`} />
+                  <span className="leading-tight text-center">Frissítés</span>
+                </button>
 
-              <button
-                onClick={() => handleFinalize(false)}
-                disabled={finalizing}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-800 text-white text-xs font-black tracking-wider uppercase shadow-lg hover:-translate-y-0.5 hover:shadow-xl transition-all disabled:opacity-60"
-              >
-                {finalizing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                Véglegesítés
-              </button>
+                <button
+                  onClick={() => handleFinalize(false)}
+                  disabled={finalizing}
+                  className="w-full min-h-[52px] inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-slate-800 text-white text-xs font-black tracking-wider uppercase shadow-lg hover:-translate-y-0.5 hover:shadow-xl transition-all disabled:opacity-60"
+                >
+                  {finalizing ? <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />}
+                  <span className="leading-tight text-center whitespace-normal break-words">
+                    Véglegesítés
+                  </span>
+                </button>
 
-              <button
-                onClick={() => handleFinalize(true)}
-                disabled={finalizingWithDriver}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-black tracking-wider uppercase shadow-lg shadow-emerald-500/30 hover:-translate-y-0.5 hover:shadow-xl transition-all disabled:opacity-60"
-              >
-                {finalizingWithDriver ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                Véglegesítés + Kiküldés Sofőrnek
-              </button>
+                <button
+                  onClick={() => handleFinalize(true)}
+                  disabled={finalizingWithDriver}
+                  className="w-full min-h-[52px] inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-black tracking-wider uppercase shadow-lg shadow-emerald-500/30 hover:-translate-y-0.5 hover:shadow-xl transition-all disabled:opacity-60"
+                >
+                  {finalizingWithDriver ? <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin" /> : <Send className="w-3.5 h-3.5 shrink-0" />}
+                  <span className="leading-tight text-center whitespace-normal break-words">
+                    Véglegesítés + Kiküldés Sofőrnek
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
         </motion.header>

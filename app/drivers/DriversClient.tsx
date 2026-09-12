@@ -19,7 +19,6 @@ import {
   ShieldCheck,
   Clock,
   Briefcase,
-  Lock,
   Sparkles,
   Crown,
   Zap,
@@ -56,6 +55,35 @@ const STATUS_META: Record<DriverStatus, { label: string; icon: any; dot: string;
     bg: "#f1f5f9",
     border: "#cbd5e1",
     text: "#475569",
+  },
+};
+
+const TYPE_META: Record<DriverType, {
+  label: string;
+  accent: string;
+  soft: string;
+  border: string;
+  text: string;
+  header: string;
+  panel: string;
+}> = {
+  permanent: {
+    label: "Állandó",
+    accent: "#C9A962",
+    soft: "rgba(201, 169, 98, 0.16)",
+    border: "rgba(201, 169, 98, 0.28)",
+    text: "#F7F5F1",
+    header: "linear-gradient(145deg, #081521 0%, #0B1A2A 52%, #13293D 100%)",
+    panel: "#F7F5F1",
+  },
+  substitute: {
+    label: "Beugrós",
+    accent: "#8B7CFF",
+    soft: "rgba(139, 124, 255, 0.18)",
+    border: "rgba(139, 124, 255, 0.3)",
+    text: "#EEF2FF",
+    header: "linear-gradient(145deg, #0B1A2A 0%, #1D2C4A 48%, #4C3FC7 100%)",
+    panel: "#F8F7FF",
   },
 };
 
@@ -403,6 +431,8 @@ function StatCard({ title, value, icon: Icon, color, glow }: any) {
 /* ======= DRIVER CARD (Light & Clean) ======= */
 function DriverCard({ driver, onPatch, onEdit, onDelete, size }: any) {
   const meta = STATUS_META[driver.status as DriverStatus];
+  const typeMeta = TYPE_META[driver.type as DriverType];
+  const StatusIcon = meta.icon;
   const avatarGrad = getAvatarGradient(driver.name);
   const isMonumental = size === "monumental";
   const initials = driver.name.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase();
@@ -413,111 +443,152 @@ function DriverCard({ driver, onPatch, onEdit, onDelete, size }: any) {
     <div
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      className={`group relative rounded-3xl flex flex-col transition-all duration-300 bg-white overflow-hidden ${driver.status !== "active" ? "opacity-90" : ""}`}
+      className={`group relative flex flex-col overflow-hidden rounded-[30px] transition-all duration-300 ${driver.status !== "active" ? "opacity-95" : ""}`}
       style={{
-        border: "1px solid #e2e8f0",
-        boxShadow: hover ? "0 12px 30px -10px rgba(0,0,0,0.08)" : "0 2px 8px -2px rgba(0,0,0,0.03)",
+        backgroundColor: typeMeta.panel,
+        border: `1px solid ${typeMeta.border}`,
+        boxShadow: hover ? "0 30px 60px -28px rgba(11, 26, 42, 0.42)" : "0 18px 45px -32px rgba(11, 26, 42, 0.25)",
         transform: hover ? "translateY(-4px)" : "none",
       }}
     >
-      {/* Kék vagy Lila top border jelzés */}
-      <div className="h-1.5 w-full" style={{ backgroundColor: driver.type === "permanent" ? "#2563eb" : "#8b5cf6" }} />
-
-      <div className={`absolute top-4 right-4 z-30 flex gap-1.5 transition-all duration-200 ${hover ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"}`}>
-        <ActionBtn onClick={onEdit} icon={Pencil} />
-        <ActionBtn onClick={onDelete} icon={Trash2} danger />
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-40"
+        style={{ background: typeMeta.header }}
+      >
+        <div
+          className="absolute -right-16 -top-8 h-36 w-36 rounded-full blur-3xl"
+          style={{ backgroundColor: `${typeMeta.accent}50` }}
+        />
+        <div
+          className="absolute -left-14 top-10 h-32 w-32 rounded-full blur-3xl"
+          style={{ backgroundColor: "rgba(255,255,255,0.12)" }}
+        />
       </div>
 
-      <div className={`relative z-10 flex items-center gap-4 ${isMonumental ? "p-6" : "p-5"}`} style={{ borderBottom: "1px solid #f1f5f9" }}>
-        <div className="relative shrink-0">
+      <div className={`absolute right-4 top-4 z-30 flex gap-1.5 transition-all duration-200 ${hover ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"}`}>
+        <ActionBtn onClick={onEdit} icon={Pencil} tint={typeMeta.accent} />
+        <ActionBtn onClick={onDelete} icon={Trash2} danger tint={typeMeta.accent} />
+      </div>
+
+      <div
+        className={`relative z-10 flex items-start gap-4 ${isMonumental ? "p-6" : "p-5"}`}
+        style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}
+      >
+        <div className="relative shrink-0 pt-1">
           <div
-            className="flex items-center justify-center text-white font-bold shadow-sm"
+            className="flex items-center justify-center border text-white font-bold shadow-sm"
             style={{
               background: `linear-gradient(135deg, ${avatarGrad.from}, ${avatarGrad.to})`,
+              borderColor: "rgba(255,255,255,0.18)",
               width: isMonumental ? "64px" : "56px",
               height: isMonumental ? "64px" : "56px",
               borderRadius: isMonumental ? "20px" : "16px",
               fontSize: isMonumental ? "20px" : "18px",
+              boxShadow: "0 10px 30px rgba(15, 23, 42, 0.35)",
             }}
           >
             {initials}
           </div>
           <div
-            className="absolute rounded-full border-2 border-white flex items-center justify-center"
+            className="absolute flex items-center justify-center rounded-full border-2"
             style={{
               bottom: "-2px", right: "-2px", width: "18px", height: "18px",
               backgroundColor: meta.dot,
+              borderColor: "#F7F5F1",
             }}
           />
         </div>
 
         <div className="flex-1 min-w-0 pr-8">
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <Badge label={meta.label} bg={meta.bg} color={meta.text} border={meta.border} />
+          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+            <Badge label={meta.label} bg={meta.bg} color={meta.text} border={meta.border} icon={StatusIcon} />
             <Badge 
-              label={driver.type === "permanent" ? "Állandó" : "Beugrós"} 
-              bg={driver.type === "permanent" ? "#eff6ff" : "#f5f3ff"} 
-              color={driver.type === "permanent" ? "#1d4ed8" : "#6d28d9"} 
-              border={driver.type === "permanent" ? "#bfdbfe" : "#ddd6fe"} 
+              label={typeMeta.label}
+              bg={typeMeta.soft}
+              color={typeMeta.text}
+              border={typeMeta.border}
+              icon={Sparkles}
             />
           </div>
-          <h3 className="font-bold truncate" style={{ color: "#0f172a", fontSize: isMonumental ? "18px" : "16px" }}>
+          <h3 className="truncate font-bold" style={{ color: "#F7F5F1", fontSize: isMonumental ? "20px" : "17px", letterSpacing: "-0.02em" }}>
             {driver.name}
           </h3>
-          <div className="flex items-center gap-1.5 mt-1 text-sm font-medium">
-            <CarFront className="w-3.5 h-3.5" style={{ color: driver.assignedVehicle ? "#64748b" : "#cbd5e1" }} />
-            <span className="truncate" style={{ color: driver.assignedVehicle ? "#475569" : "#94a3b8" }}>
+          <div
+            className="mt-3 inline-flex max-w-full items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium"
+            style={{
+              backgroundColor: "rgba(247, 245, 241, 0.08)",
+              border: "1px solid rgba(247, 245, 241, 0.12)",
+              color: driver.assignedVehicle ? "#F7F5F1" : "rgba(247, 245, 241, 0.65)",
+            }}
+          >
+            <CarFront className="h-3.5 w-3.5 shrink-0" style={{ color: driver.assignedVehicle ? typeMeta.accent : "rgba(247, 245, 241, 0.35)" }} />
+            <span className="truncate">
               {driver.assignedVehicle || "Nincs jármű"}
             </span>
           </div>
         </div>
       </div>
 
-      <div className={`flex-1 flex flex-col gap-2.5 ${isMonumental ? "p-6" : "p-5"}`} style={{ backgroundColor: "#fafafa" }}>
+      <div
+        className={`flex flex-1 flex-col gap-3 ${isMonumental ? "p-6" : "p-5"}`}
+        style={{ backgroundColor: typeMeta.panel }}
+      >
         <InfoRow icon={Phone} label={driver.phone || "—"} />
         {driver.email && <InfoRow icon={Mail} label={driver.email} />}
         {driver.note && (
-          <div className="mt-2 rounded-xl p-3 flex items-start gap-2.5" style={{ backgroundColor: "#fffbeb", border: "1px solid #fde68a" }}>
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: "#d97706" }} />
-            <div className="text-xs font-medium leading-relaxed" style={{ color: "#92400e" }}>{driver.note}</div>
+          <div
+            className="mt-1 flex items-start gap-2.5 rounded-2xl p-3.5"
+            style={{
+              backgroundColor: "rgba(201, 169, 98, 0.12)",
+              border: "1px solid rgba(201, 169, 98, 0.22)",
+            }}
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "#A57E2D" }} />
+            <div className="text-xs font-medium leading-relaxed" style={{ color: "#6A4F1F" }}>{driver.note}</div>
           </div>
         )}
       </div>
 
       <div
-        className={`p-3 grid gap-2 ${isMonumental ? "grid-cols-3" : "grid-cols-2"}`}
-        style={{ backgroundColor: "#ffffff", borderTop: "1px solid #f1f5f9" }}
+        className={`grid gap-2.5 p-3.5 ${isMonumental ? "grid-cols-3" : "grid-cols-2"}`}
+        style={{
+          backgroundColor: "#FFFDFC",
+          borderTop: "1px solid rgba(11, 26, 42, 0.08)",
+        }}
       >
-        <QuickStatusBtn label="Aktív" onClick={() => onPatch(driver._id, { status: "active" })} active={driver.status === "active"} activeColor="#047857" activeBg="#ecfdf5" />
-        <QuickStatusBtn label="Inaktív" onClick={() => onPatch(driver._id, { status: "inactive" })} active={driver.status === "inactive"} activeColor="#b45309" activeBg="#fffbeb" />
+        <QuickStatusBtn label="Aktív" onClick={() => onPatch(driver._id, { status: "active" })} active={driver.status === "active"} activeColor="#047857" activeBg="#ecfdf5" tint={typeMeta.accent} />
+        <QuickStatusBtn label="Inaktív" onClick={() => onPatch(driver._id, { status: "inactive" })} active={driver.status === "inactive"} activeColor="#b45309" activeBg="#fffbeb" tint={typeMeta.accent} />
         {isMonumental && (
-          <QuickStatusBtn label="Szabadság" onClick={() => onPatch(driver._id, { status: "on_leave" })} active={driver.status === "on_leave"} activeColor="#475569" activeBg="#f1f5f9" />
+          <QuickStatusBtn label="Szabadság" onClick={() => onPatch(driver._id, { status: "on_leave" })} active={driver.status === "on_leave"} activeColor="#475569" activeBg="#f1f5f9" tint={typeMeta.accent} />
         )}
       </div>
     </div>
   );
 }
 
-function Badge({ label, bg, color, border }: any) {
+function Badge({ label, bg, color, border, icon: Icon }: any) {
   return (
-    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border"
+    <span
+      className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.22em]"
       style={{ backgroundColor: bg, borderColor: border, color }}
     >
+      {Icon ? <Icon className="h-3 w-3" strokeWidth={2.25} /> : null}
       {label}
     </span>
   );
 }
 
-function ActionBtn({ onClick, icon: Icon, danger }: any) {
+function ActionBtn({ onClick, icon: Icon, danger, tint }: any) {
   return (
     <button
       onClick={onClick}
-      className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:scale-105"
+      className="flex h-9 w-9 items-center justify-center rounded-2xl transition-all hover:scale-105"
       style={{
-        backgroundColor: "#ffffff",
-        border: "1px solid #e2e8f0",
-        color: danger ? "#ef4444" : "#64748b",
-        boxShadow: "0 2px 5px rgba(0,0,0,0.05)"
+        backgroundColor: "rgba(255,255,255,0.1)",
+        backdropFilter: "blur(10px)",
+        border: "1px solid rgba(255,255,255,0.14)",
+        color: danger ? "#FCA5A5" : tint || "#F7F5F1",
+        boxShadow: "0 8px 18px rgba(0,0,0,0.12)",
       }}
     >
       <Icon className="w-3.5 h-3.5" />
@@ -527,24 +598,36 @@ function ActionBtn({ onClick, icon: Icon, danger }: any) {
 
 function InfoRow({ icon: Icon, label }: any) {
   return (
-    <div className="flex items-center gap-3 text-sm font-medium">
-      <div className="w-6 h-6 flex items-center justify-center shrink-0">
-        <Icon className="w-4 h-4" style={{ color: "#94a3b8" }} />
+    <div
+      className="flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium"
+      style={{
+        backgroundColor: "#FFFFFF",
+        border: "1px solid rgba(11, 26, 42, 0.08)",
+        boxShadow: "0 8px 22px -20px rgba(11, 26, 42, 0.28)",
+      }}
+    >
+      <div
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+        style={{ backgroundColor: "rgba(11, 26, 42, 0.05)" }}
+      >
+        <Icon className="h-4 w-4" style={{ color: "#8C7750" }} />
       </div>
-      <span className="truncate" style={{ color: "#334155" }}>{label}</span>
+      <span className="truncate" style={{ color: "#223243" }}>{label}</span>
     </div>
   );
 }
 
-function QuickStatusBtn({ label, onClick, active, activeColor, activeBg }: any) {
+function QuickStatusBtn({ label, onClick, active, activeColor, activeBg, tint }: any) {
   return (
     <button
       onClick={onClick}
-      className="py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all"
+      className="rounded-2xl py-2.5 text-[10px] font-bold uppercase tracking-[0.2em] transition-all"
       style={{
-        backgroundColor: active ? activeBg : "transparent",
-        color: active ? activeColor : "#94a3b8",
-        border: `1px solid ${active ? activeColor : "transparent"}`,
+        backgroundColor: active ? activeBg : "#FFFFFF",
+        color: active ? activeColor : "#64748b",
+        border: `1px solid ${active ? activeColor : "rgba(11, 26, 42, 0.08)"}`,
+        boxShadow: active ? `0 10px 18px -16px ${activeColor}` : "0 8px 20px -18px rgba(11, 26, 42, 0.2)",
+        outline: active ? `1px solid ${tint}25` : "none",
       }}
     >
       {label}

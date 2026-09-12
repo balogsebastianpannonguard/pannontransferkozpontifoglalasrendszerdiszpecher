@@ -340,6 +340,272 @@ ${comment ? `
 </html>`;
 }
 
+export function buildTravelerFinalizedEmail(params: {
+  bookingCode: string;
+  travelerName: string;
+  pickupDate: string;
+  pickupTime: string;
+  fromAddress: string;
+  toAddress: string;
+  travelers: number;
+  luggage: number;
+  transferType: "standard" | "executive";
+  paymentMethod: "card" | "bank";
+  companyName?: string;
+  assignedDriverName?: string;
+  assignedDriverPhone?: string;
+  assignedVehicleName?: string;
+  price?: number;
+  comment?: string;
+}): string {
+  const {
+    bookingCode,
+    travelerName,
+    pickupDate,
+    pickupTime,
+    fromAddress,
+    toAddress,
+    travelers,
+    luggage,
+    transferType,
+    paymentMethod,
+    companyName,
+    assignedDriverName,
+    assignedDriverPhone,
+    assignedVehicleName,
+    price,
+    comment,
+  } = params;
+
+  const transferTypeLabel = transferType === "executive" ? "EXECUTIVE" : "STANDARD";
+  const paymentMethodLabel = paymentMethod === "card" ? "Bankkártya" : "Banki átutalás";
+  const priceDisplay =
+    typeof price === "number" && price > 0
+      ? `${price.toLocaleString("hu-HU")} Ft`
+      : "Egyeztetés alatt";
+  const driverNameDisplay = assignedDriverName || "Kijelölés alatt";
+  const driverPhoneDisplay = assignedDriverPhone || "Később kerül kiküldésre";
+  const vehicleDisplay = assignedVehicleName || "Később kerül kiküldésre";
+
+  return `<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Utazás véglegesítve · #${bookingCode} · Pannon Transfer</title>
+</head>
+<body style="margin:0;padding:0;background-color:#FAF8F5;font-family:Arial,Helvetica,sans-serif;min-width:100%;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#FAF8F5;padding:48px 16px;">
+<tr>
+<td align="center">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px;">
+<tr>
+<td style="background-color:#0B1A2A;border:1px solid #0B1A2A;border-radius:12px 12px 0 0;padding:0;height:80px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="height:80px;">
+<tr>
+<td align="center" valign="middle" style="padding:0;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td align="center">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:36px;height:36px;border:4px solid #C9A962;border-radius:4px;">
+<tr>
+<td align="center" valign="middle" style="font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:700;color:#C9A962;">P</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#C9A962;letter-spacing:4px;text-transform:uppercase;padding-top:6px;">PANNON TRANSFER</td>
+</tr>
+<tr>
+<td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:9px;font-weight:500;color:#7A7A7A;letter-spacing:6px;text-transform:uppercase;padding-top:3px;">EXECUTIVE TRAVEL</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td style="height:1px;background-color:#C9A962;font-size:0;line-height:0;"></td>
+</tr>
+<tr>
+<td style="background-color:#FFFFFF;border-left:1px solid #E8E3DA;border-right:1px solid #E8E3DA;padding:32px 48px 0 48px;">
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;color:#C9A962;letter-spacing:4px;text-transform:uppercase;margin-bottom:12px;">Utazás véglegesítve</div>
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:28px;font-weight:700;color:#1A1A1A;line-height:1.2;">#${bookingCode}</div>
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#7A7A7A;line-height:1.7;margin-top:10px;">
+Kedves ${travelerName}! A foglalását véglegesítettük, az alábbi részletekkel várjuk az utazást.
+</div>
+<div style="margin-top:18px;display:inline-block;background-color:#ECFDF3;border:1px solid #B7E4C7;border-radius:999px;padding:8px 18px;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;color:#166534;letter-spacing:1.5px;text-transform:uppercase;">
+Megerősítve • minden részlet rögzítve
+</div>
+</td>
+</tr>
+<tr>
+<td style="background-color:#FFFFFF;border-left:1px solid #E8E3DA;border-right:1px solid #E8E3DA;padding:24px 48px 0 48px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border:1px solid #E8E3DA;border-radius:12px;background-color:#FFFFFF;">
+<tr>
+<td style="padding:28px;">
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;color:#C9A962;letter-spacing:2px;text-transform:uppercase;margin-bottom:18px;">Utazás részletei</div>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td width="50%" style="padding-right:16px;vertical-align:top;">
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:700;color:#7A7A7A;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Dátum</div>
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;color:#1A1A1A;margin-bottom:18px;">${pickupDate}</div>
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:700;color:#7A7A7A;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Időpont</div>
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:700;color:#C9A962;">${pickupTime}</div>
+</td>
+<td width="50%" style="padding-left:16px;vertical-align:top;border-left:1px solid #F0ECE6;">
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:700;color:#16A34A;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Honnan</div>
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;color:#1A1A1A;line-height:1.6;margin-bottom:16px;">${fromAddress}</div>
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:700;color:#DC2626;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Hova</div>
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;color:#1A1A1A;line-height:1.6;">${toAddress}</div>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td style="background-color:#FFFFFF;border-left:1px solid #E8E3DA;border-right:1px solid #E8E3DA;padding:24px 48px 0 48px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border:1px solid #E8E3DA;border-radius:12px;background-color:#FFFFFF;">
+<tr>
+<td style="padding:28px;">
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;color:#C9A962;letter-spacing:2px;text-transform:uppercase;margin-bottom:18px;">Sofőr és jármű</div>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td style="padding-bottom:14px;border-bottom:1px solid #F0ECE6;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#7A7A7A;">Sofőr</td>
+<td align="right" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#1A1A1A;">${driverNameDisplay}</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td style="padding-top:14px;padding-bottom:14px;border-bottom:1px solid #F0ECE6;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#7A7A7A;">Sofőr telefonszám</td>
+<td align="right" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#1A1A1A;">${driverPhoneDisplay}</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td style="padding-top:14px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#7A7A7A;">Jármű</td>
+<td align="right" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#1A1A1A;">${vehicleDisplay}</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td style="background-color:#FFFFFF;border-left:1px solid #E8E3DA;border-right:1px solid #E8E3DA;padding:24px 48px 0 48px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border:1px solid #E8E3DA;border-radius:12px;background-color:#FFFFFF;">
+<tr>
+<td style="padding:28px;">
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;color:#C9A962;letter-spacing:2px;text-transform:uppercase;margin-bottom:18px;">További adatok</div>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td style="padding-bottom:12px;border-bottom:1px solid #F0ECE6;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#7A7A7A;">Cég</td>
+<td align="right" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#1A1A1A;">${companyName || "Magánutas"}</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td style="padding-top:12px;padding-bottom:12px;border-bottom:1px solid #F0ECE6;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#7A7A7A;">Szolgáltatás</td>
+<td align="right" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#1A1A1A;">${transferTypeLabel}</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td style="padding-top:12px;padding-bottom:12px;border-bottom:1px solid #F0ECE6;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#7A7A7A;">Fizetés</td>
+<td align="right" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#1A1A1A;">${paymentMethodLabel}</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td style="padding-top:12px;padding-bottom:12px;border-bottom:1px solid #F0ECE6;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#7A7A7A;">Utasok / csomagok</td>
+<td align="right" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#1A1A1A;">${travelers} fő • ${luggage} db</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td style="padding-top:12px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#7A7A7A;">Várható díj</td>
+<td align="right" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#1A1A1A;">${priceDisplay}</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+${comment ? `<div style="margin-top:18px;padding:16px;border-radius:10px;background-color:#F8FAFC;border:1px solid #E2E8F0;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#475569;line-height:1.6;"><strong style="color:#0B1A2A;">Megjegyzés:</strong><br>${comment}</div>` : ""}
+</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td style="background-color:#FFFFFF;border-left:1px solid #E8E3DA;border-right:1px solid #E8E3DA;padding:24px 48px 32px 48px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#4A4A4A;line-height:1.8;">
+Kérdés esetén válaszoljon erre az e-mailre, vagy keressen minket a megadott elérhetőségeken. Köszönjük, hogy a Pannon Transfert választotta.
+</td>
+</tr>
+<tr>
+<td style="height:1px;background-color:#C9A962;font-size:0;line-height:0;"></td>
+</tr>
+<tr>
+<td style="background-color:#0B1A2A;border:1px solid #0B1A2A;border-radius:0 0 12px 12px;padding:40px 48px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;color:#C9A962;letter-spacing:3px;text-transform:uppercase;">PANNON TRANSFER</td>
+</tr>
+<tr>
+<td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#7A7A7A;line-height:1.6;padding-top:10px;">✉ minimalwebsoft@gmail.com &nbsp;·&nbsp; ☏ +36 30 665 4135</td>
+</tr>
+<tr>
+<td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#7A7A7A;line-height:1.6;padding-top:12px;">© 2026 Pannon Transfer Executive Travel. Minden jog fenntartva.</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</body>
+</html>`;
+}
+
 export function buildDispatcherNotificationEmail(params: {
   bookingCode: string;
   travelerName: string;

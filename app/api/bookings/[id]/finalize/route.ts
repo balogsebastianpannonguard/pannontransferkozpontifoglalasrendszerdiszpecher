@@ -22,50 +22,7 @@ export async function POST(
     const { withDriver } = await request.json();
     const { id } = await params;
 
-    // #region debug-point B:finalize-route-entry
-    fetch("http://127.0.0.1:7777/event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: "booking-finalize-not-found",
-        runId: "pre-fix",
-        hypothesisId: "B",
-        location: "app/api/bookings/[id]/finalize/route.ts:POST:entry",
-        msg: "[DEBUG] finalize route received request",
-        data: {
-          id,
-          withDriver,
-          hasUser: !!user,
-          userEmail: user?.email || null,
-        },
-        ts: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-
     const booking = await getBookingById(id);
-
-    // #region debug-point C:finalize-route-lookup
-    fetch("http://127.0.0.1:7777/event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: "booking-finalize-not-found",
-        runId: "pre-fix",
-        hypothesisId: "C",
-        location: "app/api/bookings/[id]/finalize/route.ts:POST:after-getBookingById",
-        msg: "[DEBUG] finalize route lookup result",
-        data: {
-          id,
-          found: !!booking,
-          bookingId: booking?._id || null,
-          bookingCode: booking?.bookingCode || null,
-          assignedDriverId: booking?.assignedDriverId || null,
-        },
-        ts: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
 
     if (!booking) {
       return NextResponse.json({ error: "A foglalás nem található" }, { status: 404 });
@@ -85,6 +42,7 @@ export async function POST(
 
     const actor = user.name || user.email;
     await updateBooking(id, updateData, actor, withDriver ? "Véglegesítve és kiküldve a sofőrnek" : "Véglegesítve");
+
     const db = await getMongoDb();
     const assignedDriver =
       booking.assignedDriverId && ObjectId.isValid(booking.assignedDriverId)

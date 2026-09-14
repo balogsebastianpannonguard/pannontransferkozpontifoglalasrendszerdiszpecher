@@ -465,56 +465,12 @@ export default function BookingDetailClient({
       if (withDriver) setFinalizingWithDriver(true);
       else setFinalizing(true);
 
-      // #region debug-point A:finalize-click
-      fetch("http://127.0.0.1:7777/event", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: "booking-finalize-not-found",
-          runId: "pre-fix",
-          hypothesisId: "A",
-          location: "BookingDetailClient.tsx:handleFinalize:before-fetch",
-          msg: "[DEBUG] finalize clicked",
-          data: {
-            bookingId,
-            bookingStateId: booking._id,
-            bookingCode: booking.bookingCode,
-            withDriver,
-            assignedDriverId: booking.assignedDriverId || null,
-          },
-          ts: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
-
       const res = await fetch(`/api/bookings/${bookingId}/finalize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ withDriver }),
       });
       const data = await res.json().catch(() => ({}));
-
-      // #region debug-point A:finalize-response
-      fetch("http://127.0.0.1:7777/event", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: "booking-finalize-not-found",
-          runId: "pre-fix",
-          hypothesisId: "A",
-          location: "BookingDetailClient.tsx:handleFinalize:after-fetch",
-          msg: "[DEBUG] finalize response received",
-          data: {
-            bookingId,
-            responseOk: res.ok,
-            responseStatus: res.status,
-            responseError: data?.error || null,
-            responseBookingId: data?.booking?._id || null,
-          },
-          ts: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
 
       if (!res.ok || !data?.booking) throw new Error(data?.error || "Hiba");
       

@@ -47,6 +47,13 @@ export interface Booking {
   createdAt: number;
   updatedAt: number;
   auditTrail?: BookingAuditEntry[];
+  lastStatusChange?: {
+    oldStatus: string;
+    newStatus: string;
+    changedAt: number;
+    changedBy: string;
+    details?: string;
+  };
 }
 
 const COLLECTION_NAME = "bookings";
@@ -165,6 +172,13 @@ export async function updateBookingStatus(
       $set: {
         status,
         updatedAt: now,
+        lastStatusChange: {
+          oldStatus,
+          newStatus: status,
+          changedAt: now,
+          changedBy: actor,
+          details: details || '',
+        },
       },
       $push: {
         auditTrail: {

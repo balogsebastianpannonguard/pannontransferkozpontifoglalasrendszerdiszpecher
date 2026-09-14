@@ -145,6 +145,41 @@ interface NotificationsResponse {
   recentBookings: RecentBookingNotif[];
 }
 
+interface NotificationToast {
+  id: string;
+  type: 'new_booking' | 'status_change' | 'info';
+  title: string;
+  message: string;
+  bookingId?: string;
+  timestamp: number;
+}
+
+function playNotificationSound() {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.5);
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.frequency.value = 1320;
+    osc2.type = 'sine';
+    gain2.gain.setValueAtTime(0.2, ctx.currentTime + 0.15);
+    gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.65);
+    osc2.start(ctx.currentTime + 0.15);
+    osc2.stop(ctx.currentTime + 0.65);
+  } catch {}
+}
+
 function monogramOf(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
@@ -265,6 +300,11 @@ export default function DispatcherDashboardClient({
   const [pendingCount, setPendingCount] = useState(0);
   const lastPollTimestamp = useRef<number>(0);
 
+  const [notificationToasts, setNotificationToasts] = useState<NotificationToast[]>([]);
+  const [newBookingBanner, setNewBookingBanner] = useState<{bookings: RecentBookingNotif[], show: boolean} | null>(null);
+  const lastSeenBookingIds = useRef<Set<string>>(new Set());
+  const isFirstLoad = useRef(true);
+
   const [realBookings, setRealBookings] = useState<RealBooking[]>([]);
   const [bookingsLoading, setBookingsLoading] = useState(true);
   const [bookingsMeta, setBookingsMeta] = useState({ pendingCount: 0, totalCount: 0 });
@@ -286,6 +326,33 @@ export default function DispatcherDashboardClient({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Auto-dismiss toasts after 6 seconds
+  useEffect(() => {
+    if (notificationToasts.length === 0) return;
+    const timer = setInterval(() => {
+      const now = Date.now();
+      setNotificationToasts(prev => prev.filter(t => now - t.timestamp < 6000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [notificationToasts.length]);
+
+  // Auto-dismiss new booking banner after 15 seconds
+  useEffect(() => {
+    if (!newBookingBanner?.show) return;
+    const timer = setTimeout(() => {
+      setNewBookingBanner(prev => prev ? { ...prev, show: false } : null);
+    }, 15000);
+    return () => clearTimeout(timer);
+  }, [newBookingBanner?.show]);
+
+  function dismissToast(toastId: string) {
+    setNotificationToasts(prev => prev.filter(t => t.id !== toastId));
+  }
+
+  function dismissBanner() {
+    setNewBookingBanner(prev => prev ? { ...prev, show: false } : null);
+  }
 
   const greeting = useMemo(() => formatGreeting(hour, user.name || user.email), [hour, user.name, user.email]);
 
@@ -483,6 +550,33 @@ export default function DispatcherDashboardClient({
         setPendingCount(data.pendingCount);
         setRecentBookings(data.recentBookings || []);
         lastPollTimestamp.current = Date.now();
+
+        const currentIds = new Set((data.recentBookings || []).map(b => b._id));
+
+        if (isFirstLoad.current) {
+          lastSeenBookingIds.current = currentIds;
+          isFirstLoad.current = false;
+        } else {
+          const newBookings = (data.recentBookings || []).filter(
+            b => !lastSeenBookingIds.current.has(b._id)
+          );
+          if (newBookings.length > 0) {
+            playNotificationSound();
+
+            const newToasts: NotificationToast[] = newBookings.map(b => ({
+              id: `toast-${b._id}-${Date.now()}`,
+              type: 'new_booking' as const,
+              title: 'Új foglalás érkezett!',
+              message: `${b.travelerName}${b.companyName ? ` (${b.companyName})` : ''} — ${b.pickupDate} ${b.pickupTime}`,
+              bookingId: b._id,
+              timestamp: Date.now(),
+            }));
+            setNotificationToasts(prev => [...newToasts, ...prev].slice(0, 10));
+
+            setNewBookingBanner({ bookings: newBookings, show: true });
+          }
+          lastSeenBookingIds.current = currentIds;
+        }
       }
     } catch {}
     if (showLoading) setNotifLoading(false);
@@ -858,6 +952,74 @@ export default function DispatcherDashboardClient({
               </div>
             </div>
           </header>
+
+          {/* New booking banner */}
+          {newBookingBanner?.show && (
+            <div
+              className="shrink-0 relative overflow-hidden"
+              style={{
+                animation: 'slideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+              }}
+            >
+              <style>{`
+                @keyframes slideDown {
+                  from { transform: translateY(-100%); opacity: 0; }
+                  to { transform: translateY(0); opacity: 1; }
+                }
+                @keyframes borderPulse {
+                  0%, 100% { border-color: rgba(99, 102, 241, 0.5); }
+                  50% { border-color: rgba(99, 102, 241, 1); }
+                }
+              `}</style>
+              <div
+                className="mx-4 mt-2 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white shadow-xl shadow-indigo-600/30 border-2 border-indigo-400"
+                style={{ animation: 'borderPulse 2s ease-in-out infinite' }}
+              >
+                <div className="px-6 py-4 flex items-center gap-4">
+                  <div className="shrink-0 w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center ring-2 ring-white/30">
+                    <Bell className="w-6 h-6 text-white animate-bounce" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-lg font-black tracking-tight">Új foglalás érkezett!</span>
+                      {newBookingBanner.bookings.length > 1 && (
+                        <span className="px-2.5 py-0.5 rounded-full bg-white/20 text-xs font-black backdrop-blur-sm">
+                          +{newBookingBanner.bookings.length} új
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      {newBookingBanner.bookings.slice(0, 3).map((b) => (
+                        <button
+                          key={b._id}
+                          onClick={() => {
+                            router.push(`/bookings/${b._id}`);
+                            dismissBanner();
+                          }}
+                          className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 backdrop-blur-sm transition-all text-left group"
+                        >
+                          <span className="font-mono text-[11px] font-black text-white/80">{b.bookingCode}</span>
+                          <span className="font-bold text-sm truncate max-w-[160px]">{b.travelerName}</span>
+                          {b.companyName && <span className="text-xs text-white/70 truncate max-w-[100px]">({b.companyName})</span>}
+                          <span className="text-xs font-mono font-bold text-white/90 bg-white/10 px-1.5 py-0.5 rounded">{b.pickupTime}</span>
+                          <ChevronRight className="w-3.5 h-3.5 text-white/50 group-hover:text-white/90 transition" />
+                        </button>
+                      ))}
+                      {newBookingBanner.bookings.length > 3 && (
+                        <span className="text-xs font-bold text-white/70">+{newBookingBanner.bookings.length - 3} további...</span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={dismissBanner}
+                    className="shrink-0 w-8 h-8 rounded-xl bg-white/10 hover:bg-white/25 flex items-center justify-center transition"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Content */}
           <div className="flex-1 px-8 py-6 pb-10 overflow-x-hidden">
@@ -1628,6 +1790,74 @@ export default function DispatcherDashboardClient({
           </div>
         </main>
       </div>
+
+      {/* Toast notification container */}
+      {notificationToasts.length > 0 && (
+        <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none" style={{ maxWidth: '420px' }}>
+          <style>{`
+            @keyframes toastSlideIn {
+              from { transform: translateX(120%); opacity: 0; }
+              to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes toastFadeOut {
+              from { opacity: 1; transform: translateX(0); }
+              to { opacity: 0; transform: translateX(120%); }
+            }
+          `}</style>
+          {notificationToasts.map((toast) => {
+            const age = Date.now() - toast.timestamp;
+            const isFading = age > 5000;
+            return (
+              <div
+                key={toast.id}
+                className="pointer-events-auto rounded-2xl shadow-2xl shadow-indigo-600/20 border border-indigo-200/80 overflow-hidden"
+                style={{
+                  animation: isFading
+                    ? 'toastFadeOut 0.4s ease-in forwards'
+                    : 'toastSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+                }}
+              >
+                <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 px-1 py-0.5" />
+                <div className="bg-white px-5 py-4">
+                  <div className="flex items-start gap-3">
+                    <div className="shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30 flex items-center justify-center text-white">
+                      <Bell className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-black text-[13px] text-slate-900 mb-0.5">{toast.title}</div>
+                      <div className="text-[12px] font-medium text-slate-600 leading-relaxed">{toast.message}</div>
+                    </div>
+                    <button
+                      onClick={() => dismissToast(toast.id)}
+                      className="shrink-0 w-6 h-6 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 flex items-center justify-center transition"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  {toast.bookingId && (
+                    <button
+                      onClick={() => {
+                        router.push(`/bookings/${toast.bookingId}`);
+                        dismissToast(toast.id);
+                      }}
+                      className="mt-3 w-full text-center py-2 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/60 text-xs font-bold text-blue-700 hover:from-blue-100 hover:to-indigo-100 transition-all"
+                    >
+                      Foglalás megtekintése →
+                    </button>
+                  )}
+                </div>
+                {/* Progress bar showing time remaining */}
+                <div className="h-1 bg-slate-100">
+                  <div
+                    className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-1000 ease-linear"
+                    style={{ width: `${Math.max(0, 100 - ((Date.now() - toast.timestamp) / 6000) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

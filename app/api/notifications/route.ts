@@ -25,21 +25,27 @@ async function getDispatcherEmails(): Promise<string[]> {
       .map((u: any) => u.email)
       .filter((e: any) => typeof e === "string" && e.includes("@"));
 
+    // Ha a DB-ben van aktív dispatcher, csak azokat küldjük — nem kell env fallback
+    if (dbEmails.length > 0) {
+      return Array.from(new Set(dbEmails));
+    }
+
+    // Ha nincs senki a DB-ben, fallback az env változóra
     const raw = process.env.DISPATCHER_EMAILS || process.env.DISPATCHER_EMAIL || "";
     const envEmails = raw
-      ? raw
-          .split(/[,;]/)
-          .map((e) => e.trim())
-          .filter(Boolean)
+      ? raw.split(/[,;]/).map((e) => e.trim()).filter(Boolean)
       : [];
 
-    const fallback = "minimalwebsoft@gmail.com";
-    return Array.from(new Set([...dbEmails, ...envEmails, fallback]));
+    return envEmails.length > 0
+      ? envEmails
+      : ["balogh.sebastian@pannonguard.hu"];
   } catch (err) {
     console.error("[notifications] getDispatcherEmails error", err);
-    return ["minimalwebsoft@gmail.com"];
+    const fallback = process.env.DISPATCHER_EMAIL || "balogh.sebastian@pannonguard.hu";
+    return [fallback];
   }
 }
+
 
 export async function GET() {
   const user = await getCurrentSession();

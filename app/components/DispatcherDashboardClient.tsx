@@ -312,6 +312,7 @@ export default function DispatcherDashboardClient({
   const [newBookingBanner, setNewBookingBanner] = useState<{bookings: RecentBookingNotif[], show: boolean} | null>(null);
   const lastSeenBookingIds = useRef<Set<string>>(new Set());
   const isFirstLoad = useRef(true);
+  const [viewedBookingIds, setViewedBookingIds] = useState<Set<string>>(new Set());
 
   const [realBookings, setRealBookings] = useState<RealBooking[]>([]);
   const [bookingsLoading, setBookingsLoading] = useState(true);
@@ -697,7 +698,13 @@ export default function DispatcherDashboardClient({
     setDeleteAllError(null);
   }
 
-  function isNewBooking(b: { status: BookingStatus; createdAt?: number }) {
+  function markAsViewed(bookingId: string) {
+    setViewedBookingIds(prev => new Set([...prev, bookingId]));
+  }
+
+  function isNewBooking(b: { id?: string; _id?: string; status: BookingStatus; createdAt?: number }) {
+    const id = b.id || b._id;
+    if (id && viewedBookingIds.has(id)) return false;
     if (b.status !== "pending") return false;
     if (!b.createdAt) return false;
     return renderNow - b.createdAt < 24 * 60 * 60 * 1000;
@@ -956,6 +963,7 @@ export default function DispatcherDashboardClient({
                                 <li key={rb._id}>
                                   <button
                                     onClick={() => {
+                                      markAsViewed(rb._id);
                                       router.push(`/bookings/${rb._id}`);
                                       setShowNotificationsDropdown(false);
                                     }}
@@ -1056,6 +1064,7 @@ export default function DispatcherDashboardClient({
                         <button
                           key={b._id}
                           onClick={() => {
+                            markAsViewed(b._id);
                             router.push(`/bookings/${b._id}`);
                             dismissBanner();
                           }}
@@ -1226,6 +1235,7 @@ export default function DispatcherDashboardClient({
                                   key={b.id}
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    markAsViewed(b.id);
                                     router.push(`/bookings/${b.id}`);
                                   }}
                                   className={`relative pl-2 pr-1.5 py-1 rounded-lg text-[10px] leading-tight font-semibold bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)} text-white shadow-sm cursor-pointer hover:brightness-105 transition`}
@@ -1299,6 +1309,7 @@ export default function DispatcherDashboardClient({
                                           key={b.id}
                                           onClick={(e) => {
                                             e.stopPropagation();
+                                            markAsViewed(b.id);
                                             router.push(`/bookings/${b.id}`);
                                           }}
                                           className="group relative flex items-center gap-3 rounded-xl border border-slate-200/80 bg-white p-3 cursor-pointer hover:shadow-md hover:border-slate-300 hover:-translate-y-[1px] transition-all overflow-hidden"
@@ -1569,6 +1580,7 @@ export default function DispatcherDashboardClient({
                                   key={b.id}
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    markAsViewed(b.id);
                                     router.push(`/bookings/${b.id}`);
                                   }}
                                   className={`relative pl-2 pr-1.5 py-1 rounded-lg text-[10px] leading-tight font-semibold bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)} text-white shadow-sm cursor-pointer hover:brightness-105 transition`}
@@ -1642,6 +1654,7 @@ export default function DispatcherDashboardClient({
                                           key={b.id}
                                           onClick={(e) => {
                                             e.stopPropagation();
+                                            markAsViewed(b.id);
                                             router.push(`/bookings/${b.id}`);
                                           }}
                                           className="group relative flex items-center gap-3 rounded-xl border border-slate-200/80 bg-white p-3 cursor-pointer hover:shadow-md hover:border-slate-300 hover:-translate-y-[1px] transition-all overflow-hidden"
@@ -1830,13 +1843,13 @@ export default function DispatcherDashboardClient({
                                     )}
                                     <div className="flex gap-1.5">
                                       <button
-                                        onClick={() => router.push(`/bookings/${b.id}`)}
+                                        onClick={() => { markAsViewed(b.id); router.push(`/bookings/${b.id}`); }}
                                         className="px-3 py-1.5 rounded-xl border border-slate-200 text-[10.5px] font-bold text-slate-600 hover:bg-slate-50 transition"
                                       >
                                         Részletek
                                       </button>
                                       <button
-                                        onClick={() => router.push(`/bookings/${b.id}`)}
+                                        onClick={() => { markAsViewed(b.id); router.push(`/bookings/${b.id}`); }}
                                         className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-slate-900 to-slate-800 text-white text-[10.5px] font-black tracking-wider uppercase shadow hover:-translate-y-0.5 transition"
                                       >
                                         Szerkesztés
@@ -2098,6 +2111,7 @@ export default function DispatcherDashboardClient({
                   {toast.bookingId && (
                     <button
                       onClick={() => {
+                        if (toast.bookingId) markAsViewed(toast.bookingId);
                         router.push(`/bookings/${toast.bookingId}`);
                         dismissToast(toast.id);
                       }}

@@ -15,6 +15,7 @@ export interface BookingAuditEntry {
 
 export interface Booking {
   _id?: string;
+  portal?: string;
   bookingCode: string;
   userEmail: string;
   travelerEmail: string;

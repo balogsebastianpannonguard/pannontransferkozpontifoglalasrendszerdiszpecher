@@ -32,6 +32,8 @@ import {
 } from "lucide-react";
 
 import { ClientsView } from "./ClientsView";
+import type { PartnerMeta } from "@/lib/partner-meta";
+import { getPartnerColorClasses, resolvePartnerMeta } from "@/lib/partner-meta";
 
 interface DispatcherDashboardUser {
   email: string;
@@ -87,7 +89,7 @@ interface DemoBooking {
   pax: number;
   status: BookingStatus;
   category: BookingCategory;
-  isCatl: boolean;
+  partnerMeta: PartnerMeta | null;
   price?: number;
   createdAt?: number;
 }
@@ -98,6 +100,7 @@ interface RealBooking {
   travelerName: string;
   travelerEmail: string;
   travelerPhone: string;
+  portal?: string;
   companyName?: string;
   userEmail?: string;
   fromAddress: string;
@@ -124,20 +127,12 @@ interface RecentBookingNotif {
   companyName?: string;
   travelerEmail?: string;
   userEmail?: string;
+  portal?: string;
   pickupDate: string;
   pickupTime: string;
   status: BookingStatus;
   category: BookingCategory;
   createdAt: number;
-  get isCatl(): boolean;
-}
-
-function bookingIsCatl(b: { companyName?: string; travelerEmail?: string; userEmail?: string }) {
-  return Boolean(
-    (b.companyName && (b.companyName.toUpperCase().includes("CATL") || b.companyName.toUpperCase().includes("宁德时代"))) ||
-    (b.travelerEmail && /catl/i.test(b.travelerEmail)) ||
-    (b.userEmail && /catl/i.test(b.userEmail))
-  );
 }
 
 interface NotificationsResponse {
@@ -242,8 +237,12 @@ function statusColor(status: BookingStatus) {
   }
 }
 
-function categoryGradient(cat: BookingCategory, isNewOrModified: boolean = false, isCatl: boolean = false) {
-  if (isCatl) return "from-blue-500 to-indigo-600 shadow-blue-500/25";
+function categoryGradient(
+  cat: BookingCategory,
+  isNewOrModified: boolean = false,
+  partnerMeta?: PartnerMeta | null
+) {
+  if (partnerMeta) return partnerMeta.gradient;
   if (isNewOrModified) return "from-blue-500 to-indigo-600 shadow-blue-500/25";
   switch (cat) {
     case "airport":
@@ -259,7 +258,8 @@ function categoryGradient(cat: BookingCategory, isNewOrModified: boolean = false
   }
 }
 
-function categoryLabel(cat: BookingCategory) {
+function categoryLabel(cat: BookingCategory, partnerMeta?: PartnerMeta | null) {
+  if (partnerMeta) return partnerMeta.short;
   return {
     airport: "Repülőtéri",
     city: "Városi",
@@ -447,11 +447,7 @@ export default function DispatcherDashboardClient({
       const y = parseInt(parts[0], 10);
       const m = parseInt(parts[1], 10) - 1;
       const d = parseInt(parts[2], 10);
-      const isCatl = Boolean(
-        (b.companyName && (b.companyName.toUpperCase().includes("CATL") || b.companyName.toUpperCase().includes("宁德时代"))) ||
-        (b.travelerEmail && /catl/i.test(b.travelerEmail)) ||
-        (b.userEmail && /catl/i.test(b.userEmail))
-      );
+      const partnerMeta = resolvePartnerMeta(b);
       return {
         id: b._id,
         day: d,
@@ -464,7 +460,7 @@ export default function DispatcherDashboardClient({
         pax: b.travelers,
         status: b.status,
         category: b.category,
-        isCatl,
+        partnerMeta,
         price: b.price,
         createdAt: b.createdAt,
       };
@@ -893,7 +889,7 @@ export default function DispatcherDashboardClient({
                             {recentBookings.map((rb) => {
                               const s = statusColor(rb.status);
                               const isNew = rb.status === "pending" || rb.status === "modified";
-                              const catl = bookingIsCatl(rb);
+                              const partnerMeta = resolvePartnerMeta(rb);
                               return (
                                 <li key={rb._id}>
                                   <button
@@ -903,13 +899,18 @@ export default function DispatcherDashboardClient({
                                     }}
                                     className="w-full text-left px-5 py-3 hover:bg-slate-50 transition flex items-start gap-3 group"
                                   >
-                                    <div className={`shrink-0 mt-0.5 w-9 h-9 rounded-xl bg-gradient-to-br ${categoryGradient(rb.category, isNew, catl)} shadow-sm flex items-center justify-center text-white`}>
+                                    <div className={`shrink-0 mt-0.5 w-9 h-9 rounded-xl bg-gradient-to-br ${categoryGradient(rb.category, isNew, partnerMeta)} shadow-sm flex items-center justify-center text-white`}>
                                       <ListChecks className="w-4 h-4" />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center gap-2 flex-wrap mb-0.5">
                                         <span className="font-mono text-[11px] font-black text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{rb.bookingCode}</span>
                                         <span className="font-bold text-[13px] text-slate-900 truncate">{rb.travelerName}</span>
+                                        {partnerMeta && (
+                                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[9px] font-black tracking-wider uppercase ${getPartnerColorClasses(partnerMeta.accent).bg} ${getPartnerColorClasses(partnerMeta.accent).text} ${getPartnerColorClasses(partnerMeta.accent).border}`}>
+                                            {partnerMeta.short}
+                                          </span>
+                                        )}
                                         <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[9px] font-black tracking-wider uppercase ${s.chip}`}>
                                           <span className={`w-1 h-1 rounded-full ${s.dot}`} />
                                           {s.label}
@@ -1024,7 +1025,7 @@ export default function DispatcherDashboardClient({
           {/* Content */}
           <div className="flex-1 px-8 py-6 pb-10 overflow-x-hidden">
             {active === "clients" ? (
-              <ClientsView />
+              <ClientsView bookings={realBookings} />
             ) : active === "calendar" ? (
               <div className="h-full flex flex-col">
                 <section className="flex-1 flex flex-col rounded-[2.5rem] bg-white shadow-xl shadow-slate-900/[0.04] border border-slate-200/80 min-h-[800px] overflow-hidden">
@@ -1159,7 +1160,7 @@ export default function DispatcherDashboardClient({
                                     e.stopPropagation();
                                     router.push(`/bookings/${b.id}`);
                                   }}
-                                  className={`relative pl-2 pr-1.5 py-1 rounded-lg text-[10px] leading-tight font-semibold bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.isCatl)} text-white shadow-sm cursor-pointer hover:brightness-105 transition`}
+                                  className={`relative pl-2 pr-1.5 py-1 rounded-lg text-[10px] leading-tight font-semibold bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)} text-white shadow-sm cursor-pointer hover:brightness-105 transition`}
                                 >
                                   {isNewBadge && (
                                     <span className="absolute -top-0.5 -left-0.5 px-1 py-[1px] rounded bg-white text-blue-700 text-[7px] font-black shadow-sm border border-blue-200">
@@ -1234,9 +1235,9 @@ export default function DispatcherDashboardClient({
                                           }}
                                           className="group relative flex items-center gap-3 rounded-xl border border-slate-200/80 bg-white p-3 cursor-pointer hover:shadow-md hover:border-slate-300 hover:-translate-y-[1px] transition-all overflow-hidden"
                                         >
-                                          <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${categoryGradient(b.category, isNewOrMod, b.isCatl)}`} />
+                                          <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)}`} />
 
-                                          <div className={`shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${categoryGradient(b.category, isNewOrMod, b.isCatl)} shadow-md flex flex-col items-center justify-center text-white relative`}>
+                                          <div className={`shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)} shadow-md flex flex-col items-center justify-center text-white relative`}>
                                             {isNewBadge && (
                                               <span className="absolute -top-1 -right-1 px-1 py-[1px] rounded bg-white text-blue-700 text-[7px] font-black shadow-sm border border-blue-200">
                                                 ÚJ
@@ -1253,8 +1254,8 @@ export default function DispatcherDashboardClient({
                                                 <span className={`w-1 h-1 rounded-full ${s.dot} ${b.status === "in-progress" ? "animate-pulse" : ""}`} />
                                                 {s.label}
                                               </span>
-                                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.isCatl)} text-white text-[8.5px] font-black tracking-wider uppercase shadow-sm`}>
-                                                {b.isCatl ? "CATL" : categoryLabel(b.category)}
+                                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)} text-white text-[8.5px] font-black tracking-wider uppercase shadow-sm`}>
+                                                {categoryLabel(b.category, b.partnerMeta)}
                                               </span>
                                             </div>
                                             <div className="flex items-center gap-1 text-[11px] text-slate-500 font-medium">
@@ -1503,7 +1504,7 @@ export default function DispatcherDashboardClient({
                                     e.stopPropagation();
                                     router.push(`/bookings/${b.id}`);
                                   }}
-                                  className={`relative pl-2 pr-1.5 py-1 rounded-lg text-[10px] leading-tight font-semibold bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.isCatl)} text-white shadow-sm cursor-pointer hover:brightness-105 transition`}
+                                  className={`relative pl-2 pr-1.5 py-1 rounded-lg text-[10px] leading-tight font-semibold bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)} text-white shadow-sm cursor-pointer hover:brightness-105 transition`}
                                 >
                                   {isNewBadge && (
                                     <span className="absolute -top-0.5 -left-0.5 px-1 py-[1px] rounded bg-white text-blue-700 text-[7px] font-black shadow-sm border border-blue-200">
@@ -1578,9 +1579,9 @@ export default function DispatcherDashboardClient({
                                           }}
                                           className="group relative flex items-center gap-3 rounded-xl border border-slate-200/80 bg-white p-3 cursor-pointer hover:shadow-md hover:border-slate-300 hover:-translate-y-[1px] transition-all overflow-hidden"
                                         >
-                                          <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${categoryGradient(b.category, isNewOrMod, b.isCatl)}`} />
+                                          <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)}`} />
 
-                                          <div className={`shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${categoryGradient(b.category, isNewOrMod, b.isCatl)} shadow-md flex flex-col items-center justify-center text-white relative`}>
+                                          <div className={`shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)} shadow-md flex flex-col items-center justify-center text-white relative`}>
                                             {isNewBadge && (
                                               <span className="absolute -top-1 -right-1 px-1 py-[1px] rounded bg-white text-blue-700 text-[7px] font-black shadow-sm border border-blue-200">
                                                 ÚJ
@@ -1597,8 +1598,8 @@ export default function DispatcherDashboardClient({
                                                 <span className={`w-1 h-1 rounded-full ${s.dot} ${b.status === "in-progress" ? "animate-pulse" : ""}`} />
                                                 {s.label}
                                               </span>
-                                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.isCatl)} text-white text-[8.5px] font-black tracking-wider uppercase shadow-sm`}>
-                                                {b.isCatl ? "CATL" : categoryLabel(b.category)}
+                                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)} text-white text-[8.5px] font-black tracking-wider uppercase shadow-sm`}>
+                                                {categoryLabel(b.category, b.partnerMeta)}
                                               </span>
                                             </div>
                                             <div className="flex items-center gap-1 text-[11px] text-slate-500 font-medium">
@@ -1711,9 +1712,9 @@ export default function DispatcherDashboardClient({
                                 key={b.id}
                                 className="group relative rounded-2xl border border-slate-200 bg-white hover:shadow-lg hover:border-slate-300 transition-all p-4 overflow-hidden"
                               >
-                                <div className={`absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b ${categoryGradient(b.category, isNewOrMod, b.isCatl)}`} />
+                                <div className={`absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)}`} />
                                 <div className="flex items-start gap-4 pl-2">
-                                  <div className={`shrink-0 w-16 h-16 rounded-2xl bg-gradient-to-br ${categoryGradient(b.category, isNewOrMod, b.isCatl)} shadow-lg flex flex-col items-center justify-center text-white relative`}>
+                                  <div className={`shrink-0 w-16 h-16 rounded-2xl bg-gradient-to-br ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)} shadow-lg flex flex-col items-center justify-center text-white relative`}>
                                     {isNewBadge && (
                                       <span className="absolute -top-1 -right-1 px-1 py-[1px] rounded bg-white text-blue-700 text-[8px] font-black shadow-sm border border-blue-200">
                                         ÚJ
@@ -1729,8 +1730,8 @@ export default function DispatcherDashboardClient({
                                         <span className={`w-1.5 h-1.5 rounded-full ${s.dot} ${b.status === "in-progress" ? "animate-pulse" : ""}`} />
                                         {s.label}
                                       </span>
-                                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.isCatl)} text-white text-[9.5px] font-black tracking-wider uppercase shadow-sm`}>
-                                        {b.isCatl ? "CATL" : categoryLabel(b.category)}
+                                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)} text-white text-[9.5px] font-black tracking-wider uppercase shadow-sm`}>
+                                        {categoryLabel(b.category, b.partnerMeta)}
                                       </span>
                                       {isNewBadge && (
                                         <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 border border-blue-200 text-[9.5px] font-black tracking-wider uppercase">

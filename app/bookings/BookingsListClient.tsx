@@ -1,8 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { Booking, BookingStatus } from "@/lib/bookings";
+import {
+  getAllPartnerMeta,
+  getPartnerColorClasses,
+  getPartnerMetaById,
+  resolvePartnerMeta,
+} from "@/lib/partner-meta";
 import {
   Home,
   ChevronRight,
@@ -88,14 +94,6 @@ function categoryLabel(cat: string) {
   )[cat] || cat;
 }
 
-function bookingIsCatl(b: { companyName?: string | null; travelerEmail?: string; userEmail?: string }) {
-  return Boolean(
-    (b.companyName && (String(b.companyName).toUpperCase().includes("CATL") || String(b.companyName).toUpperCase().includes("宁德时代"))) ||
-    (b.travelerEmail && /catl/i.test(b.travelerEmail)) ||
-    (b.userEmail && /catl/i.test(b.userEmail))
-  );
-}
-
 function formatHuDate(dateStr: string): string {
   const HUN_MONTHS = [
     "Január", "Február", "Március", "Április", "Május", "Június",
@@ -122,13 +120,33 @@ export default function BookingsListClient({
   initialStats: Stats;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeFilter, setActiveFilter] = useState<"all" | "pending" | "confirmed" | "closed">("all");
+  const [activePartnerFilter, setActivePartnerFilter] = useState<string>("all");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const filteredBookings = useMemo(() => {
+  const partnerOptions = useMemo(() => {
+    return getAllPartnerMeta()
+      .map((partner) => ({
+        ...partner,
+        count: bookings.filter((booking) => resolvePartnerMeta(booking)?.id === partner.id).length,
+      }))
+      .filter((partner) => partner.count > 0);
+  }, [bookings]);
+
+  useEffect(() => {
+    const requestedPartner = searchParams.get("partner");
+    if (!requestedPartner) {
+      setActivePartnerFilter("all");
+      return;
+    }
+    setActivePartnerFilter(getPartnerMetaById(requestedPartner)?.id || "all");
+  }, [searchParams]);
+
+  const statusFilteredBookings = useMemo(() => {
     switch (activeFilter) {
       case "pending":
         return bookings.filter((b) => b.status === "pending" || b.status === "modified");
@@ -140,6 +158,13 @@ export default function BookingsListClient({
         return bookings;
     }
   }, [bookings, activeFilter]);
+
+  const filteredBookings = useMemo(() => {
+    if (activePartnerFilter === "all") {
+      return statusFilteredBookings;
+    }
+    return statusFilteredBookings.filter((booking) => resolvePartnerMeta(booking)?.id === activePartnerFilter);
+  }, [activePartnerFilter, statusFilteredBookings]);
 
   function toggleExpanded(id: string) {
     setExpandedIds((prev) => {
@@ -354,6 +379,42 @@ export default function BookingsListClient({
           })}
         </div>
 
+        {partnerOptions.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 mb-6">
+            <button
+              onClick={() => setActivePartnerFilter("all")}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-bold tracking-wide border transition-all ${
+                activePartnerFilter === "all"
+                  ? "bg-slate-900 text-white border-slate-900 shadow-lg shadow-slate-900/15"
+                  : "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+              }`}
+            >
+              Minden partner
+            </button>
+            {partnerOptions.map((partner) => {
+              const tone = getPartnerColorClasses(partner.accent);
+              const isActive = activePartnerFilter === partner.id;
+              return (
+                <button
+                  key={partner.id}
+                  onClick={() => setActivePartnerFilter(partner.id)}
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-bold tracking-wide border transition-all ${
+                    isActive
+                      ? `${tone.bg} ${tone.text} ${tone.border} ring-2 ${tone.ring}`
+                      : "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${isActive ? tone.dot : "bg-slate-300"}`} />
+                  {partner.short}
+                  <span className={`inline-flex items-center justify-center h-5 min-w-[1.25rem] px-1.5 rounded-full text-[10px] font-black tabular-nums ${isActive ? "bg-white/80" : "bg-slate-100 text-slate-500"}`}>
+                    {partner.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {filteredBookings.length === 0 ? (
           <div className="rounded-[28px] bg-white shadow-xl shadow-slate-900/[0.04] border border-slate-200/80 overflow-hidden">
             <div className="py-20 px-8 flex flex-col items-center justify-center text-center">
@@ -368,7 +429,10 @@ export default function BookingsListClient({
               </div>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                 <button
-                  onClick={() => setActiveFilter("all")}
+                  onClick={() => {
+                    setActiveFilter("all");
+                    setActivePartnerFilter("all");
+                  }}
                   className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 text-white text-xs font-black tracking-widest uppercase shadow-lg shadow-blue-600/30 hover:-translate-y-0.5 hover:shadow-xl transition-all"
                 >
                   <ListChecks className="w-4 h-4" />
@@ -384,7 +448,8 @@ export default function BookingsListClient({
               const isExpanded = expandedIds.has(b._id || "");
               const isExecutive = b.transferType === "executive";
               const paymentLabel = b.paymentMethod === "card" ? "Bankkártya" : "Banki átutalás";
-              const isCatl = bookingIsCatl(b);
+              const partnerMeta = resolvePartnerMeta(b);
+              const partnerTone = partnerMeta ? getPartnerColorClasses(partnerMeta.accent) : null;
 
               return (
                 <div
@@ -396,10 +461,14 @@ export default function BookingsListClient({
                       <div className="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-4 gap-0 md:divide-x divide-slate-200">
                         <div className="md:pr-5 pb-4 md:pb-0 md:min-w-0">
                           <div className="flex flex-wrap items-center gap-2 mb-3">
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl border text-[11px] font-black tracking-wider ${isCatl ? "border-blue-300 bg-blue-100 text-blue-700 ring-1 ring-blue-200" : "border-blue-200 bg-blue-50 text-blue-700"}`}>
-                              <span className={`w-2 h-2 rounded-full ${isCatl ? "bg-blue-600 animate-pulse" : "bg-blue-500"}`} />
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl border text-[11px] font-black tracking-wider ${
+                              partnerTone
+                                ? `${partnerTone.border} ${partnerTone.bg} ${partnerTone.text} ring-1 ${partnerTone.ring}`
+                                : "border-blue-200 bg-blue-50 text-blue-700"
+                            }`}>
+                              <span className={`w-2 h-2 rounded-full ${partnerTone ? `${partnerTone.dot} animate-pulse` : "bg-blue-500"}`} />
                               #{b.bookingCode}
-                              {isCatl && <span className="ml-1 text-[9px] font-black tracking-widest opacity-80">CATL</span>}
+                              {partnerMeta && <span className="ml-1 text-[9px] font-black tracking-widest opacity-80">{partnerMeta.short}</span>}
                             </span>
                             <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[10.5px] font-black tracking-wider uppercase ${s.chip}`}>
                               <span className={`w-1.5 h-1.5 rounded-full ${s.dot} ${b.status === "in-progress" ? "animate-pulse" : ""}`} />
@@ -409,7 +478,7 @@ export default function BookingsListClient({
                           <div className="flex items-center gap-2 text-[15px] font-bold text-slate-900 mb-3 flex-wrap">
                             <CalendarCheck className="w-4.5 h-4.5 text-slate-400 shrink-0" />
                             <span>{formatHuDate(b.pickupDate)}</span>
-                            <span className={`font-mono font-black ${isCatl ? "text-indigo-700 bg-indigo-50 border border-indigo-200" : "text-blue-600 bg-blue-50"} px-2 py-0.5 rounded-lg tabular-nums`}>
+                            <span className={`font-mono font-black ${partnerTone ? `${partnerTone.text} ${partnerTone.soft} border ${partnerTone.border}` : "text-blue-600 bg-blue-50"} px-2 py-0.5 rounded-lg tabular-nums`}>
                               {b.pickupTime}
                             </span>
                           </div>
@@ -450,20 +519,20 @@ export default function BookingsListClient({
                           </div>
                           <div
                             className={`inline-flex items-center px-3 py-1.5 rounded-xl text-[11px] font-black tracking-wider uppercase mb-2 ${
-                              isCatl
-                                ? "bg-gradient-to-r from-blue-500/15 to-indigo-600/15 text-indigo-700 border border-indigo-200"
+                              partnerMeta
+                                ? `${partnerTone?.soft} ${partnerTone?.text} border ${partnerTone?.border}`
                                 : isExecutive
                                 ? "bg-gradient-to-r from-amber-400/15 to-amber-500/15 text-amber-700 border border-amber-200"
                                 : "bg-gradient-to-r from-blue-500/15 to-indigo-500/15 text-blue-700 border border-blue-200"
                             }`}
                           >
-                            {isCatl ? "CATL Partner" : isExecutive ? "Executive" : "Standard"}
+                            {partnerMeta ? `${partnerMeta.short} Partner` : isExecutive ? "Executive" : "Standard"}
                           </div>
-                          <div className={`text-[18px] font-black tracking-tight ${isCatl ? "text-indigo-700" : isExecutive ? "text-amber-700" : "text-blue-700"}`}>
-                            {isCatl ? "CATL Partner" : isExecutive ? "Executive" : "Standard"}
+                          <div className={`text-[18px] font-black tracking-tight ${partnerTone ? partnerTone.text : isExecutive ? "text-amber-700" : "text-blue-700"}`}>
+                            {partnerMeta ? `${partnerMeta.short} Partner` : isExecutive ? "Executive" : "Standard"}
                           </div>
                           <div className="text-[11px] font-bold text-slate-500 mt-1">
-                            {isCatl ? "CATL Hungary Kft." : categoryLabel(b.category)}
+                            {partnerMeta ? partnerMeta.name : categoryLabel(b.category)}
                           </div>
                         </div>
 

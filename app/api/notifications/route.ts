@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth";
-import { getBookingsCollection, type Booking } from "@/lib/bookings";
+import { getBookingsCollection } from "@/lib/bookings";
 import { getMongoDb } from "@/lib/mongodb";
 import crypto from "crypto";
 
@@ -67,6 +67,7 @@ export async function GET() {
     const recentBookings = recentDocs.map((doc: any) => ({
       _id: doc._id.toString(),
       bookingCode: doc.bookingCode,
+      portal: doc.portal,
       travelerName: doc.travelerName,
       companyName: doc.companyName,
       travelerEmail: doc.travelerEmail,

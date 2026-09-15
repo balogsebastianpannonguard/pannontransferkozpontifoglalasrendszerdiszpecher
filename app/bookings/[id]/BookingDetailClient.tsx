@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Booking, BookingStatus } from "@/lib/bookings";
+import { getPartnerColorClasses, resolvePartnerMeta } from "@/lib/partner-meta";
 import type { Driver } from "@/lib/drivers";
 import type { Vehicle } from "@/lib/vehicles";
 import type { AuditLog } from "@/lib/audit-logs";
@@ -159,8 +160,8 @@ function relativeTime(timestamp: number, now: number): string {
   return new Date(timestamp).toLocaleDateString("hu-HU");
 }
 
-function categoryGradient(cat: string, isCatl: boolean = false) {
-  if (isCatl) return "from-blue-500 to-indigo-600 shadow-blue-500/25";
+function categoryGradient(cat: string, partnerMeta = resolvePartnerMeta({})) {
+  if (partnerMeta) return partnerMeta.gradient;
   switch (cat) {
     case "airport":
       return "from-sky-500 to-indigo-600 shadow-sky-500/25";
@@ -177,8 +178,8 @@ function categoryGradient(cat: string, isCatl: boolean = false) {
   }
 }
 
-function categoryLabel(cat: string, isCatl: boolean = false) {
-  if (isCatl) return "CATL Partner";
+function categoryLabel(cat: string, partnerMeta = resolvePartnerMeta({})) {
+  if (partnerMeta) return `${partnerMeta.short} Partner`;
   return (
     {
       airport: "Repülőtéri",
@@ -188,14 +189,6 @@ function categoryLabel(cat: string, isCatl: boolean = false) {
       partner: "Partner",
     } as Record<string, string>
   )[cat] || cat;
-}
-
-function bookingIsCatl(b: { companyName?: string | null; travelerEmail?: string; userEmail?: string }) {
-  return Boolean(
-    (b.companyName && (String(b.companyName).toUpperCase().includes("CATL") || String(b.companyName).toUpperCase().includes("宁德时代"))) ||
-    (b.travelerEmail && /catl/i.test(b.travelerEmail)) ||
-    (b.userEmail && /catl/i.test(b.userEmail))
-  );
 }
 
 function formatHuDate(dateStr: string): string {
@@ -254,7 +247,8 @@ export default function BookingDetailClient({
   }, []);
 
   const bookingId = booking._id || "";
-  const isCatl = bookingIsCatl(booking);
+  const partnerMeta = resolvePartnerMeta(booking);
+  const partnerTone = partnerMeta ? getPartnerColorClasses(partnerMeta.accent) : null;
   const isAssigned = useMemo(
     () => !!booking.assignedDriverId && !!booking.assignedVehicleId,
     [booking.assignedDriverId, booking.assignedVehicleId]
@@ -639,7 +633,7 @@ export default function BookingDetailClient({
           className="mt-8 mb-6"
         >
           <div className="flex flex-col sm:flex-row sm:items-start gap-5">
-            <div className={`shrink-0 w-20 h-20 rounded-3xl bg-gradient-to-br ${categoryGradient(booking.category, isCatl)} shadow-xl flex items-center justify-center ring-4 ring-white`}>
+            <div className={`shrink-0 w-20 h-20 rounded-3xl bg-gradient-to-br ${categoryGradient(booking.category, partnerMeta)} shadow-xl flex items-center justify-center ring-4 ring-white`}>
               <CalendarDays className="w-9 h-9 text-white" strokeWidth={2} />
             </div>
             <div className="flex-1 min-w-0">
@@ -647,16 +641,16 @@ export default function BookingDetailClient({
                 {formatHuDate(booking.pickupDate)}
               </div>
               <div className="flex items-baseline gap-4 flex-wrap">
-                <div className={`font-black ${isCatl ? "text-indigo-600" : "text-blue-600"} text-5xl sm:text-6xl tracking-tight font-mono leading-none`}>
+                <div className={`font-black ${partnerTone ? partnerTone.text : "text-blue-600"} text-5xl sm:text-6xl tracking-tight font-mono leading-none`}>
                   {booking.pickupTime}
                 </div>
                 <div className="flex flex-wrap items-center gap-2.5 pt-2">
-                  <span className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl ${isCatl ? "bg-gradient-to-r from-indigo-500/15 to-blue-600/15 text-indigo-700 ring-1 ring-indigo-400/20 border border-indigo-200/70" : "bg-gradient-to-r from-blue-500/15 to-indigo-500/15 text-blue-700 ring-1 ring-blue-500/20 border border-blue-200/70"} text-[11px] font-black tracking-wider uppercase`}>
+                  <span className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl ${partnerTone ? `${partnerTone.soft} ${partnerTone.text} border ${partnerTone.border}` : "bg-gradient-to-r from-blue-500/15 to-indigo-500/15 text-blue-700 ring-1 ring-blue-500/20 border border-blue-200/70"} text-[11px] font-black tracking-wider uppercase`}>
                     #{booking.bookingCode}
-                    {isCatl && <span className="ml-1 text-[9px] opacity-80 tracking-[0.18em]">CATL</span>}
+                    {partnerMeta && <span className="ml-1 text-[9px] opacity-80 tracking-[0.18em]">{partnerMeta.short}</span>}
                   </span>
-                  <span className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl bg-gradient-to-r ${categoryGradient(booking.category, isCatl)} text-white text-[11px] font-black tracking-wider uppercase shadow-md`}>
-                    {categoryLabel(booking.category, isCatl)}
+                  <span className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl bg-gradient-to-r ${categoryGradient(booking.category, partnerMeta)} text-white text-[11px] font-black tracking-wider uppercase shadow-md`}>
+                    {categoryLabel(booking.category, partnerMeta)}
                   </span>
                   {booking.driverNotified && (
                     <span className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl border text-[11px] font-black tracking-wider uppercase ${booking.driverAcknowledged ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
@@ -724,10 +718,10 @@ export default function BookingDetailClient({
                     Transfer
                   </div>
                   <div className="font-bold text-slate-900 text-[14px]">
-                    {isCatl ? (
+                    {partnerMeta ? (
                       <span className="inline-flex items-center gap-1.5">
-                        <BadgeCheck className="w-4 h-4 text-blue-600" />
-                        CATL Partner
+                        <BadgeCheck className={`w-4 h-4 ${partnerTone ? partnerTone.text : "text-blue-600"}`} />
+                        {partnerMeta.short} Partner
                       </span>
                     ) : booking.transferType === "executive" ? (
                       <span className="inline-flex items-center gap-1.5">
@@ -856,7 +850,7 @@ export default function BookingDetailClient({
             >
               <div className="px-7 py-5 border-b border-slate-200/80">
                 <div className="flex items-center gap-3.5">
-                  <div className={`w-11 h-11 rounded-2xl ${isCatl ? "bg-gradient-to-br from-blue-500 to-indigo-600" : "bg-gradient-to-br from-slate-700 to-slate-900"} text-white shadow-sm flex items-center justify-center`}>
+                  <div className={`w-11 h-11 rounded-2xl ${partnerMeta ? `bg-gradient-to-br ${partnerMeta.gradient}` : "bg-gradient-to-br from-slate-700 to-slate-900"} text-white shadow-sm flex items-center justify-center`}>
                     <Building2 className="w-5 h-5" />
                   </div>
                   <div>
@@ -880,7 +874,7 @@ export default function BookingDetailClient({
                       {booking.travelerName}
                     </div>
                     {booking.companyName && (
-                      <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border w-fit ${isCatl ? "bg-gradient-to-r from-blue-50 to-indigo-50 text-indigo-700 border-indigo-200" : "bg-slate-50 text-slate-700 border-slate-200"}`}>
+                      <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border w-fit ${partnerTone ? `${partnerTone.soft} ${partnerTone.text} ${partnerTone.border}` : "bg-slate-50 text-slate-700 border-slate-200"}`}>
                         <Building2 className="w-3.5 h-3.5 shrink-0" />
                         <span className="text-[11.5px] font-black tracking-tight">
                           {booking.companyName}
@@ -1057,7 +1051,7 @@ export default function BookingDetailClient({
             >
               <div className="px-7 py-5 border-b border-slate-200/80">
                 <div className="flex items-center gap-3.5">
-                  <div className={`w-11 h-11 rounded-2xl ${isCatl ? "bg-gradient-to-br from-blue-500 to-indigo-600" : "bg-gradient-to-br from-slate-700 to-slate-900"} text-white shadow-sm flex items-center justify-center`}>
+                  <div className={`w-11 h-11 rounded-2xl ${partnerMeta ? `bg-gradient-to-br ${partnerMeta.gradient}` : "bg-gradient-to-br from-slate-700 to-slate-900"} text-white shadow-sm flex items-center justify-center`}>
                     <CarFront className="w-5 h-5" />
                   </div>
                   <div>
@@ -1193,7 +1187,7 @@ export default function BookingDetailClient({
                   <button
                     onClick={handleAssign}
                     disabled={assigning}
-                    className={`flex-1 inline-flex items-center justify-center gap-3 px-6 py-4 rounded-xl text-white text-[12px] font-black tracking-[0.2em] uppercase shadow-lg hover:-translate-y-[1px] hover:shadow-xl transition-all disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${isCatl ? "bg-gradient-to-r from-blue-600 to-indigo-700 shadow-indigo-600/20" : "bg-gradient-to-r from-slate-800 to-slate-950 shadow-slate-900/20 hover:from-slate-700 hover:to-slate-900"}`}
+                    className={`flex-1 inline-flex items-center justify-center gap-3 px-6 py-4 rounded-xl text-white text-[12px] font-black tracking-[0.2em] uppercase shadow-lg hover:-translate-y-[1px] hover:shadow-xl transition-all disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${partnerMeta ? `bg-gradient-to-r ${partnerMeta.gradient}` : "bg-gradient-to-r from-slate-800 to-slate-950 shadow-slate-900/20 hover:from-slate-700 hover:to-slate-900"}`}
                   >
                     {assigning ? (
                       <><Loader2 className="w-4.5 h-4.5 animate-spin" /> Feldolgozás…</>

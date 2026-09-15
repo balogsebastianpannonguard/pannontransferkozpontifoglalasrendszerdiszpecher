@@ -46,6 +46,8 @@ import {
   Plus,
   Zap,
   ChevronDown,
+  Lock,
+  AlertCircle,
 } from "lucide-react";
 
 const HUN_MONTHS = [
@@ -237,6 +239,12 @@ export default function BookingDetailClient({
   const [savingPrice, setSavingPrice] = useState(false);
   const [unassigning, setUnassigning] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [priceNeedsApproval, setPriceNeedsApproval] = useState(false);
+  const [approvalRange, setApprovalRange] = useState<{ minAcceptable: number; maxAcceptable: number } | null>(null);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [approvalReason, setApprovalReason] = useState("");
+  const [sendingApproval, setSendingApproval] = useState(false);
+  const [isEditingPrice, setIsEditingPrice] = useState(false);
 
   const [now, setNow] = useState<number>(Date.now());
   
@@ -404,20 +412,52 @@ export default function BookingDetailClient({
   async function handleSavePrice() {
     try {
       setSavingPrice(true);
+      setPriceNeedsApproval(false);
       const res = await fetch(`/api/bookings/${bookingId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ price: Number(priceValue) || 0 }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data?.booking) throw new Error(data?.error || "Hiba");
+      if (!res.ok) throw new Error(data?.error || "Hiba");
+      if (data?.needsApproval) {
+        setPriceNeedsApproval(true);
+        setApprovalRange({ minAcceptable: data.minAcceptable, maxAcceptable: data.maxAcceptable });
+        pushToast("info", "Jóváhagyásra vár", "Az ár nem esik a meghatározott tartományba, ezért admin jóváhagyás szükséges.");
+        return;
+      }
+      if (!data?.booking) throw new Error(data?.error || "Hiba");
       setBooking(data.booking);
+      setIsEditingPrice(false);
       pushToast("success", "Ár mentve", `${Number(priceValue).toLocaleString("hu-HU")} Ft`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : undefined;
       pushToast("error", "Ár mentés sikertelen", msg);
     } finally {
       setSavingPrice(false);
+    }
+  }
+
+  async function handleSendApprovalRequest() {
+    try {
+      setSendingApproval(true);
+      const res = await fetch(`/api/bookings/${bookingId}/price-approval`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestedPrice: Number(priceValue), reason: approvalReason }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.booking) throw new Error(data?.error || "Hiba");
+      setBooking(data.booking);
+      setShowApprovalModal(false);
+      setApprovalReason("");
+      setPriceNeedsApproval(false);
+      pushToast("success", "Jóváhagyási kérés elküldve", "Az admin értesítést kapott a jóváhagyáshoz.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : undefined;
+      pushToast("error", "Jóváhagyás kérés sikertelen", msg);
+    } finally {
+      setSendingApproval(false);
     }
   }
 
@@ -979,14 +1019,32 @@ export default function BookingDetailClient({
                       Szolgáltatás díja
                     </span>
                     <div className="flex-1 h-px bg-gradient-to-r from-slate-200 to-transparent" />
-                    {hasPrice && (
+                    {booking.priceApprovalStatus === 'pending_approval' && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-[9.5px] font-black tracking-[0.18em] uppercase text-amber-700">
+                        <Clock className="w-3 h-3" />
+                        Jóváhagyásra vár
+                      </span>
+                    )}
+                    {booking.priceApprovalStatus === 'approved' && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-[9.5px] font-black tracking-[0.18em] uppercase text-emerald-700">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Jóváhagyva
+                      </span>
+                    )}
+                    {booking.priceApprovalStatus === 'rejected' && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-[9.5px] font-black tracking-[0.18em] uppercase text-rose-700">
+                        <XCircle className="w-3 h-3" />
+                        Elutasítva
+                      </span>
+                    )}
+                    {hasPrice && !booking.priceApprovalStatus && (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-[9.5px] font-black tracking-[0.18em] uppercase text-slate-500">
                         <Clock className="w-3 h-3" />
                         Függőben
                       </span>
                     )}
                   </div>
-                  {hasPrice ? (
+                  {hasPrice && !isEditingPrice ? (
                     <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm flex items-center justify-between gap-4 flex-wrap">
                       <div>
                         <div className="text-[10px] font-black tracking-[0.2em] uppercase text-slate-400 mb-1.5">
@@ -998,7 +1056,7 @@ export default function BookingDetailClient({
                         </div>
                       </div>
                       <button
-                        onClick={() => setPriceValue(booking.price || 0)}
+                        onClick={() => { setPriceValue(booking.price || 0); setIsEditingPrice(true); }}
                         className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 text-xs font-black tracking-[0.18em] uppercase hover:bg-slate-100 hover:border-slate-300 transition-all"
                       >
                         <Save className="w-3.5 h-3.5" />
@@ -1016,10 +1074,15 @@ export default function BookingDetailClient({
                             <input
                               type="number"
                               value={priceValue}
-                              onChange={(e) => setPriceValue(Number(e.target.value))}
-                              className="w-full px-5 py-3.5 pr-16 rounded-xl bg-slate-50 border border-slate-200 text-[20px] font-black text-slate-900 tabular-nums focus:outline-none focus:border-slate-400 focus:ring-4 focus:ring-slate-100 transition"
+                              onChange={(e) => { setPriceValue(Number(e.target.value)); setPriceNeedsApproval(false); }}
+                              className={`w-full px-5 py-3.5 pr-16 rounded-xl bg-slate-50 border text-[20px] font-black text-slate-900 tabular-nums focus:outline-none focus:ring-4 transition ${priceNeedsApproval ? "border-amber-400 focus:border-amber-500 focus:ring-amber-100" : "border-slate-200 focus:border-slate-400 focus:ring-slate-100"}`}
                               placeholder="0"
                             />
+                            {priceNeedsApproval && (
+                              <span className="pointer-events-none absolute right-12 top-1/2 -translate-y-1/2">
+                                <Lock className="w-4 h-4 text-amber-500" />
+                              </span>
+                            )}
                             <span className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-[11px] font-black tracking-[0.18em] uppercase text-slate-400">
                               Ft
                             </span>
@@ -1036,7 +1099,52 @@ export default function BookingDetailClient({
                             <><Save className="w-4 h-4" /> Ár mentése</>
                           )}
                         </button>
+                        {hasPrice && (
+                          <button
+                            onClick={() => { setIsEditingPrice(false); setPriceNeedsApproval(false); }}
+                            className="inline-flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-black tracking-[0.18em] uppercase hover:bg-slate-200 transition-all"
+                          >
+                            Mégsem
+                          </button>
+                        )}
                       </div>
+
+                      {priceNeedsApproval && (
+                        <div className="mt-4 rounded-xl bg-amber-50 border border-amber-200 p-4">
+                          <div className="flex items-start gap-3 mb-3">
+                            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                            <div>
+                              <div className="text-sm font-black text-amber-900 mb-0.5">Az ár jóváhagyásra szorul</div>
+                              <div className="text-xs text-amber-700">
+                                A megadott ár ({Number(priceValue).toLocaleString("hu-HU")} Ft) kívül esik az elfogadható tartományon.
+                                {approvalRange && (
+                                  <span> Elfogadható: {approvalRange.minAcceptable.toLocaleString("hu-HU")} – {approvalRange.maxAcceptable.toLocaleString("hu-HU")} Ft</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setShowApprovalModal(true)}
+                            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-black tracking-[0.18em] uppercase shadow-md shadow-amber-600/20 transition-all"
+                          >
+                            <Lock className="w-3.5 h-3.5" />
+                            Jóváhagyás kérése
+                          </button>
+                        </div>
+                      )}
+
+                      {booking.priceApprovalStatus === 'pending_approval' && booking.priceApprovalRequest && (
+                        <div className="mt-4 rounded-xl bg-amber-50 border border-amber-200 p-4">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Clock className="w-4 h-4 text-amber-600" />
+                            <span className="text-xs font-black text-amber-900">Admin jóváhagyásra vár</span>
+                          </div>
+                          <div className="text-xs text-amber-700">
+                            Kért ár: <strong>{booking.priceApprovalRequest.requestedPrice.toLocaleString("hu-HU")} Ft</strong>
+                            {booking.priceApprovalRequest.reason && <> · Indok: {booking.priceApprovalRequest.reason}</>}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1310,6 +1418,79 @@ export default function BookingDetailClient({
           </div>
         </div>
       </div>
+
+      {/* Jóváhagyás kérés modal */}
+      <AnimatePresence>
+        {showApprovalModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 12 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg p-7"
+            >
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-md shadow-amber-500/30 flex items-center justify-center text-white">
+                  <Lock className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-[10px] font-black tracking-[0.2em] uppercase text-slate-400">Ár jóváhagyás</div>
+                  <h3 className="font-sans font-black text-[18px] tracking-tight text-slate-900 leading-none">Jóváhagyás kérése</h3>
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 mb-5">
+                <div className="text-xs font-bold text-amber-800 mb-0.5">Kért ár</div>
+                <div className="text-2xl font-black tabular-nums text-amber-900">{Number(priceValue).toLocaleString("hu-HU")} <span className="text-sm font-bold text-amber-600">Ft</span></div>
+                {approvalRange && (
+                  <div className="text-xs text-amber-700 mt-1">
+                    Elfogadható tartomány: {approvalRange.minAcceptable.toLocaleString("hu-HU")} – {approvalRange.maxAcceptable.toLocaleString("hu-HU")} Ft
+                  </div>
+                )}
+              </div>
+
+              <div className="mb-5">
+                <label className="text-[10px] font-black tracking-[0.2em] uppercase text-slate-400 mb-1.5 block">
+                  Indok (opcionális)
+                </label>
+                <textarea
+                  value={approvalReason}
+                  onChange={(e) => setApprovalReason(e.target.value)}
+                  rows={3}
+                  placeholder="Miért szükséges ez az ár? (pl. különleges igény, egyedi megállapodás...)"
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-400 focus:ring-4 focus:ring-slate-100 resize-none transition"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setShowApprovalModal(false); setApprovalReason(""); }}
+                  className="flex-1 px-4 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-black tracking-[0.1em] uppercase transition"
+                >
+                  Mégsem
+                </button>
+                <button
+                  onClick={handleSendApprovalRequest}
+                  disabled={sendingApproval}
+                  className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-sm font-black tracking-[0.1em] uppercase shadow-lg shadow-amber-500/25 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  {sendingApproval ? (
+                    <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Küldés…</span>
+                  ) : (
+                    <span className="flex items-center justify-center gap-2"><Send className="w-4 h-4" /> Kérés elküldése</span>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="fixed bottom-5 right-5 z-50 space-y-2.5 max-w-sm w-[calc(100%-2.5rem)] sm:w-auto pointer-events-none">
         <AnimatePresence>

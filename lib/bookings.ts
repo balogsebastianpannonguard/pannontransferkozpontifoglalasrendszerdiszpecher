@@ -44,6 +44,20 @@ export interface Booking {
   driverNotified?: boolean;
   driverAcknowledged?: boolean;
   price?: number;
+  priceApprovalStatus?: 'pending_approval' | 'approved' | 'rejected' | null;
+  priceApprovalRequest?: {
+    requestedPrice: number;
+    requestedBy: string;
+    requestedAt: number;
+    originalPrice?: number;
+    reason?: string;
+  } | null;
+  priceApprovalResponse?: {
+    respondedBy: string;
+    respondedAt: number;
+    decision: 'approved' | 'rejected';
+    comment?: string;
+  } | null;
   createdBy?: string;
   createdAt: number;
   updatedAt: number;
@@ -82,7 +96,7 @@ export async function initBookingIndexes() {
   } catch {}
 }
 
-export async function listAllBookings(filter?: { status?: BookingStatus; fromDate?: string; toDate?: string }): Promise<Booking[]> {
+export async function listAllBookings(filter?: { status?: BookingStatus; fromDate?: string; toDate?: string; priceApprovalStatus?: string }): Promise<Booking[]> {
   await initBookingIndexes();
   const col = await getBookingsCollection();
   const query: Filter<any> = {};
@@ -94,6 +108,9 @@ export async function listAllBookings(filter?: { status?: BookingStatus; fromDat
   }
   if (filter?.toDate) {
     query.pickupDate = { ...(query.pickupDate || {}), $lte: filter.toDate };
+  }
+  if (filter?.priceApprovalStatus) {
+    query.priceApprovalStatus = filter.priceApprovalStatus;
   }
   const docs = await col.find(query).sort({ createdAt: -1 }).toArray();
   return docs.map(convertId);

@@ -21,11 +21,13 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status") as BookingStatus | undefined;
     const fromDate = searchParams.get("fromDate") || undefined;
     const toDate = searchParams.get("toDate") || undefined;
+    const priceApprovalStatus = searchParams.get("priceApprovalStatus") || undefined;
 
-    const filter: { status?: BookingStatus; fromDate?: string; toDate?: string } = {};
+    const filter: { status?: BookingStatus; fromDate?: string; toDate?: string; priceApprovalStatus?: string } = {};
     if (status) filter.status = status;
     if (fromDate) filter.fromDate = fromDate;
     if (toDate) filter.toDate = toDate;
+    if (priceApprovalStatus) filter.priceApprovalStatus = priceApprovalStatus;
 
     const bookings = await listAllBookings(filter);
     const { pendingCount, totalCount } = await countBookingsByStatus();

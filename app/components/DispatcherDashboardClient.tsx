@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 
 import { ClientsView } from "./ClientsView";
+import PriceApprovalWidget from "./PriceApprovalWidget";
 import type { PartnerMeta } from "@/lib/partner-meta";
 import { getPartnerColorClasses, resolvePartnerMeta } from "@/lib/partner-meta";
 
@@ -1449,6 +1450,10 @@ export default function DispatcherDashboardClient({
 
               {/* === RIGHT: CALENDAR + SIDE PANEL === */}
               <div className="flex-1 min-w-0 space-y-6" data-calendar-section="true">
+                {/* Ár jóváhagyás widget - csak adminoknak */}
+                {user.role === "admin" && (
+                  <PriceApprovalWidget userRole={user.role} />
+                )}
                 {/* Calendar card */}
                 <section className="rounded-[28px] bg-white shadow-xl shadow-slate-900/[0.04] border border-slate-200/80 overflow-hidden w-full">
                   {/* Calendar toolbar */}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth";
 import { getBookingById, updateBooking, type Booking } from "@/lib/bookings";
 import { createAuditLog } from "@/lib/audit-logs";
+import { getPartnerPricingByKey } from "@/lib/partner-pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +85,26 @@ export async function PATCH(
     for (const field of allowedFields) {
       if (field in body) {
         (patch as any)[field] = (body as any)[field];
+      }
+    }
+
+    // Ha diszpécer módosítja az árat, ellenőrizze a partner pricing alapján
+    if ("price" in patch && user.role === "dispatcher" && existing.portal) {
+      const partnerPricing = await getPartnerPricingByKey(existing.portal, { seedIfMissing: false });
+      if (partnerPricing && partnerPricing.vehicles.length > 0) {
+        const prices = partnerPricing.vehicles.map((v) => v.newPrice2026);
+        const minAcceptable = Math.min(...prices) * 0.7;
+        const maxAcceptable = Math.max(...prices) * 1.5;
+        const requestedPrice = Number(patch.price);
+
+        if (requestedPrice < minAcceptable || requestedPrice > maxAcceptable) {
+          return NextResponse.json({
+            needsApproval: true,
+            message: "Az ár jóváhagyásra vár",
+            minAcceptable: Math.round(minAcceptable),
+            maxAcceptable: Math.round(maxAcceptable),
+          });
+        }
       }
     }
 

@@ -29,6 +29,9 @@ import {
   X,
   Loader2,
   RefreshCw,
+  Trash2,
+  AlertTriangle,
+  CheckCircle2,
 } from "lucide-react";
 
 import { ClientsView } from "./ClientsView";
@@ -149,9 +152,13 @@ interface NotificationToast {
   timestamp: number;
 }
 
+type AudioWindow = Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext };
+
 function playNotificationSound() {
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const AudioCtx = window.AudioContext || (window as AudioWindow).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
@@ -286,6 +293,7 @@ export default function DispatcherDashboardClient({
   const [user, setUser] = useState(initialUser);
   const [active, setActive] = useState<NavItemId>("dashboard");
   const [hour, setHour] = useState(new Date().getHours());
+  const [renderNow, setRenderNow] = useState(() => Date.now());
 
   const today = useMemo(() => new Date(), []);
   const [cursorDate, setCursorDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
@@ -309,11 +317,22 @@ export default function DispatcherDashboardClient({
   const [bookingsLoading, setBookingsLoading] = useState(true);
   const [bookingsMeta, setBookingsMeta] = useState({ pendingCount: 0, totalCount: 0 });
 
+  // Teljes törlés modal state
+  const [deleteAllModal, setDeleteAllModal] = useState<"closed" | "confirm1" | "confirm2" | "deleting" | "done">("closed");
+  const [deleteAllConfirmText, setDeleteAllConfirmText] = useState("");
+  const [deleteAllResult, setDeleteAllResult] = useState<{ deletedCount: number } | null>(null);
+  const [deleteAllError, setDeleteAllError] = useState<string | null>(null);
+
   const notificationsRef = useRef<HTMLDivElement>(null);
   const [popoverKey, setPopoverKey] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setHour(new Date().getHours()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    const t = setInterval(() => setRenderNow(Date.now()), 1_000);
     return () => clearInterval(t);
   }, []);
 
@@ -597,13 +616,16 @@ export default function DispatcherDashboardClient({
   }
 
   useEffect(() => {
-    fetchBookings();
-    fetchNotifications();
+    const timer = window.setTimeout(() => {
+      void fetchBookings();
+      void fetchNotifications();
+    }, 0);
 
     const notifTimer = setInterval(() => fetchNotifications(false), 30_000);
     const bookingTimer = setInterval(() => fetchBookings(), 60_000);
 
     return () => {
+      clearTimeout(timer);
       clearInterval(notifTimer);
       clearInterval(bookingTimer);
     };
@@ -635,10 +657,50 @@ export default function DispatcherDashboardClient({
     router.replace("/login");
   }
 
+  async function handleDeleteAllBookings() {
+    setDeleteAllModal("deleting");
+    setDeleteAllError(null);
+    try {
+      const res = await fetch("/api/bookings/delete-all", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ confirm: "TOROL_MINDEN_FOGLALAST" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setDeleteAllError(data.error || "Ismeretlen hiba");
+        setDeleteAllModal("confirm2");
+        return;
+      }
+      setDeleteAllResult({ deletedCount: data.deletedCount });
+      setDeleteAllModal("done");
+      // Frissítjük a lokális state-et
+      setRealBookings([]);
+      setBookingsMeta({ pendingCount: 0, totalCount: 0 });
+      setPendingCount(0);
+      setRecentBookings([]);
+      setNotificationToasts([]);
+      setNewBookingBanner(null);
+      setShowNotificationsDropdown(false);
+      lastSeenBookingIds.current = new Set();
+    } catch (err) {
+      setDeleteAllError("Hálózati hiba a törlés közben.");
+      setDeleteAllModal("confirm2");
+    }
+  }
+
+  function closeDeleteAllModal() {
+    setDeleteAllModal("closed");
+    setDeleteAllConfirmText("");
+    setDeleteAllResult(null);
+    setDeleteAllError(null);
+  }
+
   function isNewBooking(b: { status: BookingStatus; createdAt?: number }) {
     if (b.status !== "pending") return false;
     if (!b.createdAt) return false;
-    return Date.now() - b.createdAt < 24 * 60 * 60 * 1000;
+    return renderNow - b.createdAt < 24 * 60 * 60 * 1000;
   }
 
   return (
@@ -1026,6 +1088,12 @@ export default function DispatcherDashboardClient({
           <div className="flex-1 px-8 py-6 pb-10 overflow-x-hidden">
             {active === "clients" ? (
               <ClientsView bookings={realBookings} />
+            ) : active === "settings" ? (
+              <SettingsView
+                user={user}
+                totalBookings={bookingsMeta.totalCount || realBookings.length}
+                onDeleteAll={() => setDeleteAllModal("confirm1")}
+              />
             ) : active === "calendar" ? (
               <div className="h-full flex flex-col">
                 <section className="flex-1 flex flex-col rounded-[2.5rem] bg-white shadow-xl shadow-slate-900/[0.04] border border-slate-200/80 min-h-[800px] overflow-hidden">
@@ -1493,8 +1561,7 @@ export default function DispatcherDashboardClient({
                           </div>
                           {/* Bookings list */}
                           <div className="space-y-1.5 overflow-hidden">
-                            {bookings.slice(0, 3).map((b) => {
-                              const c = statusColor(b.status);
+                              {bookings.slice(0, 3).map((b) => {
                               const isNewOrMod = b.status === "pending" || b.status === "modified";
                               const isNewBadge = isNewBooking(b);
                               return (
@@ -1699,7 +1766,7 @@ export default function DispatcherDashboardClient({
                             <CalendarIcon className="w-10 h-10 text-slate-300" strokeWidth={1.4} />
                           </div>
                           <div className="font-serif text-xl font-bold text-slate-700 mb-1">Nincs foglalás ezen a napon</div>
-                          <div className="text-sm text-slate-500 mb-4 max-w-sm">Kattints az "Erre a napra" gombra új foglalás létrehozásához, vagy válaszd ki egy másik napot a naptárból.</div>
+                            <div className="text-sm text-slate-500 mb-4 max-w-sm">Kattints az &quot;Erre a napra&quot; gombra új foglalás létrehozásához, vagy válaszd ki egy másik napot a naptárból.</div>
                         </div>
                       ) : (
                         <ul className="p-4 space-y-3">
@@ -1792,6 +1859,199 @@ export default function DispatcherDashboardClient({
         </main>
       </div>
 
+      {deleteAllModal !== "closed" && (
+        <div className="fixed inset-0 z-[110]">
+          <div
+            className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
+            onClick={() => {
+              if (deleteAllModal !== "deleting") {
+                closeDeleteAllModal();
+              }
+            }}
+          />
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div className="w-full max-w-2xl rounded-[2rem] border border-white/10 bg-white shadow-2xl shadow-slate-950/30 overflow-hidden">
+              <div className="px-7 py-5 border-b border-slate-200 bg-gradient-to-r from-rose-50 via-white to-orange-50">
+                <div className="flex items-start gap-4">
+                  <div className="shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-rose-600 to-red-700 shadow-lg shadow-rose-600/30 flex items-center justify-center text-white">
+                    {deleteAllModal === "done" ? (
+                      <CheckCircle2 className="w-7 h-7" />
+                    ) : deleteAllModal === "deleting" ? (
+                      <Loader2 className="w-7 h-7 animate-spin" />
+                    ) : (
+                      <AlertTriangle className="w-7 h-7" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[10px] font-black tracking-[0.24em] uppercase text-rose-600 mb-1">
+                      {deleteAllModal === "done" ? "Törlés kész" : "Visszafordíthatatlan művelet"}
+                    </div>
+                    <h3 className="font-serif text-[28px] font-bold tracking-tight text-slate-900">
+                      {deleteAllModal === "confirm1" && "Teljes foglalás törlése"}
+                      {deleteAllModal === "confirm2" && "Utolsó megerősítés"}
+                      {deleteAllModal === "deleting" && "Foglalások törlése folyamatban"}
+                      {deleteAllModal === "done" && "Minden foglalás törölve"}
+                    </h3>
+                    <p className="text-sm text-slate-600 mt-1">
+                      {deleteAllModal === "confirm1" &&
+                        "Ez minden foglalást eltávolít a rendszerből. A partnercégek foglalási oldalain és a diszpécseri nézetben is azonnal üres lesz a lista."}
+                      {deleteAllModal === "confirm2" &&
+                        "Biztonsági okból még egy megerősítést kérünk. Csak akkor menj tovább, ha tényleg tiszta lappal akarsz indulni."}
+                      {deleteAllModal === "deleting" &&
+                        "Dolgozom rajta. Ez pár másodperc lehet, közben ne zárd be ezt az ablakot."}
+                      {deleteAllModal === "done" &&
+                        "A foglalási adatbázis kiürült. A dashboard és a partnerportálok is nulláról indulnak tovább."}
+                    </p>
+                  </div>
+                  {deleteAllModal !== "deleting" && (
+                    <button
+                      onClick={closeDeleteAllModal}
+                      className="shrink-0 w-10 h-10 rounded-2xl border border-slate-200 bg-white text-slate-400 hover:text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition flex items-center justify-center"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="px-7 py-6 space-y-5">
+                {(deleteAllModal === "confirm1" || deleteAllModal === "confirm2") && (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3">
+                        <div className="text-[9px] font-black tracking-[0.18em] uppercase text-rose-500 mb-1">Érintett rekordok</div>
+                        <div className="text-2xl font-black tracking-tight text-slate-900 tabular-nums">{bookingsMeta.totalCount || realBookings.length}</div>
+                        <div className="text-[11px] font-medium text-slate-500">összes foglalás</div>
+                      </div>
+                      <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                        <div className="text-[9px] font-black tracking-[0.18em] uppercase text-amber-600 mb-1">Hatás</div>
+                        <div className="text-sm font-black text-slate-900">Partner + Diszpécser</div>
+                        <div className="text-[11px] font-medium text-slate-500">minden nézetből eltűnik</div>
+                      </div>
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                        <div className="text-[9px] font-black tracking-[0.18em] uppercase text-slate-500 mb-1">Visszaállítás</div>
+                        <div className="text-sm font-black text-slate-900">Nincs automatikus mentés</div>
+                        <div className="text-[11px] font-medium text-slate-500">a törlés végleges</div>
+                      </div>
+                    </div>
+
+                    {deleteAllModal === "confirm2" && (
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                        <label htmlFor="delete-all-confirm" className="block text-[11px] font-black tracking-[0.18em] uppercase text-slate-500 mb-2">
+                          Írd be pontosan: TOROL_MINDEN_FOGLALAST
+                        </label>
+                        <input
+                          id="delete-all-confirm"
+                          type="text"
+                          value={deleteAllConfirmText}
+                          onChange={(e) => setDeleteAllConfirmText(e.target.value)}
+                          autoFocus
+                          placeholder="TOROL_MINDEN_FOGLALAST"
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-rose-100 focus:border-rose-300 transition"
+                        />
+                        <div className="mt-2 text-[12px] text-slate-500">
+                          Ezzel kizárjuk a véletlen kattintást egy ilyen kemény műveletnél.
+                        </div>
+                      </div>
+                    )}
+
+                    {deleteAllError && (
+                      <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">
+                        {deleteAllError}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {deleteAllModal === "deleting" && (
+                  <div className="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-6 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center shadow-lg shadow-blue-600/20">
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-900">Foglalások végleges törlése folyamatban</div>
+                      <div className="text-sm text-slate-500 mt-1">Kiürítem az összes foglalást a központi adatforrásból.</div>
+                    </div>
+                  </div>
+                )}
+
+                {deleteAllModal === "done" && (
+                  <div className="rounded-3xl border border-emerald-200 bg-emerald-50 px-5 py-6">
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                        <CheckCircle2 className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-900 text-[16px]">A törlés sikeres volt.</div>
+                        <div className="text-sm text-slate-600 mt-1">
+                          Törölt foglalások száma:{" "}
+                          <span className="font-black text-slate-900">{deleteAllResult?.deletedCount ?? 0} db</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="px-7 py-5 border-t border-slate-200 bg-slate-50/70 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="text-[12px] text-slate-500">
+                  {deleteAllModal === "confirm1" && "Csak admin végezheti el ezt a műveletet."}
+                  {deleteAllModal === "confirm2" && "A törlés azonnal lefut, amint jóváhagyod."}
+                  {deleteAllModal === "deleting" && "Kérlek várj, amíg a folyamat befejeződik."}
+                  {deleteAllModal === "done" && "A rendszer most tiszta állapotban van."}
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                  {deleteAllModal === "confirm1" && (
+                    <>
+                      <button
+                        onClick={closeDeleteAllModal}
+                        className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-[12px] font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition"
+                      >
+                        Mégse
+                      </button>
+                      <button
+                        onClick={() => setDeleteAllModal("confirm2")}
+                        className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-700 text-white text-[12px] font-black tracking-widest uppercase shadow-lg shadow-rose-600/25 hover:-translate-y-0.5 transition"
+                      >
+                        Tovább
+                      </button>
+                    </>
+                  )}
+
+                  {deleteAllModal === "confirm2" && (
+                    <>
+                      <button
+                        onClick={() => setDeleteAllModal("confirm1")}
+                        className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-[12px] font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition"
+                      >
+                        Vissza
+                      </button>
+                      <button
+                        onClick={handleDeleteAllBookings}
+                        disabled={deleteAllConfirmText !== "TOROL_MINDEN_FOGLALAST"}
+                        className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-700 text-white text-[12px] font-black tracking-widest uppercase shadow-lg shadow-rose-600/25 hover:-translate-y-0.5 transition disabled:opacity-40 disabled:hover:translate-y-0 disabled:cursor-not-allowed"
+                      >
+                        Végleges törlés
+                      </button>
+                    </>
+                  )}
+
+                  {deleteAllModal === "done" && (
+                    <button
+                      onClick={closeDeleteAllModal}
+                      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-slate-900 to-slate-800 text-white text-[12px] font-black tracking-widest uppercase shadow-lg shadow-slate-900/20 hover:-translate-y-0.5 transition"
+                    >
+                      Rendben
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+
       {/* Toast notification container */}
       {notificationToasts.length > 0 && (
         <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none" style={{ maxWidth: '420px' }}>
@@ -1805,8 +2065,8 @@ export default function DispatcherDashboardClient({
               to { opacity: 0; transform: translateX(120%); }
             }
           `}</style>
-          {notificationToasts.map((toast) => {
-            const age = Date.now() - toast.timestamp;
+            {notificationToasts.map((toast) => {
+              const age = renderNow - toast.timestamp;
             const isFading = age > 5000;
             return (
               <div
@@ -1851,7 +2111,7 @@ export default function DispatcherDashboardClient({
                 <div className="h-1 bg-slate-100">
                   <div
                     className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-1000 ease-linear"
-                    style={{ width: `${Math.max(0, 100 - ((Date.now() - toast.timestamp) / 6000) * 100)}%` }}
+                      style={{ width: `${Math.max(0, 100 - ((renderNow - toast.timestamp) / 6000) * 100)}%` }}
                   />
                 </div>
               </div>
@@ -1939,5 +2199,109 @@ function QuickAction({
       <div className="relative font-bold text-sm text-slate-900">{label}</div>
       <div className="relative text-[11px] font-medium text-slate-500 mt-0.5">{subtitle}</div>
     </button>
+  );
+}
+
+function SettingsView({
+  user,
+  totalBookings,
+  onDeleteAll,
+}: {
+  user: { email: string; name: string; role: string };
+  totalBookings: number;
+  onDeleteAll: () => void;
+}) {
+  const isAdmin = user.role === "admin";
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-8">
+      {/* Header */}
+      <div>
+        <div className="text-[10px] font-black tracking-[0.22em] uppercase text-slate-400 mb-1">Rendszer</div>
+        <h2 className="font-serif text-[30px] font-bold tracking-tight text-slate-900">Beállítások</h2>
+        <p className="text-sm text-slate-500 mt-1">Profil és rendszer-szintű konfigurációk.</p>
+      </div>
+
+      {/* Profil kártya */}
+      <div className="rounded-3xl bg-white border border-slate-200/80 shadow-lg shadow-slate-900/[0.03] p-6">
+        <div className="text-[10px] font-black tracking-[0.2em] uppercase text-slate-400 mb-4">Fiók adatok</div>
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-700 shadow-lg shadow-blue-700/30 flex items-center justify-center text-white font-black text-xl ring-2 ring-white">
+            {(user.name || user.email).slice(0, 2).toUpperCase()}
+          </div>
+          <div>
+            <div className="font-bold text-slate-900 text-[16px]">{user.name || user.email}</div>
+            <div className="text-sm text-slate-500">{user.email}</div>
+            <div className="mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-gradient-to-r from-slate-800 to-slate-950 text-white text-[9px] font-black tracking-widest uppercase border border-slate-700">
+              <Star className="w-2.5 h-2.5" fill="currentColor" strokeWidth={0} />
+              {isAdmin ? "ADMIN" : "DISZPÉCSER"}
+            </div>
+          </div>
+        </div>
+        <div className="mt-6 grid grid-cols-2 gap-4">
+          <div className="rounded-2xl bg-slate-50 border border-slate-200 px-4 py-3">
+            <div className="text-[9px] font-black tracking-widest uppercase text-slate-400 mb-0.5">Jogosultság szint</div>
+            <div className="font-black text-slate-900 text-lg tabular-nums">{isAdmin ? "10" : "8"} <span className="text-xs font-bold text-slate-400">/ 10</span></div>
+          </div>
+          <div className="rounded-2xl bg-slate-50 border border-slate-200 px-4 py-3">
+            <div className="text-[9px] font-black tracking-widest uppercase text-slate-400 mb-0.5">Aktív foglalások</div>
+            <div className="font-black text-slate-900 text-lg tabular-nums">{totalBookings} <span className="text-xs font-bold text-slate-400">db</span></div>
+          </div>
+        </div>
+      </div>
+
+      {/* Veszélyes zóna - csak adminoknak */}
+      {isAdmin ? (
+        <div className="rounded-3xl border-2 border-rose-200 bg-rose-50/40 p-6">
+          <div className="flex items-start gap-4 mb-6">
+            <div className="shrink-0 w-12 h-12 rounded-2xl bg-gradient-to-br from-rose-500 to-red-600 shadow-lg shadow-rose-600/30 flex items-center justify-center text-white">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="text-[10px] font-black tracking-[0.2em] uppercase text-rose-600 mb-0.5">Veszélyes zóna</div>
+              <h3 className="font-bold text-slate-900 text-[17px]">Rendszer visszaállítás</h3>
+              <p className="text-sm text-slate-600 mt-1">
+                Ezek a műveletek <span className="font-black text-rose-600">visszafordíthatatlanok</span>. Csak akkor használd, ha teljesen tiszta lappal szeretnél indulni.
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-white border border-rose-200 p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="shrink-0 w-10 h-10 rounded-xl bg-rose-100 border border-rose-200 flex items-center justify-center">
+                  <Trash2 className="w-5 h-5 text-rose-600" />
+                </div>
+                <div>
+                  <div className="font-bold text-slate-900 text-[14px]">Teljes foglalás törlése</div>
+                  <div className="text-[12px] text-slate-500 mt-0.5 max-w-sm">
+                    Véglegesen törli az összes foglalást az adatbázisból — a partnercégek portáljain is eltűnnek. Jelenlegi foglalások: <span className="font-black text-slate-900">{totalBookings} db</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={onDeleteAll}
+                className="shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-700 text-white text-[12px] font-black tracking-widest uppercase shadow-lg shadow-rose-600/30 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-rose-600/40 transition-all"
+              >
+                <Trash2 className="w-4 h-4" />
+                Összes törlése
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-3xl border border-slate-200 bg-slate-50/60 p-6 flex items-center gap-4">
+          <div className="shrink-0 w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center">
+            <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+            </svg>
+          </div>
+          <div>
+            <div className="font-bold text-slate-700">Veszélyes műveletek</div>
+            <div className="text-[12px] text-slate-500 mt-0.5">Ehhez a szekciókhoz admin jogosultság szükséges.</div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

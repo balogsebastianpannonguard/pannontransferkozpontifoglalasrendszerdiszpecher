@@ -17,7 +17,9 @@ import {
   Users,
   Hash,
   Palette,
-  Activity
+  Activity,
+  ChevronRight,
+  Sparkles
 } from "lucide-react";
 
 type VehicleStatus = "parked" | "on_route";
@@ -39,41 +41,43 @@ interface Vehicle {
 
 const CONDITION_META: Record<
   VehicleCondition,
-  { label: string; icon: any; textColor: string; backgroundColor: string; borderColor: string }
+  { label: string; icon: any; textColor: string; backgroundColor: string; borderColor: string; dot: string }
 > = {
   working: {
     label: "Működik",
     icon: ShieldCheck,
-    textColor: "#047857",
-    backgroundColor: "#ecfdf5",
-    borderColor: "#a7f3d0",
+    textColor: "text-emerald-700",
+    backgroundColor: "bg-emerald-500/10",
+    borderColor: "border-emerald-500/20",
+    dot: "bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.8)]"
   },
   debrecen_only: {
     label: "Csak Debrecen",
     icon: MapPin,
-    textColor: "#b45309",
-    backgroundColor: "#fffbeb",
-    borderColor: "#fcd34d",
+    textColor: "text-amber-700",
+    backgroundColor: "bg-amber-500/10",
+    borderColor: "border-amber-500/20",
+    dot: "bg-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.8)]"
   },
   not_working: {
     label: "Nem működik",
     icon: AlertTriangle,
-    textColor: "#be123c",
-    backgroundColor: "#fff1f2",
-    borderColor: "#fda4af",
+    textColor: "text-rose-700",
+    backgroundColor: "bg-rose-500/10",
+    borderColor: "border-rose-500/20",
+    dot: "bg-rose-500 shadow-[0_0_12px_rgba(225,29,72,0.8)]"
   },
 };
 
-// Inline gradients guarantee they won't be purged by Tailwind JIT issues
 const getGradientCSS = (type: string, isParked: boolean) => {
-  if (isParked) return "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)";
+  if (isParked) return "linear-gradient(135deg, #0f172a 0%, #334155 100%)";
   const t = type.toLowerCase();
-  if (t.includes("mercedes")) return "linear-gradient(135deg, #2563eb 0%, #4f46e5 50%, #6d28d9 100%)";
-  if (t.includes("skoda")) return "linear-gradient(135deg, #10b981 0%, #0d9488 50%, #0e7490 100%)";
-  if (t.includes("ford")) return "linear-gradient(135deg, #f43f5e 0%, #dc2626 50%, #ea580c 100%)";
-  if (t.includes("opel")) return "linear-gradient(135deg, #c026d3 0%, #9333ea 50%, #4338ca 100%)";
-  if (t.includes("toyota")) return "linear-gradient(135deg, #f59e0b 0%, #f97316 50%, #e11d48 100%)";
-  return "linear-gradient(135deg, #3b82f6 0%, #6366f1 50%, #8b5cf6 100%)";
+  if (t.includes("mercedes")) return "linear-gradient(135deg, #1e3a8a 0%, #312e81 50%, #4c1d95 100%)";
+  if (t.includes("skoda")) return "linear-gradient(135deg, #064e3b 0%, #134e4a 50%, #164e63 100%)";
+  if (t.includes("ford")) return "linear-gradient(135deg, #881337 0%, #7f1d1d 50%, #7c2d12 100%)";
+  if (t.includes("opel")) return "linear-gradient(135deg, #4a044e 0%, #581c87 50%, #312e81 100%)";
+  if (t.includes("toyota")) return "linear-gradient(135deg, #78350f 0%, #7c2d12 50%, #881337 100%)";
+  return "linear-gradient(135deg, #1e40af 0%, #3730a3 50%, #5b21b6 100%)";
 };
 
 export default function VehiclesClient() {
@@ -179,104 +183,85 @@ export default function VehiclesClient() {
   };
 
   return (
-    <div
-      className="min-h-screen text-slate-900 pb-24"
-      style={{
-        backgroundColor: "#f8fafc",
-        backgroundImage:
-          "radial-gradient(circle at top left, rgba(59,130,246,0.08), transparent 28%), radial-gradient(circle at top right, rgba(99,102,241,0.08), transparent 22%), linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)",
-      }}
-    >
-      {/* Modern Compact Header */}
-      <header
-        className="sticky top-0 z-40 border-b border-slate-200 shadow-sm"
-        style={{ backgroundColor: "rgba(255,255,255,0.88)", backdropFilter: "blur(18px)" }}
-      >
-        <div className="max-w-[1880px] mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+    <div className="min-h-screen pb-24 bg-[#F8FAFC] relative font-sans selection:bg-blue-100">
+      {/* High-end decorative background */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-blue-400/20 rounded-full blur-[120px] mix-blend-multiply animate-[pulse_8s_ease-in-out_infinite]"></div>
+        <div className="absolute top-[20%] -right-[10%] w-[40%] h-[40%] bg-violet-400/20 rounded-full blur-[120px] mix-blend-multiply animate-[pulse_10s_ease-in-out_infinite] delay-1000"></div>
+        <div className="absolute -bottom-[10%] left-[20%] w-[40%] h-[40%] bg-emerald-400/20 rounded-full blur-[120px] mix-blend-multiply animate-[pulse_9s_ease-in-out_infinite] delay-2000"></div>
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]"></div>
+      </div>
+
+      {/* FLOATING HEADER */}
+      <header className="sticky top-6 z-40 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mb-12 transition-all duration-300">
+        <div className="bg-white/70 backdrop-blur-2xl border border-white/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-[2rem] px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-5 w-full sm:w-auto">
             <button
               onClick={() => router.push("/")}
-              className="w-9 h-9 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-colors shadow-sm"
-              title="Vissza"
+              className="w-12 h-12 rounded-2xl bg-white shadow-sm border border-slate-200/60 flex items-center justify-center transition-all duration-300 hover:shadow-md hover:scale-105 active:scale-95 text-slate-500 hover:text-slate-900 shrink-0 group"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" strokeWidth={2.5} />
             </button>
             <div>
-              <div className="text-[9px] font-black tracking-widest text-blue-600 uppercase flex items-center gap-1.5">
-                <CarFront className="w-3 h-3" />
-                Flottakezelő
+              <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest uppercase text-blue-600 mb-1">
+                <CarFront className="w-3.5 h-3.5" strokeWidth={2.5} />
+                <span>Flottakezelő</span>
               </div>
-              <h1 className="text-lg font-black tracking-tight text-slate-900">Járművek</h1>
+              <h1 className="text-2xl font-black text-slate-900 tracking-tight leading-none bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600">
+                Járműpark
+              </h1>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="relative hidden md:block w-72">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="relative w-full sm:w-72 group">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Search className="w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" strokeWidth={2.5} />
+              </div>
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Keresés..."
-                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors placeholder-slate-400"
-                style={{ backgroundColor: "#f8fafc", borderColor: "#e2e8f0" }}
+                placeholder="Keresés típus, rendszám..."
+                className="w-full pl-11 pr-4 py-3 bg-white/80 border border-slate-200/80 rounded-2xl text-sm font-semibold outline-none transition-all duration-300 placeholder:text-slate-400 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10 shadow-sm"
               />
             </div>
             <button
               onClick={() => setShowAdd(true)}
-              className="px-5 py-2 rounded-lg text-white text-xs font-bold uppercase tracking-widest shadow-sm hover:opacity-90 transition-opacity flex items-center gap-2"
-              style={{ backgroundImage: "linear-gradient(90deg, #0f172a, #1e293b)" }}
+              className="px-6 py-3 rounded-2xl bg-gradient-to-r from-slate-900 to-slate-800 text-white text-sm font-bold shadow-[0_8px_20px_-6px_rgba(15,23,42,0.4)] transition-all duration-300 hover:shadow-[0_12px_24px_-6px_rgba(15,23,42,0.5)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-none flex items-center gap-2 shrink-0 group"
             >
-              <Plus className="w-4 h-4" strokeWidth={3} />
-              Új jármű
+              <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" strokeWidth={3} />
+              <span className="hidden sm:inline">Új Jármű</span>
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-[1880px] mx-auto px-6 mt-6">
-        {/* Compact Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <StatCard title="Összes jármű" value={stats.total} icon={CarFront} tone={{ backgroundColor: "#f8fafc", borderColor: "#e2e8f0", color: "#475569" }} />
-          <StatCard title="Úton van" value={stats.onRoute} icon={Activity} tone={{ backgroundColor: "#eff6ff", borderColor: "#bfdbfe", color: "#2563eb" }} />
-          <StatCard title="Működik" value={stats.working} icon={ShieldCheck} tone={{ backgroundColor: "#ecfdf5", borderColor: "#a7f3d0", color: "#059669" }} />
-          <StatCard title="Szervizben" value={stats.broken} icon={AlertTriangle} tone={{ backgroundColor: "#fff1f2", borderColor: "#fda4af", color: "#e11d48" }} />
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        {/* STATS */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
+          <StatCard title="Összes jármű" value={stats.total} icon={CarFront} colorClass="text-blue-600" bgClass="bg-blue-500/10" glowColor="rgba(59,130,246,0.3)" />
+          <StatCard title="Úton van" value={stats.onRoute} icon={Activity} colorClass="text-indigo-600" bgClass="bg-indigo-500/10" glowColor="rgba(79,70,229,0.3)" glow />
+          <StatCard title="Működik" value={stats.working} icon={ShieldCheck} colorClass="text-emerald-600" bgClass="bg-emerald-500/10" glowColor="rgba(16,185,129,0.3)" />
+          <StatCard title="Szervizben" value={stats.broken} icon={AlertTriangle} colorClass="text-rose-600" bgClass="bg-rose-500/10" glowColor="rgba(225,29,72,0.3)" />
         </div>
 
-        {/* Compact Filters */}
-        <div
-          className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 p-2.5 rounded-2xl border shadow-sm"
-          style={{ backgroundColor: "rgba(255,255,255,0.9)", borderColor: "#e2e8f0", backdropFilter: "blur(16px)" }}
-        >
-          <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 scrollbar-hide">
+        {/* GLASS FILTER BAR */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10 p-3 rounded-[2rem] bg-white/70 backdrop-blur-xl border border-white shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 scrollbar-hide px-2">
             <FilterTab active={statusFilter === "all"} onClick={() => setStatusFilter("all")}>Összes</FilterTab>
             <FilterTab active={statusFilter === "parked"} onClick={() => setStatusFilter("parked")} dot="#94a3b8">Áll / Szabad</FilterTab>
             <FilterTab active={statusFilter === "on_route"} onClick={() => setStatusFilter("on_route")} dot="#3b82f6">Úton van</FilterTab>
-            <div className="w-px h-5 bg-slate-200 mx-2 shrink-0" />
+            <div className="w-px h-6 bg-slate-200/80 mx-2 shrink-0" />
             <FilterTab active={conditionFilter === "working"} onClick={() => setConditionFilter("working")}>Működik</FilterTab>
             <FilterTab active={conditionFilter === "not_working"} onClick={() => setConditionFilter("not_working")}>Hibás</FilterTab>
           </div>
-          <div className="text-[11px] font-bold text-slate-400 px-3 uppercase tracking-widest whitespace-nowrap">
-            <span className="text-slate-900">{filtered.length}</span> találat
+          <div className="text-[11px] font-black text-slate-400 px-4 uppercase tracking-widest whitespace-nowrap bg-white py-2 rounded-xl shadow-sm border border-slate-100">
+            <span className="text-slate-900">{filtered.length}</span> jármű
           </div>
         </div>
 
-        {/* Grid */}
-        {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="h-72 rounded-[24px] bg-white border border-slate-200/80 animate-pulse shadow-sm" />
-            ))}
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="py-24 text-center bg-white rounded-[24px] border border-slate-200/80 border-dashed shadow-sm">
-            <div className="w-16 h-16 mx-auto rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 mb-4 border border-slate-100">
-              <Search className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-black text-slate-900 tracking-tight">Nincs találat</h3>
-            <p className="text-sm font-semibold text-slate-500 mt-1">Próbáld módosítani a szűrőket vagy a keresést.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+        {loading ? <LoadingState /> : filtered.length === 0 ? <EmptyState onStart={() => setShowAdd(true)} /> : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
             {filtered.map((v) => (
               <VehicleCard key={v._id} vehicle={v} onPatch={patchVehicle} onEdit={() => setEditing(v)} onDelete={() => setDeleteTarget(v)} />
             ))}
@@ -284,16 +269,12 @@ export default function VehiclesClient() {
         )}
       </main>
 
-      {/* Modals */}
       {(showAdd || editing) && (
         <VehicleFormModal
           initial={editing}
-          onClose={() => {
-            setShowAdd(false);
-            setEditing(null);
-          }}
+          onClose={() => { setShowAdd(false); setEditing(null); }}
           onSubmit={async (payload: Partial<Vehicle>) => {
-            if (editing) {
+            if (editing && editing._id) {
               const ok = await patchVehicle(editing._id, payload);
               if (ok) setEditing(null);
               return ok;
@@ -305,7 +286,7 @@ export default function VehiclesClient() {
           }}
         />
       )}
-
+      
       {deleteTarget && (
         <ConfirmModal
           title="Jármű törlése"
@@ -314,40 +295,31 @@ export default function VehiclesClient() {
           onConfirm={removeVehicle}
         />
       )}
-
-      {/* Toast Notification */}
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
-          <div className={`px-4 py-2.5 rounded-lg shadow-xl border flex items-center gap-2 ${
-            toast.ok 
-              ? "bg-emerald-50 border-emerald-200 text-emerald-900" 
-              : "bg-rose-50 border-rose-200 text-rose-900"
-          }`}>
-            {toast.ok ? <Check className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
-            <span className="text-xs font-bold uppercase tracking-widest">{toast.msg}</span>
-          </div>
-        </div>
-      )}
+      
+      {toast && <Toast ok={toast.ok} msg={toast.msg} />}
     </div>
   );
 }
 
-function StatCard({ title, value, icon: Icon, tone }: any) {
+/* ======= STAT CARD ======= */
+function StatCard({ title, value, icon: Icon, colorClass, bgClass, glowColor, glow }: any) {
   return (
-    <div className="p-4 rounded-[24px] bg-white border border-slate-200 flex items-center gap-4 transition-all" style={{ boxShadow: "0 12px 30px -24px rgba(15,23,42,0.35)" }}>
-      <div
-        className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border"
-        style={{
-          backgroundColor: tone.backgroundColor,
-          borderColor: tone.borderColor,
-          color: tone.color,
-        }}
-      >
-        <Icon className="w-5 h-5" />
-      </div>
-      <div>
-        <div className="text-2xl font-black text-slate-900 leading-none tracking-tight">{value}</div>
-        <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mt-1">{title}</div>
+    <div className={`relative overflow-hidden rounded-[2rem] p-7 bg-white/70 backdrop-blur-xl border border-white shadow-[0_8px_20px_rgb(0,0,0,0.03)] transition-all duration-500 hover:shadow-[0_20px_40px_rgb(0,0,0,0.08)] hover:-translate-y-1 group`}>
+      <Icon className="absolute -right-6 -bottom-6 w-32 h-32 text-slate-900/5 -rotate-12 transition-transform duration-500 group-hover:rotate-0 group-hover:scale-110" strokeWidth={1} />
+      <div className="flex items-center gap-5 relative z-10">
+        <div className={`relative w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 ${bgClass} ${colorClass} shadow-inner`}>
+          <Icon className="w-7 h-7 relative z-10" strokeWidth={2} />
+          {glow && (
+            <span className="absolute -top-1 -right-1 flex h-4 w-4">
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${bgClass.replace('/10', '')}`} />
+              <span className={`relative inline-flex rounded-full h-4 w-4 border-2 border-white ${bgClass.replace('/10', '')}`} />
+            </span>
+          )}
+        </div>
+        <div>
+          <div className="text-xs font-black uppercase tracking-widest text-slate-400 mb-1.5">{title}</div>
+          <div className="text-4xl font-black text-slate-900 leading-none tracking-tighter">{value}</div>
+        </div>
       </div>
     </div>
   );
@@ -357,115 +329,107 @@ function FilterTab({ active, onClick, children, dot }: any) {
   return (
     <button
       onClick={onClick}
-      className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap shrink-0 ${
+      className={`px-5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all duration-300 flex items-center gap-2 whitespace-nowrap shrink-0 ${
         active 
-          ? "text-white shadow-sm" 
-          : "bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+          ? "bg-slate-900 text-white shadow-[0_8px_16px_-6px_rgba(15,23,42,0.4)]" 
+          : "bg-transparent text-slate-500 hover:bg-white hover:text-slate-900 hover:shadow-sm"
       }`}
-      style={active ? { backgroundImage: "linear-gradient(90deg, #0f172a, #1e293b)" } : {}}
     >
-      {dot && <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: dot }} />}
+      {dot && <span className={`w-1.5 h-1.5 rounded-full ${active ? "bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]" : ""}`} style={!active ? { backgroundColor: dot } : {}} />}
       {children}
     </button>
   );
 }
 
+/* ======= VEHICLE CARD ======= */
 function VehicleCard({ vehicle, onPatch, onEdit, onDelete }: any) {
   const isParked = vehicle.status === "parked";
   const cond = CONDITION_META[vehicle.condition as VehicleCondition];
   const CondIcon = cond.icon;
 
   return (
-    <div className="bg-white rounded-[24px] border border-slate-200/80 transition-all duration-300 flex flex-col overflow-hidden group hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-200/50" style={{ boxShadow: "0 12px 32px -16px rgba(15,23,42,0.1)" }}>
-      {/* Banner */}
-      <div
-        className="h-[136px] w-full p-5 flex flex-col justify-between relative overflow-hidden"
+    <div className={`group relative flex flex-col overflow-hidden rounded-[2.5rem] bg-white/80 backdrop-blur-xl border border-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.15)] hover:-translate-y-2 ${vehicle.condition === 'not_working' ? 'grayscale-[0.3]' : ''}`}>
+      
+      {/* Header Banner */}
+      <div 
+        className="relative h-44 w-full p-7 flex flex-col justify-between overflow-hidden"
         style={{ backgroundImage: getGradientCSS(vehicle.type, isParked) }}
       >
-        {/* Subtle top glare */}
-        <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
-        
-        <div className="relative z-10 flex justify-between items-start">
-          <div className="px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-sm"
-               style={{ backgroundColor: "rgba(255,255,255,0.12)", borderColor: "rgba(255,255,255,0.2)", color: "#ffffff", backdropFilter: "blur(8px)" }}>
-            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: isParked ? "#cbd5e1" : "#ffffff", animation: isParked ? "none" : "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite", boxShadow: isParked ? "none" : "0 0 8px rgba(255,255,255,0.8)" }} />
+        {/* Shimmer effect on hover */}
+        <div className="absolute top-0 left-[-100%] w-[50%] h-full bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-12 group-hover:left-[200%] transition-all duration-1000 ease-in-out pointer-events-none z-20"></div>
+        <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-black/20 pointer-events-none" />
+
+        <div className="relative z-20 flex justify-between items-start">
+          <div className="px-3 py-1.5 rounded-xl border border-white/20 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-sm bg-black/20 backdrop-blur-md text-white">
+            <span className={`w-2 h-2 rounded-full ${!isParked && 'animate-pulse shadow-[0_0_8px_rgba(255,255,255,0.8)]'}`} style={{ backgroundColor: isParked ? "#cbd5e1" : "#ffffff" }} />
             {isParked ? "Áll / Szabad" : "Úton van"}
           </div>
 
-          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity transform translate-x-2 group-hover:translate-x-0">
-             <button onClick={onEdit} className="w-8 h-8 rounded-lg bg-white/20 hover:bg-white/30 backdrop-blur-md border border-white/30 flex items-center justify-center text-white transition-all shadow-sm"><Pencil className="w-3.5 h-3.5" /></button>
-             <button onClick={onDelete} className="w-8 h-8 rounded-lg bg-white/20 hover:bg-rose-500/80 hover:border-rose-400 backdrop-blur-md border border-white/30 flex items-center justify-center text-white transition-all shadow-sm"><Trash2 className="w-3.5 h-3.5" /></button>
+          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-x-2 group-hover:translate-x-0">
+             <button onClick={onEdit} className="w-10 h-10 rounded-2xl bg-white/20 hover:bg-white/30 backdrop-blur-md border border-white/30 flex items-center justify-center text-white transition-all shadow-sm hover:scale-110"><Pencil className="w-4 h-4" /></button>
+             <button onClick={onDelete} className="w-10 h-10 rounded-2xl bg-white/20 hover:bg-rose-500/80 hover:border-rose-400 backdrop-blur-md border border-white/30 flex items-center justify-center text-white transition-all shadow-sm hover:scale-110"><Trash2 className="w-4 h-4" /></button>
           </div>
         </div>
 
-        <div className="relative z-10 mt-auto">
-          <div className="text-[10px] font-black uppercase tracking-[0.2em] truncate mb-1" style={{ color: "rgba(255,255,255,0.6)" }}>{vehicle.type}</div>
-          <div className="text-xl font-black text-white truncate tracking-tight drop-shadow-md">{vehicle.name}</div>
+        <div className="relative z-20 mt-auto">
+          <div className="text-[11px] font-black uppercase tracking-[0.2em] truncate mb-1 text-white/70">{vehicle.type}</div>
+          <div className="text-2xl font-black text-white truncate tracking-tight drop-shadow-lg">{vehicle.name}</div>
         </div>
 
-        <CarFront className="absolute -bottom-6 -right-4 w-28 h-28 transform group-hover:scale-110 transition-transform duration-700 ease-out" style={{ color: "rgba(255,255,255,0.07)" }} strokeWidth={1} />
+        <CarFront className="absolute -bottom-6 -right-4 w-36 h-36 transform group-hover:scale-110 transition-transform duration-700 ease-out text-white/10" strokeWidth={1} />
       </div>
 
-      {/* Content */}
-      <div className="p-5 flex-1 flex flex-col bg-white">
+      {/* Body */}
+      <div className="p-7 flex-1 flex flex-col">
         {/* Badges */}
-        <div className="flex items-center gap-2 mb-5">
-          <div
-            className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 border"
-            style={{
-              backgroundColor: cond.backgroundColor,
-              borderColor: cond.borderColor,
-              color: cond.textColor,
-            }}
-          >
+        <div className="flex flex-wrap items-center gap-2 mb-6">
+          <div className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 border shadow-sm backdrop-blur-md ${cond.backgroundColor} ${cond.borderColor} ${cond.textColor}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${cond.dot}`} />
             <CondIcon className="w-3.5 h-3.5" /> {cond.label}
           </div>
           {vehicle.seats && (
-            <div
-              className="px-2.5 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5"
-              style={{ backgroundColor: "#f8fafc", borderColor: "#e2e8f0", color: "#475569" }}
-            >
+            <div className="px-3 py-1.5 rounded-xl border bg-slate-50 border-slate-200 text-slate-500 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-sm">
               <Users className="w-3.5 h-3.5" /> {vehicle.seats} fős
             </div>
           )}
         </div>
 
         {/* Data Grid */}
-        <div className="grid grid-cols-2 gap-3 mb-5">
-          <div className="p-3 rounded-xl border shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]" style={{ backgroundColor: "#f8fafc", borderColor: "#f1f5f9" }}>
-            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mb-1">
-              <Hash className="w-3 h-3 text-slate-300" /> Rendszám
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <div className="p-4 rounded-2xl border border-slate-100 bg-slate-50/80 group-hover:bg-white transition-colors">
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mb-1.5">
+              <Hash className="w-3.5 h-3.5 text-slate-300" /> Rendszám
             </div>
-            <div className="text-[13px] font-black text-slate-900 uppercase tracking-wide">{vehicle.plates || "—"}</div>
+            <div className="text-sm font-black text-slate-900 uppercase tracking-wide">{vehicle.plates || "—"}</div>
           </div>
-          <div className="p-3 rounded-xl border shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]" style={{ backgroundColor: "#f8fafc", borderColor: "#f1f5f9" }}>
-            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mb-1">
-              <Palette className="w-3 h-3 text-slate-300" /> Szín
+          <div className="p-4 rounded-2xl border border-slate-100 bg-slate-50/80 group-hover:bg-white transition-colors">
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mb-1.5">
+              <Palette className="w-3.5 h-3.5 text-slate-300" /> Szín
             </div>
-            <div className="text-[13px] font-black text-slate-900 truncate">{vehicle.color || "—"}</div>
+            <div className="text-sm font-black text-slate-900 truncate">{vehicle.color || "—"}</div>
           </div>
         </div>
 
         {/* Note */}
         {vehicle.note && (
-          <div className="mb-5 p-3 rounded-xl border flex items-start gap-2.5" style={{ backgroundColor: "#fffbeb", borderColor: "#fde68a" }}>
-            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-            <div className="text-[11px] font-bold text-amber-900 leading-snug">{vehicle.note}</div>
+          <div className="mb-6 p-4 rounded-2xl border border-amber-100/60 bg-amber-50 shadow-inner flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+            <div className="text-xs font-bold text-amber-900 leading-relaxed">{vehicle.note}</div>
           </div>
         )}
 
         {/* Action Button */}
-        <div className="mt-auto pt-1">
+        <div className="mt-auto pt-2">
           <button
             onClick={() => onPatch(vehicle._id, { status: isParked ? "on_route" : "parked" })}
-            className="w-full py-3 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 border shadow-sm hover:-translate-y-0.5 hover:shadow-md"
-            style={
+            className={`w-full py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] transition-all duration-300 flex items-center justify-center gap-2 shadow-[0_8px_16px_-6px_rgba(0,0,0,0.2)] hover:-translate-y-0.5 hover:shadow-[0_12px_20px_-6px_rgba(0,0,0,0.3)] ${
               isParked
-                ? { backgroundColor: "#0f172a", borderColor: "#0f172a", color: "#ffffff" }
-                : { backgroundColor: "#eff6ff", borderColor: "#bfdbfe", color: "#1d4ed8" }
-            }
+                ? "bg-gradient-to-r from-slate-900 to-slate-800 text-white"
+                : "bg-gradient-to-r from-blue-600 to-indigo-600 text-white"
+            }`}
           >
             {isParked ? "Indítás útra" : "Parkolásba rakás"}
+            <ChevronRight className="w-4 h-4" strokeWidth={3} />
           </button>
         </div>
       </div>
@@ -473,6 +437,7 @@ function VehicleCard({ vehicle, onPatch, onEdit, onDelete }: any) {
   );
 }
 
+/* ======= MODALS ======= */
 function VehicleFormModal({ initial, onClose, onSubmit }: any) {
   const [name, setName] = useState(initial?.name || "");
   const [type, setType] = useState(initial?.type || "");
@@ -494,72 +459,87 @@ function VehicleFormModal({ initial, onClose, onSubmit }: any) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm" onClick={onClose}>
-      <form onSubmit={submit} onClick={e => e.stopPropagation()} className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="px-6 py-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 backdrop-blur-xl bg-slate-900/40 animate-in fade-in duration-300" onClick={onClose}>
+      <form onSubmit={submit} onClick={(e) => e.stopPropagation()} className="w-full max-w-3xl bg-white/90 backdrop-blur-2xl rounded-[3rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] border border-white flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-400 ease-out">
+        
+        {/* Header */}
+        <div className="px-10 py-8 flex items-center justify-between border-b border-slate-100/50 bg-white/50 relative z-10">
           <div>
-            <div className="text-[9px] font-bold tracking-widest text-blue-600 uppercase mb-1">
-              {initial ? "Szerkesztés" : "Hozzáadás"}
+            <div className="flex items-center gap-2 text-blue-600 mb-2">
+              <Sparkles className="w-5 h-5" />
+              <span className="text-xs font-black uppercase tracking-widest">{initial ? 'Szerkesztés' : 'Új hozzáadása'}</span>
             </div>
-            <h2 className="text-xl font-black text-slate-900">{initial ? "Jármű módosítása" : "Új jármű rögzítése"}</h2>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+              {initial ? "Jármű adatlapja" : "Új jármű rögzítése"}
+            </h2>
           </div>
-          <button type="button" onClick={onClose} className="w-8 h-8 rounded bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors shadow-sm">
-            <X className="w-4 h-4" />
+          <button type="button" onClick={onClose} className="p-3 rounded-2xl bg-white shadow-sm border border-slate-100 text-slate-500 hover:bg-slate-50 hover:text-slate-900 hover:scale-105 active:scale-95 transition-all">
+            <X className="w-6 h-6" strokeWidth={2.5} />
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto flex-1 space-y-5">
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-slate-700 uppercase tracking-widest">Megjelenítendő név *</label>
-            <input required value={name} onChange={e => setName(e.target.value)} className="w-full px-4 py-2.5 rounded-lg bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors text-sm font-bold" placeholder="pl. Mercedes V-Klass #1" />
-          </div>
+        {/* Body */}
+        <div className="p-10 overflow-y-auto flex-1 bg-slate-50/30 custom-scrollbar">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+            <Field label="Megjelenítendő név" required mdFull>
+              <Input value={name} onChange={setName} placeholder="pl. Mercedes V-Klass #1" autoFocus icon={CarFront} />
+            </Field>
 
-          <div className="grid grid-cols-2 gap-5">
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-700 uppercase tracking-widest">Típus *</label>
-              <input required value={type} onChange={e => setType(e.target.value)} className="w-full px-4 py-2.5 rounded-lg bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors text-sm font-bold" placeholder="pl. Mercedes V-Klass" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-700 uppercase tracking-widest">Rendszám</label>
-              <input value={plates} onChange={e => setPlates(e.target.value)} className="w-full px-4 py-2.5 rounded-lg bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors text-sm font-bold uppercase" placeholder="ABC-123" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-700 uppercase tracking-widest">Szín</label>
-              <input value={color} onChange={e => setColor(e.target.value)} className="w-full px-4 py-2.5 rounded-lg bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors text-sm font-bold" placeholder="Fekete" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-700 uppercase tracking-widest">Ülések száma</label>
-              <input type="number" value={seats} onChange={e => setSeats(e.target.value)} className="w-full px-4 py-2.5 rounded-lg bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors text-sm font-bold" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-700 uppercase tracking-widest">Státusz</label>
-              <select value={status} onChange={e => setStatus(e.target.value)} className="w-full px-4 py-2.5 rounded-lg bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors text-sm font-bold appearance-none">
-                <option value="parked">Áll / Szabad</option>
-                <option value="on_route">Úton van</option>
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-700 uppercase tracking-widest">Állapot</label>
-              <select value={condition} onChange={e => setCondition(e.target.value)} className="w-full px-4 py-2.5 rounded-lg bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors text-sm font-bold appearance-none">
-                <option value="working">Működik</option>
-                <option value="debrecen_only">Csak Debrecen</option>
-                <option value="not_working">Nem működik</option>
-              </select>
-            </div>
-          </div>
+            <Field label="Típus" required>
+              <Input value={type} onChange={setType} placeholder="pl. Mercedes V-Klass" />
+            </Field>
 
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-slate-700 uppercase tracking-widest">Megjegyzés</label>
-            <textarea rows={3} value={note} onChange={e => setNote(e.target.value)} className="w-full px-4 py-2.5 rounded-lg bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors text-sm font-bold resize-none" placeholder="Opcionális megjegyzés a járműhöz..." />
+            <Field label="Rendszám">
+              <Input value={plates} onChange={setPlates} placeholder="ABC-123" icon={Hash} />
+            </Field>
+
+            <Field label="Szín">
+              <Input value={color} onChange={setColor} placeholder="Fekete" icon={Palette} />
+            </Field>
+
+            <Field label="Ülések száma">
+              <Input type="number" value={seats} onChange={setSeats} placeholder="5" icon={Users} />
+            </Field>
+
+            <Field label="Státusz">
+              <div className="relative group">
+                <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full px-5 py-4 rounded-2xl outline-none font-bold appearance-none bg-white border border-slate-200 text-slate-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all shadow-sm group-hover:border-blue-300">
+                  <option value="parked">Áll / Szabad</option>
+                  <option value="on_route">Úton van</option>
+                </select>
+                <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <ChevronRight className="w-5 h-5 text-slate-400 rotate-90" />
+                </div>
+              </div>
+            </Field>
+
+            <Field label="Állapot">
+              <div className="relative group">
+                <select value={condition} onChange={(e) => setCondition(e.target.value)} className="w-full px-5 py-4 rounded-2xl outline-none font-bold appearance-none bg-white border border-slate-200 text-slate-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all shadow-sm group-hover:border-blue-300">
+                  <option value="working">Működik</option>
+                  <option value="debrecen_only">Csak Debrecen</option>
+                  <option value="not_working">Nem működik</option>
+                </select>
+                <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <ChevronRight className="w-5 h-5 text-slate-400 rotate-90" />
+                </div>
+              </div>
+            </Field>
+
+            <Field label="Megjegyzés, belső infók" mdFull>
+              <textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} className="w-full px-5 py-4 rounded-2xl outline-none font-semibold resize-none bg-white border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all shadow-sm placeholder:text-slate-400 text-slate-700 hover:border-blue-300" placeholder="Opcionális megjegyzés a járműhöz..." />
+            </Field>
           </div>
         </div>
 
-        <div className="px-6 py-5 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
-          <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest text-slate-600 hover:bg-slate-200 transition-colors">
+        {/* Footer */}
+        <div className="px-10 py-6 flex justify-end gap-4 border-t border-slate-100/50 bg-white/50 relative z-10">
+          <button type="button" onClick={onClose} className="px-6 py-4 rounded-2xl text-sm font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm">
             Mégsem
           </button>
-          <button disabled={busy} type="submit" className="px-6 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest text-white shadow-sm hover:opacity-90 transition-opacity flex items-center gap-2 disabled:opacity-70" style={{ backgroundImage: "linear-gradient(90deg, #0f172a, #1e293b)" }}>
-            <Check className="w-4 h-4" /> Mentés
+          <button disabled={busy} type="submit" className="px-8 py-4 rounded-2xl text-sm font-bold bg-gradient-to-r from-slate-900 to-slate-800 text-white shadow-[0_8px_20px_-6px_rgba(15,23,42,0.5)] transition-all hover:shadow-[0_12px_24px_-6px_rgba(15,23,42,0.6)] hover:-translate-y-0.5 disabled:opacity-70 disabled:pointer-events-none flex items-center gap-2">
+            {busy ? "Folyamatban..." : (initial ? "Változások mentése" : "Jármű hozzáadása")}
+            {!busy && <Check className="w-4 h-4" strokeWidth={3} />}
           </button>
         </div>
       </form>
@@ -567,19 +547,95 @@ function VehicleFormModal({ initial, onClose, onSubmit }: any) {
   );
 }
 
+function Field({ label, required, mdFull, children }: any) {
+  return (
+    <div className={`space-y-2.5 ${mdFull ? "md:col-span-2" : ""}`}>
+      <label className="text-[11px] font-black text-slate-500 ml-1 uppercase tracking-widest flex items-center gap-1">
+        {label} {required && <span className="text-red-500 text-lg leading-none">*</span>}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function Input({ value, onChange, placeholder, type = "text", icon: Icon, autoFocus }: any) {
+  return (
+    <div className="relative group">
+      {Icon && (
+        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
+          <Icon className="w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+        </div>
+      )}
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} autoFocus={autoFocus} className={`w-full ${Icon ? 'pl-12' : 'pl-5'} pr-5 py-4 rounded-2xl outline-none font-bold bg-white border border-slate-200 text-slate-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all shadow-sm placeholder:text-slate-300 placeholder:font-semibold hover:border-blue-300`} />
+    </div>
+  );
+}
+
 function ConfirmModal({ title, subtitle, onConfirm, onCancel }: any) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm" onClick={onCancel}>
-      <div className="w-full max-w-sm bg-white rounded-2xl p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mb-4 border border-rose-100">
-          <AlertTriangle className="w-6 h-6" />
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 backdrop-blur-xl bg-slate-900/60 animate-in fade-in duration-300" onClick={onCancel}>
+      <div className="w-full max-w-md bg-white rounded-[3rem] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] p-10 text-center animate-in zoom-in-95 duration-400 ease-out border border-white" onClick={(e) => e.stopPropagation()}>
+        <div className="w-24 h-24 rounded-full bg-red-50 mx-auto flex items-center justify-center mb-6 border-[8px] border-white shadow-[0_12px_24px_-8px_rgba(239,68,68,0.4)]">
+          <Trash2 className="w-10 h-10 text-red-500" strokeWidth={2.5} />
         </div>
-        <h3 className="text-xl font-black text-slate-900 mb-2">{title}</h3>
-        <p className="text-sm font-semibold text-slate-600 mb-6 leading-relaxed">{subtitle}</p>
-        <div className="flex gap-3">
-          <button onClick={onCancel} className="flex-1 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors">Mégsem</button>
-          <button onClick={onConfirm} className="flex-1 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest text-white bg-rose-600 hover:bg-rose-700 shadow-sm transition-colors">Törlés</button>
+        <h3 className="text-3xl font-black text-slate-900 mb-3 tracking-tight">{title}</h3>
+        <p className="text-base font-semibold text-slate-500 mb-10 leading-relaxed px-4">{subtitle}</p>
+        <div className="flex flex-col gap-3">
+          <button onClick={onConfirm} className="w-full py-4 rounded-2xl text-base font-bold bg-red-500 text-white shadow-[0_8px_20px_-6px_rgba(239,68,68,0.5)] hover:shadow-[0_12px_24px_-6px_rgba(239,68,68,0.6)] hover:-translate-y-0.5 transition-all">
+            Igen, véglegesen törlöm
+          </button>
+          <button onClick={onCancel} className="w-full py-4 rounded-2xl text-base font-bold bg-slate-50 text-slate-600 hover:bg-slate-100 transition-colors border border-slate-200/60">
+            Mégsem, visszalépek
+          </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function Toast({ ok, msg }: { ok: boolean; msg: string }) {
+  return (
+    <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[120] animate-in slide-in-from-bottom-10 fade-in duration-500">
+      <div className={`px-6 py-4 rounded-[1.5rem] shadow-[0_20px_40px_-10px_rgba(0,0,0,0.2)] flex items-center gap-4 border-[2px] backdrop-blur-xl ${ok ? 'bg-white/90 border-emerald-100' : 'bg-white/90 border-red-100'}`}>
+        <div className={`w-10 h-10 rounded-[1rem] flex items-center justify-center shadow-inner ${ok ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+          {ok ? <Check className="w-5 h-5" strokeWidth={3} /> : <AlertTriangle className="w-5 h-5" strokeWidth={3} />}
+        </div>
+        <div className="text-base font-black text-slate-800 pr-3 tracking-tight">{msg}</div>
+      </div>
+    </div>
+  );
+}
+
+/* ======= LOADING + EMPTY ======= */
+function LoadingState() {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-pulse">
+      {[1, 2, 3, 4, 5, 6].map(i => (
+        <div key={i} className="h-[460px] rounded-[2.5rem] bg-white/40 backdrop-blur-sm border border-white shadow-sm" />
+      ))}
+    </div>
+  );
+}
+
+function EmptyState({ onStart }: { onStart: () => void }) {
+  return (
+    <div className="py-32 px-6 text-center rounded-[3rem] bg-white/60 backdrop-blur-xl border border-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden group hover:shadow-[0_20px_40px_rgb(0,0,0,0.08)] transition-all duration-700">
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-b from-blue-100/50 to-transparent rounded-full blur-3xl pointer-events-none group-hover:from-blue-200/50 transition-colors duration-700"></div>
+      <div className="relative z-10">
+        <div className="w-28 h-28 mx-auto rounded-[2.5rem] bg-gradient-to-tr from-slate-50 to-white shadow-xl border border-white flex items-center justify-center mb-8 relative">
+          <div className="absolute inset-0 bg-blue-400/20 rounded-[2.5rem] blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+          <Search className="w-12 h-12 text-slate-300 relative z-10 group-hover:text-blue-500 transition-colors duration-500" strokeWidth={1.5} />
+        </div>
+        <h3 className="text-3xl font-black text-slate-900 mb-4 tracking-tight">Nincs jármű a rendszerben</h3>
+        <p className="text-slate-500 font-medium mb-10 max-w-md mx-auto leading-relaxed text-lg">
+          Úgy tűnik, még nem rögzítettél járművet vagy nem található a szűrésnek megfelelő eredmény.
+        </p>
+        <button
+          onClick={onStart}
+          className="px-10 py-4 rounded-2xl bg-gradient-to-r from-slate-900 to-slate-800 text-white font-bold shadow-[0_8px_20px_-6px_rgba(15,23,42,0.4)] transition-all duration-300 hover:shadow-[0_20px_30px_-6px_rgba(15,23,42,0.5)] hover:-translate-y-1 flex items-center gap-3 mx-auto text-lg group"
+        >
+          <Plus className="w-6 h-6 group-hover:rotate-90 transition-transform duration-300" strokeWidth={2.5} /> Jármű hozzáadása
+        </button>
       </div>
     </div>
   );

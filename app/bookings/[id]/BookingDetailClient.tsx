@@ -539,127 +539,151 @@ export default function BookingDetailClient({
       </div>
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20">
+        {statusValue === 'modified' && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 rounded-2xl bg-orange-50 border border-orange-200 p-4 flex items-start gap-3 shadow-sm"
+          >
+            <AlertCircle className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-black text-orange-900 mb-1">Módosított foglalás!</h3>
+              <p className="text-xs font-medium text-orange-800 leading-relaxed">
+                Ezt a foglalást a partner módosította. Kérlek ellenőrizd az adatokat, majd nyomj a <strong>Véglegesítés</strong> vagy <strong>Kiküldés Sofőrnek</strong> gombra, hogy az új adatok eljussanak az utashoz és a sofőrhöz!
+              </p>
+            </div>
+          </motion.div>
+        )}
+
         <motion.header
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, ease: "easeOut" }}
-          className="sticky top-0 z-30 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3.5 bg-white/80 backdrop-blur-2xl border-b border-slate-200/80"
+          className="mb-8"
         >
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <button
-                onClick={() => {
-                  if (window.history.length > 1) router.back();
-                  else router.push("/");
-                }}
-                className="shrink-0 w-11 h-11 rounded-2xl bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:shadow-md hover:-translate-y-0.5 transition-all flex items-center justify-center"
-                title="Vissza"
-              >
-                <ArrowLeft className="w-[18px] h-[18px]" />
-              </button>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
-                  <Home className="w-3.5 h-3.5" />
-                  <button
-                    onClick={() => router.push("/")}
-                    className="hover:text-slate-800 transition"
-                  >
-                    Irányítópult
-                  </button>
-                  <ChevronRight className="w-3 h-3" />
-                  <button
-                    onClick={() => router.push("/bookings")}
-                    className="hover:text-slate-800 transition"
-                  >
-                    Foglalások
-                  </button>
-                  <ChevronRight className="w-3 h-3" />
-                  <span className="text-slate-700">#{booking.bookingCode}</span>
-                </div>
-                <div className="text-[10px] font-black tracking-wider uppercase text-slate-400 mt-1">
-                  Foglalás részletek
-                </div>
+          {/* Felső sáv: Vissza gomb és Morzsamenü */}
+          <div className="flex items-center gap-3 mb-6">
+            <button
+              onClick={() => {
+                if (window.history.length > 1) router.back();
+                else router.push("/");
+              }}
+              className="shrink-0 w-12 h-12 rounded-2xl bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:shadow-md hover:-translate-y-0.5 transition-all flex items-center justify-center"
+              title="Vissza"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-sm font-bold text-slate-500">
+                <Home className="w-4 h-4" />
+                <button
+                  onClick={() => router.push("/")}
+                  className="hover:text-slate-800 transition"
+                >
+                  Irányítópult
+                </button>
+                <ChevronRight className="w-3.5 h-3.5" />
+                <button
+                  onClick={() => router.push("/bookings")}
+                  className="hover:text-slate-800 transition"
+                >
+                  Foglalások
+                </button>
+                <ChevronRight className="w-3.5 h-3.5" />
+                <span className="text-slate-800">#{booking.bookingCode}</span>
               </div>
             </div>
+          </div>
 
-            <div className="w-full lg:w-auto flex flex-col gap-3">
-              <div className="relative w-full sm:w-auto">
-                <button
-                  onClick={() => setStatusDropdownOpen((v) => !v)}
-                  className={`w-full sm:w-auto inline-flex items-center justify-center gap-3 px-5 py-3 rounded-3xl ${sMeta.pill} shadow-lg hover:-translate-y-0.5 hover:shadow-xl transition-all`}
-                >
-                  <span className={`w-3 h-3 rounded-full ${sMeta.dot} ${statusValue === "in-progress" ? "animate-ping absolute" : ""}`} />
-                  <span className={`w-3 h-3 rounded-full ${sMeta.dot}`} />
-                  <span className="text-[13px] font-black tracking-wider uppercase">
-                    {sMeta.label}
-                  </span>
-                  <ChevronDown className={`w-4 h-4 transition-transform ${statusDropdownOpen ? "rotate-180" : ""}`} />
-                </button>
-                <AnimatePresence>
-                  {statusDropdownOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -6, scale: 0.97 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -6, scale: 0.97 }}
-                      transition={{ duration: 0.15 }}
-                      className="absolute right-0 top-full mt-2.5 w-64 rounded-3xl bg-white shadow-2xl shadow-slate-900/10 border border-slate-200 overflow-hidden z-50"
-                    >
-                      <div className="p-2">
-                        {STATUS_OPTIONS.map((opt) => {
-                          const active = opt.value === statusValue;
-                          const m = statusMeta(opt.value);
-                          return (
-                            <button
-                              key={opt.value}
-                              onClick={() => handleStatusChange(opt.value)}
-                              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left transition ${
-                                active
-                                  ? "bg-slate-50"
-                                  : "hover:bg-slate-50"
-                              }`}
-                            >
-                              <span className={`w-3 h-3 rounded-full ${m.dot}`} />
-                              <span className="flex-1 text-sm font-black text-slate-800">{opt.label}</span>
-                              {active && <Check className="w-4 h-4 text-slate-500" />}
-                            </button>
-                          );
-                        })}
+          {/* Fő vezérlőpult - 56 éves felhasználóknak optimalizálva (Nagy gombok, egyértelmű feliratok) */}
+          <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-200 p-6">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+              
+              {/* Bal oldal: Státusz */}
+              <div className="flex-shrink-0">
+                <div className="text-xs font-black tracking-widest uppercase text-slate-400 mb-2.5">
+                  Foglalás státusza
+                </div>
+                <div className="relative">
+                  <button
+                    onClick={() => setStatusDropdownOpen((v) => !v)}
+                    className={`inline-flex items-center justify-between gap-4 px-6 py-4 rounded-2xl ${sMeta.pill} shadow-lg hover:shadow-xl transition-all min-w-[240px]`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="relative flex items-center justify-center">
+                        <span className={`w-3.5 h-3.5 rounded-full ${sMeta.dot} ${statusValue === "in-progress" ? "animate-ping absolute" : ""}`} />
+                        <span className={`w-3.5 h-3.5 rounded-full ${sMeta.dot} relative`} />
                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                      <span className="text-[15px] font-black tracking-wider uppercase">
+                        {sMeta.label}
+                      </span>
+                    </div>
+                    <ChevronDown className={`w-5 h-5 transition-transform ${statusDropdownOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  
+                  <AnimatePresence>
+                    {statusDropdownOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute left-0 top-full mt-3 w-72 rounded-3xl bg-white shadow-2xl shadow-slate-900/10 border border-slate-200 overflow-hidden z-50"
+                      >
+                        <div className="p-3 space-y-1">
+                          {STATUS_OPTIONS.map((opt) => {
+                            const active = opt.value === statusValue;
+                            const m = statusMeta(opt.value);
+                            return (
+                              <button
+                                key={opt.value}
+                                onClick={() => handleStatusChange(opt.value)}
+                                className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-left transition ${
+                                  active
+                                    ? "bg-slate-100"
+                                    : "hover:bg-slate-50"
+                                }`}
+                              >
+                                <span className={`w-4 h-4 rounded-full ${m.dot}`} />
+                                <span className="flex-1 text-base font-black text-slate-800">{opt.label}</span>
+                                {active && <Check className="w-5 h-5 text-slate-600" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Jobb oldal: Műveletek */}
+              <div className="flex-grow flex flex-col sm:flex-row items-center gap-3">
                 <button
                   onClick={handleRefresh}
                   disabled={refreshing}
-                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-white border border-slate-200 text-slate-700 text-xs font-black tracking-wider uppercase shadow-sm hover:bg-slate-50 hover:shadow-md hover:-translate-y-0.5 transition-all disabled:opacity-60"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-6 py-4 rounded-2xl bg-white border-2 border-slate-200 text-slate-700 text-sm font-black tracking-wider uppercase hover:bg-slate-50 hover:border-slate-300 transition-all disabled:opacity-60"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${refreshing ? "animate-spin" : ""}`} />
-                  <span className="leading-tight text-center">Frissítés</span>
+                  <RefreshCw className={`w-5 h-5 shrink-0 ${refreshing ? "animate-spin" : ""}`} />
+                  <span>Frissítés</span>
                 </button>
 
                 <button
                   onClick={() => handleFinalize(false)}
                   disabled={finalizing}
-                  className="w-full min-h-[52px] inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-slate-800 text-white text-xs font-black tracking-wider uppercase shadow-lg hover:-translate-y-0.5 hover:shadow-xl transition-all disabled:opacity-60"
+                  className="w-full sm:w-auto flex-1 inline-flex items-center justify-center gap-2.5 px-6 py-4 rounded-2xl bg-slate-800 text-white text-sm font-black tracking-wider uppercase shadow-lg hover:bg-slate-900 hover:-translate-y-0.5 transition-all disabled:opacity-60"
                 >
-                  {finalizing ? <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />}
-                  <span className="leading-tight text-center whitespace-normal break-words">
-                    Véglegesítés
-                  </span>
+                  {finalizing ? <Loader2 className="w-5 h-5 shrink-0 animate-spin" /> : <CheckCircle2 className="w-5 h-5 shrink-0" />}
+                  <span>Véglegesítés</span>
                 </button>
 
                 <button
                   onClick={() => handleFinalize(true)}
                   disabled={finalizingWithDriver}
-                  className="w-full min-h-[52px] inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-black tracking-wider uppercase shadow-lg shadow-emerald-500/30 hover:-translate-y-0.5 hover:shadow-xl transition-all disabled:opacity-60"
+                  className="w-full sm:w-auto flex-1 inline-flex items-center justify-center gap-2.5 px-6 py-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-sm font-black tracking-wider uppercase shadow-lg shadow-emerald-500/30 hover:from-emerald-600 hover:to-teal-700 hover:-translate-y-0.5 transition-all disabled:opacity-60"
                 >
-                  {finalizingWithDriver ? <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin" /> : <Send className="w-3.5 h-3.5 shrink-0" />}
-                  <span className="leading-tight text-center whitespace-normal break-words">
-                    Véglegesítés + Kiküldés Sofőrnek
-                  </span>
+                  {finalizingWithDriver ? <Loader2 className="w-5 h-5 shrink-0 animate-spin" /> : <Send className="w-5 h-5 shrink-0" />}
+                  <span className="whitespace-nowrap">Kiküldés Sofőrnek</span>
                 </button>
               </div>
             </div>

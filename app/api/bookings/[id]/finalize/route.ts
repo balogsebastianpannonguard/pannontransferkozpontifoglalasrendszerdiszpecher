@@ -4,7 +4,10 @@ import { getCurrentSession } from "@/lib/auth";
 import { getBookingById, updateBooking } from "@/lib/bookings";
 import { createAuditLog } from "@/lib/audit-logs";
 import { sendEmail } from "@/lib/nodemailer";
-import { buildTravelerFinalizedEmail } from "@/lib/email-templates";
+import {
+  buildDriverAssignmentEmail,
+  buildTravelerFinalizedEmail,
+} from "@/lib/email-templates";
 import { getMongoDb } from "@/lib/mongodb";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +29,14 @@ export async function POST(
 
     if (!booking) {
       return NextResponse.json({ error: "A foglalás nem található" }, { status: 404 });
+    }
+
+    const pickupTime = booking.pickupTime?.trim() || "";
+    if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(pickupTime)) {
+      return NextResponse.json(
+        { error: "A diszpécsernek érvényes HH:MM formátumú felvételi időpontot kell megadnia a véglegesítés előtt." },
+        { status: 400 }
+      );
     }
 
     if (withDriver && !booking.assignedDriverId) {
@@ -52,13 +63,42 @@ export async function POST(
           )
         : null;
 
-    let emailWarning: string | null = null;
+    const emailWarnings: string[] = [];
+    if (withDriver) {
+      if (!assignedDriver?.email) {
+        emailWarnings.push("A sofőrhöz nincs e-mail cím beállítva, ezért a sofőri e-mail nem küldhető ki.");
+      } else {
+        const driverEmailHtml = buildDriverAssignmentEmail({
+          bookingCode: booking.bookingCode,
+          driverName: assignedDriver.name || booking.assignedDriverName || "Sofőr",
+          travelerName: booking.travelerName,
+          travelerPhone: booking.travelerPhone,
+          pickupDate: booking.pickupDate,
+          pickupTime,
+          fromAddress: booking.fromAddress,
+          toAddress: booking.toAddress,
+          travelers: booking.travelers,
+          luggage: booking.luggage,
+          assignedVehicleName: booking.assignedVehicleName,
+          comment: booking.comment,
+        });
+        const driverEmailResult = await sendEmail({
+          to: assignedDriver.email,
+          subject: `Új fuvar érkezett · #${booking.bookingCode} · Pannon Transfer`,
+          html: driverEmailHtml,
+        });
+        if (!driverEmailResult.success) {
+          emailWarnings.push("A sofőri e-mail kiküldése nem sikerült.");
+        }
+      }
+    }
+
     if (booking.travelerEmail) {
       const travelerEmailHtml = buildTravelerFinalizedEmail({
         bookingCode: booking.bookingCode,
         travelerName: booking.travelerName,
         pickupDate: booking.pickupDate,
-        pickupTime: booking.pickupTime,
+        pickupTime,
         fromAddress: booking.fromAddress,
         toAddress: booking.toAddress,
         travelers: booking.travelers,
@@ -81,7 +121,7 @@ export async function POST(
       });
 
       if (!travelerEmailResult.success) {
-        emailWarning = "A foglalás véglegesítve lett, de az utas e-mail kiküldése nem sikerült.";
+        emailWarnings.push("A foglalás véglegesítve lett, de az utas e-mail kiküldése nem sikerült.");
       }
     }
 
@@ -102,7 +142,7 @@ export async function POST(
     return NextResponse.json({
       success: true,
       booking: updatedBooking,
-      warning: emailWarning,
+      warning: emailWarnings.length > 0 ? emailWarnings.join(" ") : null,
     });
   } catch (error: any) {
     console.error("[Booking Finalize API error]", error);

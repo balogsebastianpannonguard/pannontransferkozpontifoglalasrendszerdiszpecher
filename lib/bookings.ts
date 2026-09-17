@@ -21,6 +21,7 @@ export interface Booking {
   travelerEmail: string;
   travelerName: string;
   travelerPhone: string;
+  customerType?: 'individual' | 'company';
   secondTravelerEmail?: string;
   secondTravelerPhone?: string;
   companyName?: string;

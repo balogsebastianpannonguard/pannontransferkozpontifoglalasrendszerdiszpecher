@@ -54,6 +54,7 @@ type NavItemId =
   | "dashboard"
   | "calendar"
   | "bookings"
+  | "notifications"
   | "vehicles"
   | "drivers"
   | "clients"
@@ -142,14 +143,56 @@ interface RecentBookingNotif {
 interface NotificationsResponse {
   pendingCount: number;
   recentBookings: RecentBookingNotif[];
+  partnerModifications: PartnerModificationNotif[];
+  notifications: NotificationEvent[];
+}
+
+interface PartnerModificationChange {
+  field: string;
+  oldValue: unknown;
+  newValue: unknown;
+}
+
+interface PartnerModificationNotif {
+  id: string;
+  bookingId: string;
+  bookingCode: string;
+  travelerName: string;
+  companyName?: string;
+  pickupDate: string;
+  pickupTime: string;
+  fromAddress: string;
+  toAddress: string;
+  actor: string;
+  updatedAt: number;
+  message: string;
+  changes: PartnerModificationChange[];
+}
+
+interface NotificationEvent {
+  id: string;
+  type: "new_booking" | "booking_modified" | "driver_acknowledged" | "booking_event";
+  title: string;
+  message: string;
+  bookingId: string;
+  bookingCode: string;
+  travelerName: string;
+  companyName?: string;
+  pickupDate: string;
+  pickupTime: string;
+  actor?: string;
+  timestamp: number;
+  action: string;
+  changes?: PartnerModificationChange[];
 }
 
 interface NotificationToast {
   id: string;
-  type: 'new_booking' | 'status_change' | 'info';
+  type: 'new_booking' | 'booking_modified' | 'status_change' | 'info';
   title: string;
   message: string;
   bookingId?: string;
+  notificationId?: string;
   timestamp: number;
 }
 
@@ -285,6 +328,23 @@ function todayString() {
   return `${y}-${m}-${day}`;
 }
 
+function formatModificationChange(change: PartnerModificationChange): string {
+  const labels: Record<string, string> = {
+    pickupDate: "dátum",
+    pickupTime: "felvételi idő",
+    fromAddress: "indulási cím",
+    toAddress: "érkezési cím",
+    travelers: "utasok száma",
+    luggage: "csomagok száma",
+    travelerPhone: "utas telefonszáma",
+    secondTravelerEmail: "második utas e-mailje",
+    secondTravelerPhone: "második utas telefonszáma",
+    comment: "megjegyzés",
+  };
+  const value = (input: unknown) => input === null || input === undefined || input === "" ? "—" : String(input);
+  return `${labels[change.field] || change.field}: ${value(change.oldValue)} → ${value(change.newValue)}`;
+}
+
 export default function DispatcherDashboardClient({
   initialUser,
 }: {
@@ -306,14 +366,20 @@ export default function DispatcherDashboardClient({
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
   const [notifLoading, setNotifLoading] = useState(false);
   const [recentBookings, setRecentBookings] = useState<RecentBookingNotif[]>([]);
+  const [partnerModifications, setPartnerModifications] = useState<PartnerModificationNotif[]>([]);
+  const [notificationEvents, setNotificationEvents] = useState<NotificationEvent[]>([]);
+  const [unreadBookingCount, setUnreadBookingCount] = useState(0);
+  const [unreadModificationCount, setUnreadModificationCount] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
   const lastPollTimestamp = useRef<number>(0);
 
   const [notificationToasts, setNotificationToasts] = useState<NotificationToast[]>([]);
   const [newBookingBanner, setNewBookingBanner] = useState<{bookings: RecentBookingNotif[], show: boolean} | null>(null);
   const lastSeenBookingIds = useRef<Set<string>>(new Set());
+  const lastSeenModificationIds = useRef<Set<string>>(new Set());
   const isFirstLoad = useRef(true);
   const [viewedBookingIds, setViewedBookingIds] = useState<Set<string>>(new Set());
+  const readNotificationIds = useRef<Set<string>>(new Set());
 
   const [realBookings, setRealBookings] = useState<RealBooking[]>([]);
   const [bookingsLoading, setBookingsLoading] = useState(true);
@@ -331,6 +397,13 @@ export default function DispatcherDashboardClient({
   useEffect(() => {
     const t = setInterval(() => setHour(new Date().getHours()), 60_000);
     return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("dispatcher-read-notification-ids");
+      if (stored) readNotificationIds.current = new Set(JSON.parse(stored));
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -421,6 +494,16 @@ export default function DispatcherDashboardClient({
         badge: pendingCount > 0 ? pendingCount : undefined,
       },
       {
+        id: "notifications",
+        label: "Értesítések",
+        subtitle: "Minden rendszeresemény",
+        icon: <Bell className="w-5 h-5" />,
+        badge: unreadBookingCount + unreadModificationCount > 0
+          ? unreadBookingCount + unreadModificationCount
+          : undefined,
+        accent: "from-amber-400 to-orange-500",
+      },
+      {
         id: "vehicles",
         label: "Járművek",
         subtitle: "Flotta kezelés",
@@ -459,7 +542,7 @@ export default function DispatcherDashboardClient({
         icon: <Settings className="w-5 h-5" />,
       },
     ],
-    [pendingCount]
+    [pendingCount, unreadBookingCount, unreadModificationCount]
   );
 
   const transformedBookings: DemoBooking[] = useMemo(() => {
@@ -558,25 +641,55 @@ export default function DispatcherDashboardClient({
     selectedDateParts[1] === today.getMonth() &&
     selectedDateParts[2] === today.getDate();
 
-  async function fetchNotifications(showLoading = false) {
+  async function fetchNotifications(showLoading = false, history = false) {
     if (showLoading) setNotifLoading(true);
     try {
-      const res = await fetch("/api/notifications", { credentials: "include" });
+      const since = lastPollTimestamp.current || Date.now() - 60_000;
+      const res = await fetch(`/api/notifications?since=${since}${history ? "&history=1" : ""}`, { credentials: "include" });
       if (res.ok) {
         const data: NotificationsResponse = await res.json();
+        const firstLoad = isFirstLoad.current;
         setPendingCount(data.pendingCount);
         setRecentBookings(data.recentBookings || []);
-        lastPollTimestamp.current = Date.now();
+        const modifications = data.partnerModifications || [];
+        const events = data.notifications || [];
+        if (events.length > 0) {
+          setNotificationEvents((current) => {
+            const merged = [...events, ...current];
+            return Array.from(new Map(merged.map((item) => [item.id, item])).values())
+              .sort((a, b) => b.timestamp - a.timestamp)
+              .slice(0, 200);
+          });
+        }
+        setPartnerModifications((current) => {
+          const merged = [...modifications, ...current];
+          return Array.from(new Map(merged.map((item) => [item.id, item])).values())
+            .sort((a, b) => b.updatedAt - a.updatedAt)
+            .slice(0, 20);
+        });
+        // Keep a short overlap between polls so an update written during a request
+        // cannot disappear between two polling windows; event IDs deduplicate it.
+        lastPollTimestamp.current = Date.now() - 5_000;
 
-        const currentIds = new Set((data.recentBookings || []).map(b => b._id));
+        const newBookingEvents = events.filter((event) => event.type === "new_booking");
+        const currentIds = new Set(newBookingEvents.map((event) => event.bookingId));
 
-        if (isFirstLoad.current) {
+        if (firstLoad || history) {
           lastSeenBookingIds.current = currentIds;
-          isFirstLoad.current = false;
         } else {
-          const newBookings = (data.recentBookings || []).filter(
-            b => !lastSeenBookingIds.current.has(b._id)
-          );
+          const newBookings = newBookingEvents
+            .filter((event) => !lastSeenBookingIds.current.has(event.bookingId))
+            .map((event) => ({
+              _id: event.bookingId,
+              bookingCode: event.bookingCode,
+              travelerName: event.travelerName,
+              companyName: event.companyName,
+              pickupDate: event.pickupDate,
+              pickupTime: event.pickupTime,
+              status: "pending" as BookingStatus,
+              category: "partner" as BookingCategory,
+              createdAt: event.timestamp,
+            }));
           if (newBookings.length > 0) {
             playNotificationSound();
 
@@ -589,11 +702,42 @@ export default function DispatcherDashboardClient({
               timestamp: Date.now(),
             }));
             setNotificationToasts(prev => [...newToasts, ...prev].slice(0, 10));
+            setUnreadBookingCount((count) => count + newBookings.filter((booking) => {
+              return !Array.from(readNotificationIds.current).some((id) => id.startsWith(`${booking._id}-`));
+            }).length);
 
             setNewBookingBanner({ bookings: newBookings, show: true });
           }
           lastSeenBookingIds.current = currentIds;
         }
+
+        const newModifications = modifications.filter(
+          (item) => !lastSeenModificationIds.current.has(item.id)
+        );
+        if (firstLoad || history) {
+          lastSeenModificationIds.current = new Set(modifications.map((item) => item.id));
+        } else if (newModifications.length > 0) {
+          playNotificationSound();
+          setUnreadModificationCount((count) => count + newModifications.filter(
+            (item) => !readNotificationIds.current.has(item.id)
+          ).length);
+          const newToasts: NotificationToast[] = newModifications.map((item) => ({
+            id: `toast-${item.id}`,
+            type: "booking_modified",
+            title: "Foglalás módosult",
+            message: `#${item.bookingCode} · ${item.travelerName} — ${item.changes
+              .map((change) => formatModificationChange(change))
+              .join(", ") || item.message}`,
+            bookingId: item.bookingId,
+            timestamp: Date.now(),
+          }));
+          setNotificationToasts((current) => [...newToasts, ...current].slice(0, 10));
+          lastSeenModificationIds.current = new Set([
+            ...lastSeenModificationIds.current,
+            ...modifications.map((item) => item.id),
+          ]);
+        }
+        isFirstLoad.current = false;
       }
     } catch {}
     if (showLoading) setNotifLoading(false);
@@ -650,8 +794,34 @@ export default function DispatcherDashboardClient({
     const willOpen = !showNotificationsDropdown;
     setShowNotificationsDropdown(willOpen);
     if (willOpen) {
-      fetchNotifications(true);
+      fetchNotifications(true, true);
     }
+  }
+
+  function markNotificationRead(notificationId: string, type?: NotificationEvent["type"]) {
+    if (!notificationId || readNotificationIds.current.has(notificationId)) return;
+    readNotificationIds.current.add(notificationId);
+    try {
+      window.localStorage.setItem(
+        "dispatcher-read-notification-ids",
+        JSON.stringify(Array.from(readNotificationIds.current).slice(-500))
+      );
+    } catch {}
+    if (type === "new_booking") {
+      setUnreadBookingCount((count) => Math.max(0, count - 1));
+    } else if (type === "booking_modified") {
+      setUnreadModificationCount((count) => Math.max(0, count - 1));
+    }
+  }
+
+  function markBookingNotificationsRead(bookingId: string) {
+    const matching = notificationEvents.filter((event) => event.bookingId === bookingId);
+    matching.forEach((event) => markNotificationRead(event.id, event.type));
+  }
+
+  function openNotificationsPage() {
+    setActive("notifications");
+    void fetchNotifications(true, true);
   }
 
   async function handleLogout() {
@@ -711,6 +881,8 @@ export default function DispatcherDashboardClient({
     return renderNow - b.createdAt < 24 * 60 * 60 * 1000;
   }
 
+  const unreadNotificationTotal = unreadBookingCount + unreadModificationCount;
+
   return (
     <div className="min-h-screen text-slate-900 antialiased _dbg-grad-bg bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40">
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
@@ -768,6 +940,10 @@ export default function DispatcherDashboardClient({
                         }
                         if (item.id === "bookings") {
                           router.push("/bookings");
+                          return;
+                        }
+                        if (item.id === "notifications") {
+                          openNotificationsPage();
                           return;
                         }
                         setActive(item.id);
@@ -904,17 +1080,20 @@ export default function DispatcherDashboardClient({
                   <button
                     onClick={toggleNotifications}
                     className={`relative w-10 h-10 rounded-2xl bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:shadow-md transition-all flex items-center justify-center ${
-                      pendingCount > 0 ? "ring-2 ring-rose-200 ring-offset-1 animate-pulse" : ""
+                      unreadNotificationTotal > 0 ? "ring-2 ring-rose-200 ring-offset-1 animate-pulse" : ""
                     }`}
                   >
                     {notifLoading ? (
                       <Loader2 className="w-[18px] h-[18px] animate-spin" />
                     ) : (
-                      <Bell className="w-[18px] h-[18px]" />
+                      <Bell className={`w-[18px] h-[18px] ${unreadNotificationTotal > 0 ? "animate-bounce text-rose-600" : ""}`} />
                     )}
-                    {pendingCount > 0 && (
+                    {unreadNotificationTotal > 0 && (
+                      <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-rose-500 ring-2 ring-white animate-ping" />
+                    )}
+                    {unreadNotificationTotal > 0 && (
                       <span className="absolute top-1 right-1.5 px-1.5 py-0.5 text-[9px] font-black rounded-full bg-rose-500 text-white ring-2 ring-white min-w-[1.1rem] flex items-center justify-center">
-                        {pendingCount > 99 ? "99+" : pendingCount}
+                        {unreadNotificationTotal > 99 ? "99+" : unreadNotificationTotal}
                       </span>
                     )}
                   </button>
@@ -923,15 +1102,15 @@ export default function DispatcherDashboardClient({
                       <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 bg-gradient-to-br from-slate-50 to-white">
                         <div className="flex items-center gap-2.5">
                           <span className="font-bold text-slate-900 text-[14px]">Értesítések</span>
-                          {pendingCount > 0 && (
+                          {unreadNotificationTotal > 0 && (
                             <span className="h-5 min-w-[1.25rem] px-1.5 rounded-full text-[10px] font-black flex items-center justify-center bg-gradient-to-r from-rose-500 to-red-500 text-white shadow-sm">
-                              {pendingCount}
+                              {unreadNotificationTotal}
                             </span>
                           )}
                         </div>
                         <div className="flex items-center gap-1.5">
                           <button
-                            onClick={() => fetchNotifications(true)}
+                            onClick={() => fetchNotifications(true, true)}
                             className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition flex items-center gap-1"
                           >
                             <RefreshCw className={`w-3 h-3 ${notifLoading ? "animate-spin" : ""}`} />
@@ -946,7 +1125,7 @@ export default function DispatcherDashboardClient({
                         </div>
                       </div>
                       <div className="max-h-[420px] overflow-y-auto">
-                        {pendingCount === 0 && recentBookings.length === 0 ? (
+                        {notificationEvents.length === 0 ? (
                           <div className="py-14 px-8 flex flex-col items-center justify-center text-center">
                             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 flex items-center justify-center mb-3">
                               <Bell className="w-7 h-7 text-slate-300" strokeWidth={1.5} />
@@ -956,59 +1135,56 @@ export default function DispatcherDashboardClient({
                           </div>
                         ) : (
                           <ul className="divide-y divide-slate-100">
-                            {recentBookings.map((rb) => {
-                              const s = statusColor(rb.status);
-                              const isNew = rb.status === "pending" || rb.status === "modified";
-                              const partnerMeta = resolvePartnerMeta(rb);
-                              return (
-                                <li key={rb._id}>
-                                  <button
-                                    onClick={() => {
-                                      markAsViewed(rb._id);
-                                      router.push(`/bookings/${rb._id}`);
-                                      setShowNotificationsDropdown(false);
-                                    }}
-                                    className="w-full text-left px-5 py-3 hover:bg-slate-50 transition flex items-start gap-3 group"
-                                  >
-                                    <div className={`shrink-0 mt-0.5 w-9 h-9 rounded-xl bg-gradient-to-br ${categoryGradient(rb.category, isNew, partnerMeta)} shadow-sm flex items-center justify-center text-white`}>
-                                      <ListChecks className="w-4 h-4" />
+                            {notificationEvents.slice(0, 30).map((event) => (
+                              <li key={event.id}>
+                                <button
+                                  onClick={() => {
+                                    router.push(`/bookings/${event.bookingId}`);
+                                    setShowNotificationsDropdown(false);
+                                  }}
+                                  className="w-full text-left px-5 py-3.5 hover:bg-slate-50 transition flex items-start gap-3 group"
+                                >
+                                  <div className={`shrink-0 mt-0.5 w-9 h-9 rounded-xl shadow-sm flex items-center justify-center text-white ${
+                                    event.type === "new_booking"
+                                      ? "bg-gradient-to-br from-blue-500 to-indigo-600"
+                                      : event.type === "booking_modified"
+                                        ? "bg-gradient-to-br from-amber-500 to-orange-600"
+                                        : event.type === "driver_acknowledged"
+                                          ? "bg-gradient-to-br from-emerald-500 to-teal-600"
+                                          : "bg-gradient-to-br from-slate-600 to-slate-800"
+                                  }`}>
+                                    {event.type === "new_booking" ? <PlusCircle className="w-4 h-4" /> : event.type === "booking_modified" ? <RefreshCw className="w-4 h-4" /> : event.type === "driver_acknowledged" ? <CheckCircle2 className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                                      <span className="font-mono text-[11px] font-black text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                                        {event.bookingCode}
+                                      </span>
+                                      <span className="font-black text-[13px] text-slate-900 truncate">{event.title}</span>
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                                        <span className="font-mono text-[11px] font-black text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{rb.bookingCode}</span>
-                                        <span className="font-bold text-[13px] text-slate-900 truncate">{rb.travelerName}</span>
-                                        {partnerMeta && (
-                                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[9px] font-black tracking-wider uppercase ${getPartnerColorClasses(partnerMeta.accent).bg} ${getPartnerColorClasses(partnerMeta.accent).text} ${getPartnerColorClasses(partnerMeta.accent).border}`}>
-                                            {partnerMeta.short}
-                                          </span>
-                                        )}
-                                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[9px] font-black tracking-wider uppercase ${s.chip}`}>
-                                          <span className={`w-1 h-1 rounded-full ${s.dot}`} />
-                                          {s.label}
-                                        </span>
-                                      </div>
-                                      <div className="flex items-center gap-2 text-[11.5px] text-slate-600">
-                                        <span>{rb.pickupDate}</span>
-                                        <span className="font-mono font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">{rb.pickupTime}</span>
-                                      </div>
+                                    <div className="text-[11.5px] text-slate-700 font-semibold">
+                                      {event.travelerName} · {event.pickupDate} {event.pickupTime}
                                     </div>
-                                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 shrink-0 mt-1.5 transition" />
-                                  </button>
-                                </li>
-                              );
-                            })}
+                                    <div className="mt-1 text-[10.5px] text-slate-600 leading-relaxed">
+                                      {event.changes?.map(formatModificationChange).join(" · ") || event.message}
+                                    </div>
+                                  </div>
+                                  <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-600 shrink-0 mt-1.5 transition" />
+                                </button>
+                              </li>
+                            ))}
                           </ul>
                         )}
                       </div>
                       <div className="border-t border-slate-200 px-5 py-3 bg-slate-50/50">
                         <button
                           onClick={() => {
-                            router.push("/bookings");
+                            openNotificationsPage();
                             setShowNotificationsDropdown(false);
                           }}
                           className="w-full text-center text-[12px] font-bold text-blue-600 hover:text-blue-700 transition py-1 rounded-lg hover:bg-blue-50"
                         >
-                          Összes foglalás megtekintése →
+                          Összes értesítés megtekintése →
                         </button>
                       </div>
                     </div>
@@ -1065,6 +1241,7 @@ export default function DispatcherDashboardClient({
                         <button
                           key={b._id}
                           onClick={() => {
+                            markBookingNotificationsRead(b._id);
                             markAsViewed(b._id);
                             router.push(`/bookings/${b._id}`);
                             dismissBanner();
@@ -1096,7 +1273,19 @@ export default function DispatcherDashboardClient({
 
           {/* Content */}
           <div className="flex-1 px-8 py-6 pb-10 overflow-x-hidden">
-            {active === "clients" ? (
+            {active === "notifications" ? (
+              <NotificationsView
+                events={notificationEvents}
+                loading={notifLoading}
+                onRefresh={() => fetchNotifications(true)}
+                onOpenBooking={(bookingId) => {
+                  markBookingNotificationsRead(bookingId);
+                  markAsViewed(bookingId);
+                  router.push(`/bookings/${bookingId}`);
+                }}
+                onRead={markNotificationRead}
+              />
+            ) : active === "clients" ? (
               <ClientsView bookings={realBookings} />
             ) : active === "settings" ? (
               <SettingsView
@@ -2116,6 +2305,7 @@ export default function DispatcherDashboardClient({
                   {toast.bookingId && (
                     <button
                       onClick={() => {
+                        if (toast.bookingId) markBookingNotificationsRead(toast.bookingId);
                         if (toast.bookingId) markAsViewed(toast.bookingId);
                         router.push(`/bookings/${toast.bookingId}`);
                         dismissToast(toast.id);
@@ -2139,6 +2329,166 @@ export default function DispatcherDashboardClient({
         </div>
       )}
     </div>
+  );
+}
+
+function NotificationsView({
+  events,
+  loading,
+  onRefresh,
+  onOpenBooking,
+  onRead,
+}: {
+  events: NotificationEvent[];
+  loading: boolean;
+  onRefresh: () => void;
+  onOpenBooking: (bookingId: string) => void;
+  onRead: (notificationId: string, type: NotificationEvent["type"]) => void;
+}) {
+  const eventStyle = (type: NotificationEvent["type"]) => {
+    if (type === "new_booking") {
+      return {
+        icon: <PlusCircle className="w-5 h-5" />,
+        iconClass: "bg-blue-600 text-white shadow-blue-500/25",
+        badgeClass: "bg-blue-50 text-blue-700 border-blue-200",
+        label: "Új foglalás",
+      };
+    }
+    if (type === "booking_modified") {
+      return {
+        icon: <RefreshCw className="w-5 h-5" />,
+        iconClass: "bg-amber-500 text-white shadow-amber-500/25",
+        badgeClass: "bg-amber-50 text-amber-700 border-amber-200",
+        label: "Foglalás módosítva",
+      };
+    }
+    if (type === "driver_acknowledged") {
+      return {
+        icon: <CheckCircle2 className="w-5 h-5" />,
+        iconClass: "bg-emerald-600 text-white shadow-emerald-500/25",
+        badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
+        label: "Sofőr visszaigazolta",
+      };
+    }
+    return {
+      icon: <Bell className="w-5 h-5" />,
+      iconClass: "bg-slate-700 text-white shadow-slate-500/25",
+      badgeClass: "bg-slate-50 text-slate-700 border-slate-200",
+      label: "Foglalási esemény",
+    };
+  };
+
+  return (
+    <section className="max-w-6xl mx-auto space-y-6">
+      <div className="rounded-[2rem] bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white px-7 py-7 shadow-2xl shadow-slate-900/20">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-11 h-11 rounded-2xl bg-white/10 ring-1 ring-white/15 flex items-center justify-center">
+                <Bell className="w-5 h-5 text-amber-300" />
+              </div>
+              <span className="text-[11px] font-black tracking-[0.22em] uppercase text-blue-200">Diszpécser központ</span>
+            </div>
+            <h2 className="font-serif text-3xl font-bold tracking-tight">Értesítési központ</h2>
+            <p className="mt-1.5 text-sm text-slate-300">
+              Minden fontos foglalási és sofőri esemény egy helyen, időrendben.
+            </p>
+          </div>
+          <button
+            onClick={onRefresh}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 ring-1 ring-white/15 text-sm font-bold transition"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            Frissítés
+          </button>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-7">
+          <div className="rounded-2xl bg-white/10 ring-1 ring-white/10 px-4 py-3">
+            <div className="text-[10px] uppercase tracking-widest text-slate-300 font-black">Összes esemény</div>
+            <div className="text-2xl font-black mt-1">{events.length}</div>
+          </div>
+          <div className="rounded-2xl bg-white/10 ring-1 ring-white/10 px-4 py-3">
+            <div className="text-[10px] uppercase tracking-widest text-slate-300 font-black">Módosítások</div>
+            <div className="text-2xl font-black mt-1">{events.filter((event) => event.type === "booking_modified").length}</div>
+          </div>
+          <div className="rounded-2xl bg-white/10 ring-1 ring-white/10 px-4 py-3 col-span-2 sm:col-span-1">
+            <div className="text-[10px] uppercase tracking-widest text-slate-300 font-black">Sofőri visszaigazolás</div>
+            <div className="text-2xl font-black mt-1">{events.filter((event) => event.type === "driver_acknowledged").length}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-[2rem] bg-white border border-slate-200/80 shadow-xl shadow-slate-900/[0.04] overflow-hidden">
+        <div className="px-6 py-5 border-b border-slate-200/80 flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-slate-900 text-lg">Értesítési előzmények</h3>
+            <p className="text-xs text-slate-500 mt-1">A legfrissebb események vannak legfelül.</p>
+          </div>
+          {loading && <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />}
+        </div>
+        {events.length === 0 && !loading ? (
+          <div className="py-20 px-8 text-center">
+            <div className="mx-auto w-16 h-16 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center">
+              <Bell className="w-8 h-8 text-slate-300" />
+            </div>
+            <h4 className="mt-4 font-bold text-slate-700">Még nincs megjeleníthető értesítés</h4>
+            <p className="mt-1 text-sm text-slate-500">Az új események automatikusan ide kerülnek.</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {events.map((event) => {
+              const style = eventStyle(event.type);
+              return (
+                <button
+                  key={event.id}
+                  onClick={() => {
+                    onRead(event.id, event.type);
+                    onOpenBooking(event.bookingId);
+                  }}
+                  className="w-full text-left px-6 py-5 hover:bg-slate-50/80 transition group"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className={`shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center shadow-lg ${style.iconClass}`}>
+                      {style.icon}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full border text-[10px] font-black uppercase tracking-wider ${style.badgeClass}`}>
+                          {style.label}
+                        </span>
+                        <span className="font-mono text-[11px] font-black text-slate-500">#{event.bookingCode}</span>
+                        <span className="text-[11px] text-slate-400">
+                          {new Intl.DateTimeFormat("hu-HU", {
+                            year: "numeric", month: "2-digit", day: "2-digit",
+                            hour: "2-digit", minute: "2-digit",
+                          }).format(new Date(event.timestamp))}
+                        </span>
+                      </div>
+                      <h4 className="mt-2 text-[15px] font-black text-slate-900 group-hover:text-blue-700 transition-colors">
+                        {event.title}
+                      </h4>
+                      <p className="mt-1 text-sm text-slate-600 leading-relaxed">{event.message}</p>
+                      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                        <span className="font-bold text-slate-700">{event.travelerName}</span>
+                        {event.companyName && <span>{event.companyName}</span>}
+                        <span>{event.pickupDate} · {event.pickupTime}</span>
+                        {event.actor && <span>Rögzítette: {event.actor}</span>}
+                      </div>
+                      {event.changes && event.changes.length > 0 && (
+                        <div className="mt-3 rounded-xl bg-amber-50/70 border border-amber-100 px-3 py-2 text-xs text-amber-900 leading-relaxed">
+                          {event.changes.map(formatModificationChange).join(" · ")}
+                        </div>
+                      )}
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-blue-600 shrink-0 mt-2 transition-colors" />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 

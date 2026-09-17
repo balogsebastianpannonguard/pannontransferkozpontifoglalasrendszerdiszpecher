@@ -6,6 +6,10 @@ import {
   type BookingStatus,
 } from "@/lib/bookings";
 import { createAuditLog } from "@/lib/audit-logs";
+import { updateDriver } from "@/lib/drivers";
+import { updateVehicle } from "@/lib/vehicles";
+import { sendEmail } from "@/lib/nodemailer";
+import { buildBookingModificationEmail } from "@/lib/email-templates";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +65,15 @@ export async function POST(
       );
     }
 
+    if (body.status === "completed" || body.status === "cancelled") {
+      if (existing.assignedVehicleId) {
+        await updateVehicle(existing.assignedVehicleId, { status: "parked" });
+      }
+      if (existing.assignedDriverId) {
+        await updateDriver(existing.assignedDriverId, { status: "active" });
+      }
+    }
+
     await createAuditLog({
       timestamp: Date.now(),
       action: "booking.status_changed",
@@ -73,6 +86,26 @@ export async function POST(
         details: body.details || "",
       }),
     });
+
+    const emailTarget = existing.userEmail || existing.travelerEmail;
+    if (emailTarget && oldStatus !== body.status) {
+      const emailResult = await sendEmail({
+        to: emailTarget,
+        subject: `Foglalás állapota módosítva · #${existing.bookingCode}`,
+        html: buildBookingModificationEmail({
+          bookingCode: existing.bookingCode,
+          travelerName: existing.travelerName,
+          changes: [{
+            field: "Foglalás állapota",
+            oldValue: oldStatus,
+            newValue: body.status,
+          }],
+        }),
+      });
+      if (!emailResult.success) {
+        console.warn("[booking status] módosítási e-mail nem küldhető:", emailResult.error);
+      }
+    }
 
     return NextResponse.json({ booking: updated });
   } catch (err) {

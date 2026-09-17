@@ -3,6 +3,8 @@ import { getCurrentSession } from "@/lib/auth";
 import { getBookingById, updateBooking, type Booking } from "@/lib/bookings";
 import { createAuditLog } from "@/lib/audit-logs";
 import { getPartnerPricingByKey } from "@/lib/partner-pricing";
+import { sendEmail } from "@/lib/nodemailer";
+import { buildBookingModificationEmail } from "@/lib/email-templates";
 
 export const dynamic = "force-dynamic";
 
@@ -88,6 +90,18 @@ export async function PATCH(
       }
     }
 
+    if ("pickupTime" in patch) {
+      const pickupTime = typeof patch.pickupTime === "string" ? patch.pickupTime.trim() : "";
+      const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(pickupTime);
+      if (!match) {
+        return NextResponse.json(
+          { error: "A felvételi időpont érvényes HH:MM formátumú kell legyen." },
+          { status: 400 }
+        );
+      }
+      patch.pickupTime = pickupTime;
+    }
+
     // Ha diszpécer módosítja az árat, ellenőrizze a partner pricing alapján
     if ("price" in patch && user.role === "dispatcher" && existing.portal) {
       const partnerPricing = await getPartnerPricingByKey(existing.portal, { seedIfMissing: false });
@@ -108,7 +122,40 @@ export async function PATCH(
       }
     }
 
-    const updated = await updateBooking(id, patch, user.email, "Dispatcher módosítás");
+    const fieldLabels: Record<string, string> = {
+      pickupDate: "Felvétel dátuma",
+      pickupTime: "Felvételi időpont",
+      fromAddress: "Felvételi cím",
+      toAddress: "Érkezési cím",
+      travelers: "Utasok száma",
+      luggage: "Csomagok száma",
+      comment: "Diszpécseri megjegyzés",
+      assignedDriverName: "Sofőr",
+      assignedVehicleName: "Jármű",
+      status: "Foglalás állapota",
+      price: "Ár",
+      companyName: "Cégnév",
+    };
+    const changes = Object.keys(patch)
+      .filter((field) => {
+        const patchField = field as keyof typeof patch;
+        return JSON.stringify(existing[field as keyof Booking]) !== JSON.stringify(patch[patchField]);
+      })
+      .map((field) => {
+        const patchField = field as keyof typeof patch;
+        return {
+          field: fieldLabels[field] || field,
+          oldValue: existing[field as keyof Booking],
+          newValue: patch[patchField],
+        };
+      });
+
+    const updated = await updateBooking(
+      id,
+      patch,
+      user.email,
+      JSON.stringify({ message: "A diszpécser módosította a foglalást", changes })
+    );
     if (!updated) {
       return NextResponse.json({ error: "Módosítás sikertelen" }, { status: 400 });
     }
@@ -121,6 +168,22 @@ export async function PATCH(
       targetId: id,
       details: JSON.stringify(patch),
     });
+
+    const emailTarget = existing.userEmail || existing.travelerEmail;
+    if (emailTarget && changes.length > 0) {
+      const emailResult = await sendEmail({
+        to: emailTarget,
+        subject: `Foglalás módosítva · #${existing.bookingCode}`,
+        html: buildBookingModificationEmail({
+          bookingCode: existing.bookingCode,
+          travelerName: existing.travelerName,
+          changes,
+        }),
+      });
+      if (!emailResult.success) {
+        console.warn("[booking PATCH] módosítási e-mail nem küldhető:", emailResult.error);
+      }
+    }
 
     return NextResponse.json({ booking: updated });
   } catch (err) {

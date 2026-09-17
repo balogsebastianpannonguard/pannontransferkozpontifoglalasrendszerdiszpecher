@@ -606,6 +606,77 @@ Kérdés esetén válaszoljon erre az e-mailre, vagy keressen minket a megadott 
 </html>`;
 }
 
+export function buildDriverAssignmentEmail(params: {
+  bookingCode: string;
+  driverName: string;
+  travelerName: string;
+  travelerPhone: string;
+  pickupDate: string;
+  pickupTime: string;
+  fromAddress: string;
+  toAddress: string;
+  travelers: number;
+  luggage: number;
+  assignedVehicleName?: string;
+  comment?: string;
+}): string {
+  const {
+    bookingCode,
+    driverName,
+    travelerName,
+    travelerPhone,
+    pickupDate,
+    pickupTime,
+    fromAddress,
+    toAddress,
+    travelers,
+    luggage,
+    assignedVehicleName,
+    comment,
+  } = params;
+
+  return `<!DOCTYPE html>
+<html lang="hu">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Új fuvar · #${bookingCode}</title></head>
+<body style="margin:0;padding:32px 16px;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+    <tr><td align="center">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:620px;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #dbe3ef;">
+        <tr><td style="padding:28px 32px;background:linear-gradient(135deg,#0f172a,#1d4ed8);color:#ffffff;">
+          <div style="font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#bfdbfe;">Pannon Transfer · Sofőri értesítés</div>
+          <div style="font-size:28px;font-weight:800;margin-top:10px;">Új fuvar érkezett</div>
+          <div style="font-size:14px;margin-top:8px;color:#dbeafe;">Kedves ${driverName}, ezt az utat hozzád rendeltük.</div>
+        </td></tr>
+        <tr><td style="padding:28px 32px;">
+          <div style="font-size:20px;font-weight:800;margin-bottom:18px;">#${bookingCode}</div>
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border:1px solid #e2e8f0;border-radius:12px;">
+            <tr><td style="padding:16px;">
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#64748b;">Felvétel</div>
+              <div style="font-size:22px;font-weight:800;color:#1d4ed8;margin-top:6px;">${pickupDate} · ${pickupTime}</div>
+              <div style="font-size:14px;font-weight:700;margin-top:10px;">${fromAddress}</div>
+            </td></tr>
+            <tr><td style="padding:0 16px 16px;">
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#64748b;">Érkezés</div>
+              <div style="font-size:14px;font-weight:700;margin-top:6px;">${toAddress}</div>
+            </td></tr>
+          </table>
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:18px;">
+            <tr><td style="padding:9px 0;border-bottom:1px solid #e2e8f0;color:#64748b;">Utas</td><td align="right" style="padding:9px 0;border-bottom:1px solid #e2e8f0;font-weight:700;">${travelerName}</td></tr>
+            <tr><td style="padding:9px 0;border-bottom:1px solid #e2e8f0;color:#64748b;">Telefonszám</td><td align="right" style="padding:9px 0;border-bottom:1px solid #e2e8f0;font-weight:700;">${travelerPhone}</td></tr>
+            <tr><td style="padding:9px 0;border-bottom:1px solid #e2e8f0;color:#64748b;">Utasok / csomagok</td><td align="right" style="padding:9px 0;border-bottom:1px solid #e2e8f0;font-weight:700;">${travelers} fő · ${luggage} db</td></tr>
+            <tr><td style="padding:9px 0;color:#64748b;">Jármű</td><td align="right" style="padding:9px 0;font-weight:700;">${assignedVehicleName || "Nincs megadva"}</td></tr>
+          </table>
+          ${comment ? `<div style="margin-top:18px;padding:14px 16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;font-size:13px;line-height:1.6;"><strong>Diszpécseri megjegyzés:</strong><br>${comment}</div>` : ""}
+          <div style="margin-top:24px;padding:14px 16px;background:#ecfdf5;border:1px solid #bbf7d0;border-radius:10px;color:#166534;font-size:13px;line-height:1.6;">Kérjük, nyisd meg a sofőri felületet, ellenőrizd az adatokat, majd nyomd meg a „Láttam az utat” gombot.</div>
+        </td></tr>
+        <tr><td style="padding:20px 32px;background:#f8fafc;color:#64748b;font-size:12px;">Pannon Transfer · Ez az üzenet automatikusan készült.</td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
 export function buildDispatcherNotificationEmail(params: {
   bookingCode: string;
   travelerName: string;
@@ -946,4 +1017,28 @@ export function buildDispatcherNotificationEmail(params: {
 </table>
 </body>
 </html>`;
+}
+
+export function buildBookingModificationEmail(params: {
+  bookingCode: string;
+  travelerName: string;
+  changes: Array<{ field: string; oldValue: unknown; newValue: unknown }>;
+}): string {
+  const display = (value: unknown) =>
+    value === null || value === undefined || value === "" ? "—" : String(value);
+  const rows = params.changes.map((change) => `
+    <tr>
+      <td style="padding:10px 0;border-bottom:1px solid #e2e8f0;font-weight:700;">${change.field}</td>
+      <td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#64748b;">${display(change.oldValue)}</td>
+      <td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#166534;font-weight:700;">${display(change.newValue)}</td>
+    </tr>`).join("");
+
+  return `<!doctype html><html lang="hu"><body style="margin:0;padding:30px 16px;background:#f1f5f9;font-family:Arial,sans-serif;color:#0f172a;">
+    <table role="presentation" width="100%"><tr><td align="center"><table role="presentation" width="100%" style="max-width:620px;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #dbe3ef;">
+      <tr><td style="padding:26px 30px;background:#003e7e;color:#fff;"><div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#bfdbfe;">Pannon Transfer</div><h1 style="margin:10px 0 0;font-size:24px;">Foglalás módosítva</h1></td></tr>
+      <tr><td style="padding:28px 30px;"><p style="font-size:15px;line-height:1.6;">A diszpécser módosította a foglalás adatait.</p><p style="font-weight:700;">#${params.bookingCode} · ${params.travelerName}</p>
+        <table role="presentation" width="100%" style="border-collapse:collapse;margin-top:20px;"><tr><th align="left" style="padding:10px 0;border-bottom:2px solid #cbd5e1;">Mező</th><th align="left" style="padding:10px 0;border-bottom:2px solid #cbd5e1;">Korábbi</th><th align="left" style="padding:10px 0;border-bottom:2px solid #cbd5e1;">Új</th></tr>${rows}</table>
+        <p style="margin-top:24px;padding:14px 16px;background:#eff6ff;border-radius:10px;font-size:13px;line-height:1.6;">A legfrissebb állapotot a foglalási felületen tekintheti meg.</p>
+      </td></tr><tr><td style="padding:18px 30px;background:#f8fafc;color:#64748b;font-size:12px;">Ez az üzenet automatikusan készült a Pannon Transfer rendszeréből.</td></tr>
+    </table></td></tr></table></body></html>`;
 }

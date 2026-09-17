@@ -1,7 +1,7 @@
 import { ObjectId } from "mongodb";
 import { getMongoDb } from "./mongodb";
 
-export type DriverStatus = "active" | "inactive" | "on_leave";
+export type DriverStatus = "active" | "inactive" | "on_leave" | "on_route";
 export type DriverType = "permanent" | "substitute";
 
 export interface Driver {

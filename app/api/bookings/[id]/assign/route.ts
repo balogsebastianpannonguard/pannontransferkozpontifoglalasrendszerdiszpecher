@@ -6,6 +6,8 @@ import {
   updateBookingStatus,
 } from "@/lib/bookings";
 import { createAuditLog } from "@/lib/audit-logs";
+import { updateDriver } from "@/lib/drivers";
+import { updateVehicle } from "@/lib/vehicles";
 
 export const dynamic = "force-dynamic";
 
@@ -32,16 +34,61 @@ export async function POST(
       vehicleName: string;
     };
 
-    if (
-      !body.driverId ||
-      !body.driverName ||
-      !body.vehicleId ||
-      !body.vehicleName
-    ) {
+    const shouldRelease =
+      !body.driverId &&
+      !body.driverName &&
+      !body.vehicleId &&
+      !body.vehicleName;
+
+    if (!shouldRelease && (!body.driverId || !body.driverName || !body.vehicleId || !body.vehicleName)) {
       return NextResponse.json(
         { error: "Hiányzó mezők: driverId, driverName, vehicleId, vehicleName" },
         { status: 400 }
       );
+    }
+
+    if (shouldRelease) {
+      const previousDriverId = existing.assignedDriverId;
+      const previousVehicleId = existing.assignedVehicleId;
+
+      const assigned = await assignBooking(
+        id,
+        {
+          driverId: "",
+          driverName: "",
+          vehicleId: "",
+          vehicleName: "",
+        },
+        user.email
+      );
+
+      if (previousVehicleId) {
+        await updateVehicle(previousVehicleId, { status: "parked" });
+      }
+      if (previousDriverId) {
+        await updateDriver(previousDriverId, { status: "active" });
+      }
+
+      const updated = await updateBookingStatus(
+        id,
+        "pending",
+        user.email,
+        "Hozzárendelés visszavonva a diszpécser által"
+      );
+
+      await createAuditLog({
+        timestamp: Date.now(),
+        action: "booking.assigned",
+        actor: user.email,
+        targetType: "booking",
+        targetId: id,
+        details: "Hozzárendelés visszavonva; erőforrások szabadok lettek.",
+      });
+
+      return NextResponse.json({
+        booking: updated || assigned,
+        released: true,
+      });
     }
 
     const assigned = await assignBooking(
@@ -61,6 +108,9 @@ export async function POST(
         { status: 400 }
       );
     }
+
+    await updateVehicle(body.vehicleId, { status: "on_route" });
+    await updateDriver(body.driverId, { status: "on_route" });
 
     const updated = await updateBookingStatus(
       id,

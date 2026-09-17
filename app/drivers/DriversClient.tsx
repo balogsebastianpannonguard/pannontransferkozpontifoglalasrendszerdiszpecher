@@ -52,6 +52,14 @@ const STATUS_META: Record<DriverStatus, { label: string; icon: any; dot: string;
     border: "border-slate-500/20",
     text: "text-slate-700",
   },
+  on_route: {
+    label: "Úton van",
+    icon: Zap,
+    dot: "bg-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.8)]",
+    bg: "bg-blue-500/10",
+    border: "border-blue-500/20",
+    text: "text-blue-700",
+  },
 };
 
 const TYPE_META: Record<DriverType, {
@@ -502,6 +510,7 @@ function DriverCard({ driver, onPatch, onEdit, onDelete }: any) {
         <div className="flex rounded-2xl overflow-hidden bg-slate-200/50 p-1 gap-1">
           <QuickStatusBtn label="Aktív" onClick={() => onPatch(driver._id, { status: "active" })} active={driver.status === "active"} activeColor="text-emerald-700 bg-white shadow-sm" hoverBg="hover:bg-slate-100/50" />
           <QuickStatusBtn label="Inaktív" onClick={() => onPatch(driver._id, { status: "inactive" })} active={driver.status === "inactive"} activeColor="text-amber-700 bg-white shadow-sm" hoverBg="hover:bg-slate-100/50" />
+          <QuickStatusBtn label="Úton" onClick={() => onPatch(driver._id, { status: "on_route" })} active={driver.status === "on_route"} activeColor="text-blue-700 bg-white shadow-sm" hoverBg="hover:bg-slate-100/50" />
           <QuickStatusBtn label="Szabi" onClick={() => onPatch(driver._id, { status: "on_leave" })} active={driver.status === "on_leave"} activeColor="text-slate-700 bg-white shadow-sm" hoverBg="hover:bg-slate-100/50" />
         </div>
       </div>
@@ -610,11 +619,12 @@ function DriverFormModal({ initial, onClose, onSubmit }: any) {
             <Field label="Állapot" required>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
-                  {status === "active" ? <ShieldCheck className="w-5 h-5 text-emerald-500" /> : status === "inactive" ? <Clock className="w-5 h-5 text-amber-500" /> : <Briefcase className="w-5 h-5 text-slate-500" />}
+                  {status === "active" ? <ShieldCheck className="w-5 h-5 text-emerald-500" /> : status === "inactive" ? <Clock className="w-5 h-5 text-amber-500" /> : status === "on_route" ? <Zap className="w-5 h-5 text-blue-500" /> : <Briefcase className="w-5 h-5 text-slate-500" />}
                 </div>
                 <select value={status} onChange={(e) => setStatus(e.target.value as DriverStatus)} className="w-full pl-12 pr-10 py-4 rounded-2xl outline-none font-bold appearance-none bg-white border border-slate-200 text-slate-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all shadow-sm group-hover:border-blue-300">
                   <option value="active">Aktív (Elérhető)</option>
                   <option value="inactive">Inaktív</option>
+                  <option value="on_route">Úton van</option>
                   <option value="on_leave">Szabadságon</option>
                 </select>
                 <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none">

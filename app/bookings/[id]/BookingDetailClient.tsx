@@ -115,6 +115,8 @@ function statusMeta(status: BookingStatus) {
 function actionBadge(action: string) {
   if (action.startsWith("booking.created"))
     return "bg-blue-50 text-blue-700 border-blue-200";
+  if (action.startsWith("booking.partner_modified"))
+    return "bg-amber-50 text-amber-700 border-amber-200";
   if (action.startsWith("booking.assigned"))
     return "bg-violet-50 text-violet-700 border-violet-200";
   if (action.startsWith("booking.status_changed"))
@@ -128,6 +130,7 @@ function actionBadge(action: string) {
 
 function actionLabel(action: string) {
   if (action.startsWith("booking.created")) return "Létrehozva";
+  if (action.startsWith("booking.partner_modified")) return "Partner módosítása";
   if (action.startsWith("booking.assigned")) return "Hozzárendelve";
   if (action.startsWith("booking.status_changed")) return "Státusz váltás";
   if (action.startsWith("booking.modified")) return "Módosítva";
@@ -140,6 +143,7 @@ function actionLabel(action: string) {
 
 function actionDotColor(action: string) {
   if (action.startsWith("booking.created")) return "bg-blue-500";
+  if (action.startsWith("booking.partner_modified")) return "bg-amber-500";
   if (action.startsWith("booking.assigned")) return "bg-violet-500";
   if (action.startsWith("booking.status_changed")) return "bg-amber-500";
   if (action.startsWith("booking.modified")) return "bg-slate-400";
@@ -237,8 +241,13 @@ export default function BookingDetailClient({
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [savingPrice, setSavingPrice] = useState(false);
+  const [bookingMetaSaving, setBookingMetaSaving] = useState(false);
   const [unassigning, setUnassigning] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const [pickupTimeSaving, setPickupTimeSaving] = useState(false);
+  const [noteDraft, setNoteDraft] = useState(initialBooking.comment || "");
+  const [pickupTimeDraft, setPickupTimeDraft] = useState(initialBooking.pickupTime || "");
   const [priceNeedsApproval, setPriceNeedsApproval] = useState(false);
   const [approvalRange, setApprovalRange] = useState<{ minAcceptable: number; maxAcceptable: number } | null>(null);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
@@ -281,6 +290,7 @@ export default function BookingDetailClient({
           fetch(`/api/bookings/${bookingId}/audit`).then((r) => r.json().catch(() => ({}))),
         ]);
         if (bRes?.booking) setBooking(bRes.booking);
+        setPickupTimeDraft(bRes.booking.pickupTime || "");
         if (Array.isArray(aRes?.logs)) setAuditLogs(aRes.logs.slice(0, 20));
       } catch {
       } finally {
@@ -310,6 +320,74 @@ export default function BookingDetailClient({
       pushToast("error", "Frissítés sikertelen");
     } finally {
       setTimeout(() => setRefreshing(false), 400);
+    }
+  }
+
+  async function handleSaveBookingMeta() {
+    const patch: Partial<Booking> = {};
+    const nextPickup = pickupTimeDraft.trim();
+    const nextComment = noteDraft.trim();
+
+    if (nextPickup !== (booking.pickupTime || "")) {
+      patch.pickupTime = nextPickup;
+    }
+    if (nextComment !== (booking.comment || "")) {
+      patch.comment = nextComment;
+    }
+
+    if (Object.keys(patch).length === 0) {
+      setIsEditingNote(false);
+      return;
+    }
+
+    try {
+      setBookingMetaSaving(true);
+      const res = await fetch(`/api/bookings/${bookingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.booking) throw new Error(data?.error || "Hiba");
+      setBooking(data.booking);
+      setPickupTimeDraft(data.booking.pickupTime || "");
+      setNoteDraft(data.booking.comment || "");
+      setIsEditingNote(false);
+      pushToast("success", "Mentve", "A foglalás megjegyzése frissítve.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : undefined;
+      pushToast("error", "Mentés sikertelen", msg);
+    } finally {
+      setBookingMetaSaving(false);
+    }
+
+  }
+
+  async function handleSavePickupTime() {
+    const nextPickup = pickupTimeDraft.trim();
+    if (!nextPickup) {
+      pushToast("error", "Hiányzó felvételi időpont", "Add meg az adott foglalás felvételi idejét.");
+      return;
+    }
+    if (nextPickup === (booking.pickupTime || "")) return;
+
+    try {
+      setPickupTimeSaving(true);
+      const res = await fetch(`/api/bookings/${bookingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pickupTime: nextPickup }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.booking) throw new Error(data?.error || "Hiba");
+      setBooking(data.booking);
+      setPickupTimeDraft(data.booking.pickupTime || "");
+      pushToast("success", "Felvételi időpont mentve", "Ez az időpont kerül kiküldésre az utasnak és a sofőrnek.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : undefined;
+      pushToast("error", "Időpont mentése sikertelen", msg);
+    } finally {
+      setPickupTimeSaving(false);
     }
   }
 
@@ -717,15 +795,45 @@ export default function BookingDetailClient({
                     {categoryLabel(booking.category, partnerMeta)}
                   </span>
                   {booking.driverNotified && (
-                    <span className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl border text-[11px] font-black tracking-wider uppercase ${booking.driverAcknowledged ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+                    <motion.span
+                      key={booking.driverAcknowledged ? "driver-acknowledged" : "driver-notified"}
+                      initial={booking.driverAcknowledged ? { scale: 0.82, opacity: 0.5 } : false}
+                      animate={booking.driverAcknowledged ? { scale: [0.82, 1.08, 1], opacity: 1 } : { opacity: 1 }}
+                      transition={{ duration: 0.55, ease: "easeOut" }}
+                      className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl border text-[11px] font-black tracking-wider uppercase ${booking.driverAcknowledged ? 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-lg shadow-emerald-200/70' : 'bg-blue-50 text-blue-700 border-blue-200'}`}
+                    >
                       {booking.driverAcknowledged ? (
                         <><ShieldCheck className="w-3.5 h-3.5" /> Sofőr látta</>
                       ) : (
                         <><Clock className="w-3.5 h-3.5 animate-pulse" /> Sofőr értesítve</>
                       )}
-                    </span>
+                    </motion.span>
                   )}
                 </div>
+              </div>
+              <div className="mt-5 flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border-2 border-blue-200 bg-blue-50/70 px-5 py-3.5 shadow-sm">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Clock className="w-6 h-6 shrink-0 text-blue-600" />
+                  <span className="text-[11px] font-black tracking-[0.2em] uppercase text-blue-700 whitespace-nowrap">
+                    Felvételi idő
+                  </span>
+                </div>
+                <input
+                  type="time"
+                  value={pickupTimeDraft}
+                  onChange={(e) => setPickupTimeDraft(e.target.value)}
+                  required
+                  aria-label="Diszpécseri felvételi időpont"
+                  className="w-full sm:w-auto rounded-xl border border-blue-300 bg-white px-4 py-2 text-xl font-black text-blue-800 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                />
+                <button
+                  type="button"
+                  onClick={handleSavePickupTime}
+                  disabled={pickupTimeSaving || !pickupTimeDraft.trim() || pickupTimeDraft === (booking.pickupTime || "")}
+                  className="sm:ml-auto rounded-xl bg-blue-600 px-4 py-2.5 text-[10px] font-black tracking-[0.16em] uppercase text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {pickupTimeSaving ? "Mentés..." : "Időpont mentése"}
+                </button>
               </div>
             </div>
           </div>
@@ -876,18 +984,30 @@ export default function BookingDetailClient({
                     Hozzárendelés
                   </div>
                   {isAssigned ? (
-                    <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-3">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                        <span className="text-[10px] font-black tracking-wider uppercase text-emerald-700">
+                    <div className="rounded-2xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-teal-50 p-4 shadow-sm">
+                      <div className="flex items-center gap-2 mb-3">
+                        <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                        <span className="text-[11px] font-black tracking-wider uppercase text-emerald-700">
                           Hozzárendelve
                         </span>
                       </div>
-                      <div className="text-[12px] font-bold text-slate-800 truncate">
-                        {booking.assignedDriverName}
+                      <div className="flex items-start gap-3 mb-3">
+                        <UserCircle2 className="w-7 h-7 shrink-0 text-blue-600" />
+                        <div className="min-w-0">
+                          <div className="text-[10px] font-black tracking-wider uppercase text-slate-400 mb-0.5">Sofőr</div>
+                          <div className="text-lg font-black text-slate-900 leading-tight break-words">
+                            {booking.assignedDriverName}
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-[11px] text-slate-500 truncate">
-                        {booking.assignedVehicleName}
+                      <div className="flex items-start gap-3">
+                        <CarFront className="w-7 h-7 shrink-0 text-emerald-600" />
+                        <div className="min-w-0">
+                          <div className="text-[10px] font-black tracking-wider uppercase text-slate-400 mb-0.5">Autó</div>
+                          <div className="text-base font-black text-slate-800 leading-tight break-words">
+                            {booking.assignedVehicleName}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -1008,29 +1128,83 @@ export default function BookingDetailClient({
                 )}
 
                 <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <StickyNote className="w-4 h-4 text-slate-400" />
-                    <span className="text-[10px] font-black tracking-[0.2em] uppercase text-slate-500">
-                      Megjegyzés
-                    </span>
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-2">
+                      <StickyNote className="w-4 h-4 text-slate-400" />
+                      <span className="text-[10px] font-black tracking-[0.2em] uppercase text-slate-500">
+                        Megjegyzés
+                      </span>
+                    </div>
+                    {!isEditingNote && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNoteDraft(booking.comment || "");
+                          setPickupTimeDraft(booking.pickupTime || "");
+                          setIsEditingNote(true);
+                        }}
+                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-[10px] font-black tracking-[0.16em] uppercase text-slate-600 transition hover:border-slate-300 hover:bg-slate-100"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        {booking.comment ? "Szerkesztés" : "Hozzáadás"}
+                      </button>
+                    )}
                     <div className="flex-1 h-px bg-gradient-to-r from-slate-200 to-transparent" />
                   </div>
-                  {booking.comment ? (
-                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm relative">
-                      <div className="absolute top-0 right-0 w-8 h-8 bg-gradient-to-br from-slate-100 to-slate-50 rounded-bl-2xl border-l border-b border-slate-200" />
-                      <p className="text-[13.5px] font-semibold text-slate-800 leading-relaxed whitespace-pre-wrap">
-                        {booking.comment}
-                      </p>
+
+                  {isEditingNote ? (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+                      <div>
+                        <label className="text-[10px] font-black tracking-[0.2em] uppercase text-slate-400 mb-2 block">
+                          Megjegyzés
+                        </label>
+                        <textarea
+                          value={noteDraft}
+                          onChange={(e) => setNoteDraft(e.target.value)}
+                          rows={5}
+                          placeholder="Írd le a fontos információt, a pontos felvételi utasításokat vagy a diszpécser megjegyzését..."
+                          className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-slate-100"
+                        />
+                      </div>
+                      <div className="flex justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsEditingNote(false);
+                            setNoteDraft(booking.comment || "");
+                            setPickupTimeDraft(booking.pickupTime || "");
+                          }}
+                          className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[10px] font-black tracking-[0.16em] uppercase text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+                        >
+                          Mégsem
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSaveBookingMeta}
+                          disabled={bookingMetaSaving}
+                          className="rounded-xl bg-slate-900 px-4 py-2.5 text-[10px] font-black tracking-[0.16em] uppercase text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          {bookingMetaSaving ? "Mentés..." : "Mentés"}
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5">
-                      <div className="flex items-center gap-3.5">
-                        <div className="w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-sm">
-                          <StickyNote className="w-4.5 h-4.5 text-slate-300" />
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-center gap-3.5">
+                          <div className="w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-sm">
+                            <StickyNote className="w-4.5 h-4.5 text-slate-300" />
+                          </div>
+                          <span className="text-[12.5px] text-slate-400 italic font-medium">
+                            {booking.comment ? booking.comment : "Nincs megjegyzés a foglaláshoz"}
+                          </span>
                         </div>
-                        <span className="text-[12.5px] text-slate-400 italic font-medium">
-                          Nincs megjegyzés a foglaláshoz
-                        </span>
+                        {booking.pickupTime && (
+                          <div className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] font-black tracking-[0.18em] uppercase text-blue-700">
+                            <Clock className="w-3.5 h-3.5" />
+                            Felvételi idő: {booking.pickupTime}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

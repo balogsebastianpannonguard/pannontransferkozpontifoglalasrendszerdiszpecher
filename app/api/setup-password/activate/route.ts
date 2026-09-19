@@ -4,7 +4,6 @@ import {
   setStaffUserPasswordAndActivate,
   type StaffUser,
 } from "@/lib/staff-auth";
-import { createSessionToken, setSessionCookie, getDispatcherProfile } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -57,31 +56,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Auto-login after activation
-    const profile = await getDispatcherProfile({
-      email: user.email,
-      name: user.name || user.email.split("@")[0],
-      role: user.role as any,
-      loginAt: Date.now(),
-      requireTwoFactor: !!user.requireTwoFactor,
-      twoFactorEnabled: !!user.twoFactorEnabled,
-      staffId: String(user._id),
-    });
-    const sessionToken = createSessionToken(profile, true);
-    await setSessionCookie(sessionToken, true);
-
     return NextResponse.json({
       success: true,
-      message: "Fiók sikeresen aktiválva! Belépés folyamatban...",
-      user: {
-        email: profile.email,
-        name: profile.name,
-        role: profile.role,
-        company: profile.company,
-        loginAt: profile.loginAt,
-        requireTwoFactor: !!profile.requireTwoFactor,
-        twoFactorEnabled: !!profile.twoFactorEnabled,
-      },
+      message: "Fiók sikeresen aktiválva! Kérjük, jelentkezzen be.",
     });
   } catch (err) {
     console.error("[setup-password activate] error", err);

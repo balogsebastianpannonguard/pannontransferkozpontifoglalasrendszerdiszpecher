@@ -1,17 +1,15 @@
 import { requireAuthSession, getDispatcherProfile, type DispatcherUser } from "@/lib/auth";
 import { listAllBookings, type Booking } from "@/lib/bookings";
 import BookingsListClient from "./BookingsListClient";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
 export default async function BookingsListPage() {
   const session = await requireAuthSession();
-  let _userEmail = "dispecer@pannon.hu";
-
-  if (session) {
-    const user: DispatcherUser = await getDispatcherProfile(session);
-    _userEmail = user.email;
-  }
+  if (!session) redirect("/login");
+  const user: DispatcherUser = await getDispatcherProfile(session);
+  const _userEmail = user.email;
 
   const bookings = (await listAllBookings()) as Booking[];
 

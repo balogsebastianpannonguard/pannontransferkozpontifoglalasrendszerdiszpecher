@@ -10,6 +10,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -19,12 +20,9 @@ export default async function BookingDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const session = await requireAuthSession();
-  let userEmail = "dispecer@pannon.hu";
-  
-  if (session) {
-    const user: DispatcherUser = await getDispatcherProfile(session);
-    userEmail = user.email;
-  }
+  if (!session) redirect("/login");
+  const user: DispatcherUser = await getDispatcherProfile(session);
+  const userEmail = user.email;
 
   const { id } = await params;
 

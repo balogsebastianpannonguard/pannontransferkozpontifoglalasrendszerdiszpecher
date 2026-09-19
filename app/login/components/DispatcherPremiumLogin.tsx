@@ -27,7 +27,7 @@ export default function DispatcherPremiumLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [remember, setRemember] = useState(true);
+  const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [state, setState] = useState<State>("login");
@@ -205,24 +205,28 @@ export default function DispatcherPremiumLogin() {
                     </div>
 
                     <div className="flex items-center justify-between mb-8 px-1">
-                      <div
-                        className="flex items-center gap-2.5 cursor-pointer group"
-                        onClick={() => setRemember((v) => !v)}
-                      >
-                        <div
+                      <label className="flex items-center gap-2.5 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={remember}
+                          onChange={(e) => setRemember(e.target.checked)}
+                          className="sr-only"
+                        />
+                        <span
                           className={cn(
                             "w-4 h-4 rounded flex items-center justify-center border transition-all duration-300",
                             remember
                               ? "bg-[#0056D2] border-[#0056D2] shadow-[0_2px_8px_rgba(0,86,210,0.3)]"
                               : "bg-white border-slate-300 group-hover:border-[#0056D2]/40"
                           )}
+                          aria-hidden="true"
                         >
                           {remember && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
-                        </div>
-                        <span className="text-[12.5px] text-slate-500 font-medium select-none group-hover:text-slate-800 transition-colors">
-                          Emlékezzen rám
                         </span>
-                      </div>
+                        <span className="text-[12.5px] text-slate-500 font-medium select-none group-hover:text-slate-800 transition-colors">
+                          Maradjon bejelentkezve 3 napig
+                        </span>
+                      </label>
                       <a
                         href="mailto:dispecer@pannon.hu?subject=Jelsz%F3%20vissza%E1ll%EDt%E1s"
                         className="text-[12px] font-semibold text-[#0056D2] hover:text-[#003F9F] transition-colors"

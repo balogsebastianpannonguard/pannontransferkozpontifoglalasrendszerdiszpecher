@@ -72,7 +72,7 @@ export default function SetupPasswordClient() {
         setError(json?.message || "Nem sikerült a fiók aktiválása.");
       } else {
         setDone(true);
-        setTimeout(() => router.push("/"), 1800);
+        setTimeout(() => router.push("/login"), 1800);
       }
     } catch {
       setError("Hálózati hiba a mentés közben.");

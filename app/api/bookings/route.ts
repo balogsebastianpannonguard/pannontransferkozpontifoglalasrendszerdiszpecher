@@ -80,6 +80,12 @@ export async function POST(request: NextRequest) {
         );
       }
     }
+    if (body.toType === "airport" && !String(body.flightNumber || "").trim()) {
+      return NextResponse.json(
+        { error: "Reptéri érkezésnél a járatszám megadása kötelező." },
+        { status: 400 }
+      );
+    }
 
     const booking = await createBooking(body as any, user.email);
 

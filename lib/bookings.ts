@@ -31,6 +31,7 @@ export interface Booking {
   fromAddress: string;
   toType: 'airport' | 'other';
   toAddress: string;
+  flightNumber?: string;
   pickupDate: string;
   pickupTime: string;
   travelers: number;

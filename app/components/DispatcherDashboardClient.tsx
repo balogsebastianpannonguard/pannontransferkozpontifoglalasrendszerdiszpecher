@@ -62,6 +62,19 @@ type NavItemId =
   | "reports"
   | "settings";
 
+const DASHBOARD_VIEWS: NavItemId[] = [
+  "dashboard",
+  "calendar",
+  "bookings",
+  "notifications",
+  "vehicles",
+  "drivers",
+  "clients",
+  "routes",
+  "reports",
+  "settings",
+];
+
 interface SidebarNavItem {
   id: NavItemId;
   label: string;
@@ -353,8 +366,28 @@ export default function DispatcherDashboardClient({
   const router = useRouter();
   const [user, setUser] = useState(initialUser);
   const [active, setActive] = useState<NavItemId>("dashboard");
+  const [dashboardViewHydrated, setDashboardViewHydrated] = useState(false);
   const [hour, setHour] = useState(new Date().getHours());
   const [renderNow, setRenderNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("view") as NavItemId | null;
+    if (requested && DASHBOARD_VIEWS.includes(requested)) {
+      setActive(requested);
+    }
+    setDashboardViewHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!dashboardViewHydrated) return;
+    const url = new URL(window.location.href);
+    if (active === "dashboard") {
+      url.searchParams.delete("view");
+    } else {
+      url.searchParams.set("view", active);
+    }
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [active, dashboardViewHydrated]);
 
   const today = useMemo(() => new Date(), []);
   const [cursorDate, setCursorDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));

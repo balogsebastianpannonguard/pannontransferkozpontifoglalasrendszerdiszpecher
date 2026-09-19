@@ -9,6 +9,7 @@ import {
   Clock3,
   Loader2,
   MapPin,
+  Plane,
   Save,
   UserRound,
   UsersRound,
@@ -40,6 +41,7 @@ export default function NewBookingClient() {
     fromAddress: "",
     toType: "other",
     toAddress: "",
+    flightNumber: "",
     pickupDate: "",
     pickupTime: "",
     travelers: "1",
@@ -243,6 +245,21 @@ export default function NewBookingClient() {
                   <option value="airport">Repülőtér</option>
                 </select>
               </div>
+              {form.toType === "airport" && (
+                <div>
+                  <label className={labelClass}>Járatszám *</label>
+                  <div className="relative">
+                    <Plane className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
+                    <input
+                      className={`${inputClass} pl-10`}
+                      required
+                      value={form.flightNumber}
+                      onChange={(e) => update("flightNumber", e.target.value.toUpperCase())}
+                      placeholder="pl. LH1234"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </section>
 

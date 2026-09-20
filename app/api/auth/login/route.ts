@@ -6,6 +6,7 @@ import {
   getDispatcherProfile,
   type DispatcherUser,
 } from "@/lib/auth";
+import { createAuditLog } from "@/lib/audit-logs";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,12 @@ export async function POST(request: NextRequest) {
     const user: DispatcherUser = await getDispatcherProfile(result.user);
     const token = createSessionToken(user, remember);
     await setSessionCookie(token, remember);
+    await createAuditLog({
+      timestamp: Date.now(),
+      action: "auth.login",
+      actor: user.email,
+      details: JSON.stringify({ role: user.role }),
+    });
 
     return NextResponse.json({
       success: true,

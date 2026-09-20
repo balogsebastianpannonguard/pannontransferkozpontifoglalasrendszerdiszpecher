@@ -11,6 +11,7 @@ import {
   type VehicleStatus,
 } from "@/lib/vehicles";
 import { ObjectId } from "mongodb";
+import { createAuditLog } from "@/lib/audit-logs";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,14 @@ export async function POST(req: Request) {
       condition: (body.condition as VehicleCondition) || "working",
       note: body.note ? String(body.note).trim() : undefined,
     });
+    await createAuditLog({
+      timestamp: Date.now(),
+      action: "vehicle.created",
+      actor: user.email,
+      targetType: "vehicle",
+      targetId: String(created._id || ""),
+      details: JSON.stringify({ name: created.name }),
+    });
     return NextResponse.json({ ok: true, vehicle: created });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Hiba" }, { status: 500 });
@@ -78,6 +87,16 @@ export async function PATCH(req: Request) {
     if (body.condition !== undefined) patch.condition = body.condition as VehicleCondition;
     if (body.note !== undefined) patch.note = body.note ? String(body.note).trim() : undefined;
     const ok = await updateVehicle(body.id, patch);
+    if (ok) {
+      await createAuditLog({
+        timestamp: Date.now(),
+        action: "vehicle.modified",
+        actor: user.email,
+        targetType: "vehicle",
+        targetId: body.id,
+        details: JSON.stringify(patch),
+      });
+    }
     return NextResponse.json({ ok });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Hiba" }, { status: 500 });
@@ -95,6 +114,15 @@ export async function DELETE(req: Request) {
       ok = await deleteVehicle(new ObjectId(body.id));
     } catch {
       ok = await deleteVehicle(body.id);
+    }
+    if (ok) {
+      await createAuditLog({
+        timestamp: Date.now(),
+        action: "vehicle.deleted",
+        actor: user.email,
+        targetType: "vehicle",
+        targetId: body.id,
+      });
     }
     return NextResponse.json({ ok });
   } catch (e: any) {

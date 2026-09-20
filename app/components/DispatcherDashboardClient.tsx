@@ -32,6 +32,7 @@ import {
   Trash2,
   AlertTriangle,
   CheckCircle2,
+  Bug,
 } from "lucide-react";
 
 import { ClientsView } from "./ClientsView";
@@ -55,6 +56,7 @@ type NavItemId =
   | "calendar"
   | "bookings"
   | "notifications"
+  | "error-reports"
   | "vehicles"
   | "drivers"
   | "clients"
@@ -67,6 +69,7 @@ const DASHBOARD_VIEWS: NavItemId[] = [
   "calendar",
   "bookings",
   "notifications",
+  "error-reports",
   "vehicles",
   "drivers",
   "clients",
@@ -358,6 +361,135 @@ function formatModificationChange(change: PartnerModificationChange): string {
   return `${labels[change.field] || change.field}: ${value(change.oldValue)} → ${value(change.newValue)}`;
 }
 
+interface ErrorReportItem {
+  _id?: string;
+  title: string;
+  description: string;
+  reporterName: string;
+  createdAt: number;
+  status: "open" | "in_progress" | "resolved";
+}
+
+function ErrorReportsView() {
+  const [reports, setReports] = useState<ErrorReportItem[]>([]);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function loadReports() {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/error-reports", { credentials: "include" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "A hibajegyek nem tölthetők be.");
+      setReports(data.reports || []);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "A hibajegyek nem tölthetők be.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadReports();
+  }, []);
+
+  async function submitReport(event: React.FormEvent) {
+    event.preventDefault();
+    setMessage(null);
+    setSending(true);
+    try {
+      const response = await fetch("/api/error-reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ title, description }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "A hibabejelentés nem küldhető el.");
+      setTitle("");
+      setDescription("");
+      setMessage("A hibabejelentés elküldve és e-mailben továbbítva.");
+      await loadReports();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "A hibabejelentés nem küldhető el.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-[2rem] border border-slate-200/80 bg-white p-7 shadow-xl shadow-slate-900/[0.04]">
+        <div className="mb-6 flex items-start gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
+            <Bug className="h-6 w-6" />
+          </div>
+          <div>
+            <h2 className="font-serif text-2xl font-bold text-slate-900">Hibabejelentés</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              A bejelentés csak Ön számára látható. Elküldés után a rendszer azonnal értesíti az üzemeltetőt.
+            </p>
+          </div>
+        </div>
+        <form onSubmit={submitReport} className="space-y-4">
+          <input
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            maxLength={160}
+            required
+            placeholder="Hiba rövid címe"
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+          />
+          <textarea
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            maxLength={10000}
+            required
+            rows={6}
+            placeholder="Írja le részletesen, mi történt, milyen lépésekkel reprodukálható, és mikor jelentkezett."
+            className="w-full resize-y rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+          />
+          <div className="flex items-center justify-between gap-4">
+            {message && <p className="text-sm font-medium text-slate-600">{message}</p>}
+            <button
+              type="submit"
+              disabled={sending}
+              className="ml-auto rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {sending ? "Küldés…" : "Hibabejelentés elküldése"}
+            </button>
+          </div>
+        </form>
+      </section>
+      <section className="rounded-[2rem] border border-slate-200/80 bg-white p-7 shadow-xl shadow-slate-900/[0.04]">
+        <h3 className="mb-4 font-serif text-xl font-bold text-slate-900">Saját korábbi hibabejelentéseim</h3>
+        {loading ? (
+          <p className="text-sm text-slate-500">Betöltés…</p>
+        ) : reports.length === 0 ? (
+          <p className="text-sm text-slate-500">Még nem rögzített hibabejelentést.</p>
+        ) : (
+          <div className="space-y-3">
+            {reports.map((report) => (
+              <article key={report._id} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="font-bold text-slate-800">{report.title}</h4>
+                  <time className="text-xs text-slate-400">
+                    {new Date(report.createdAt).toLocaleString("hu-HU")}
+                  </time>
+                </div>
+                <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{report.description}</p>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
 export default function DispatcherDashboardClient({
   initialUser,
 }: {
@@ -535,6 +667,13 @@ export default function DispatcherDashboardClient({
           ? unreadBookingCount + unreadModificationCount
           : undefined,
         accent: "from-amber-400 to-orange-500",
+      },
+      {
+        id: "error-reports",
+        label: "Hibabejelentés",
+        subtitle: "Saját hibajegyek",
+        icon: <Bug className="w-5 h-5" />,
+        accent: "from-rose-400 to-red-500",
       },
       {
         id: "vehicles",
@@ -821,6 +960,19 @@ export default function DispatcherDashboardClient({
   function scrollToCalendar() {
     const el = document.querySelector('[data-calendar-section="true"]');
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function openSelectedDay(dayKey: string, cell?: { inMonth: boolean; year: number; month: number }) {
+    setSelectedDateKey(dayKey);
+    if (cell && !cell.inMonth) {
+      setCursorDate(new Date(cell.year, cell.month, 1));
+    }
+    setPopoverKey(null);
+    setActive("dashboard");
+    window.setTimeout(() => {
+      const el = document.querySelector('[data-selected-day-section="true"]');
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 50);
   }
 
   function toggleNotifications() {
@@ -1318,6 +1470,8 @@ export default function DispatcherDashboardClient({
                 }}
                 onRead={markNotificationRead}
               />
+            ) : active === "error-reports" ? (
+              <ErrorReportsView />
             ) : active === "clients" ? (
               <ClientsView bookings={realBookings} />
             ) : active === "settings" ? (
@@ -1587,19 +1741,13 @@ export default function DispatcherDashboardClient({
                                     tabIndex={0}
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setSelectedDateKey(cell.key);
-                                      if (!cell.inMonth) setCursorDate(new Date(cell.year, cell.month, 1));
-                                      setPopoverKey(null);
-                                      setActive("dashboard");
+                                      openSelectedDay(cell.key, cell);
                                     }}
                                     onKeyDown={(e) => {
                                       if (e.key === "Enter" || e.key === " ") {
                                         e.preventDefault();
                                         e.stopPropagation();
-                                        setSelectedDateKey(cell.key);
-                                        if (!cell.inMonth) setCursorDate(new Date(cell.year, cell.month, 1));
-                                        setPopoverKey(null);
-                                        setActive("dashboard");
+                                        openSelectedDay(cell.key, cell);
                                       }
                                     }}
                                     className="cursor-pointer text-[10.5px] font-black tracking-widest uppercase text-blue-700 hover:text-blue-800 flex items-center gap-1 transition focus:outline-none focus:ring-2 focus:ring-blue-200 rounded-md px-1.5 py-0.5"
@@ -1936,17 +2084,13 @@ export default function DispatcherDashboardClient({
                                     tabIndex={0}
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setSelectedDateKey(cell.key);
-                                      if (!cell.inMonth) setCursorDate(new Date(cell.year, cell.month, 1));
-                                      setPopoverKey(null);
+                                      openSelectedDay(cell.key, cell);
                                     }}
                                     onKeyDown={(e) => {
                                       if (e.key === "Enter" || e.key === " ") {
                                         e.preventDefault();
                                         e.stopPropagation();
-                                        setSelectedDateKey(cell.key);
-                                        if (!cell.inMonth) setCursorDate(new Date(cell.year, cell.month, 1));
-                                        setPopoverKey(null);
+                                        openSelectedDay(cell.key, cell);
                                       }
                                     }}
                                     className="cursor-pointer text-[10.5px] font-black tracking-widest uppercase text-blue-700 hover:text-blue-800 flex items-center gap-1 transition focus:outline-none focus:ring-2 focus:ring-blue-200 rounded-md px-1.5 py-0.5"
@@ -1970,7 +2114,10 @@ export default function DispatcherDashboardClient({
                 </section>
 
                 {/* Selected day panel */}
-                <section className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+                <section
+                  data-selected-day-section="true"
+                  className="grid grid-cols-1 xl:grid-cols-5 gap-6"
+                >
                   <div className="xl:col-span-3 rounded-3xl bg-white shadow-xl shadow-slate-900/[0.04] border border-slate-200/80 overflow-hidden">
                     <div className="px-6 py-5 border-b border-slate-200/80 bg-gradient-to-r from-white via-slate-50/70 to-blue-50/40 flex flex-wrap items-center justify-between gap-3">
                       <div>
@@ -1991,11 +2138,11 @@ export default function DispatcherDashboardClient({
                           {selectedBookings.length} foglalás
                         </div>
                         <button
-                          onClick={() => router.push("/bookings")}
+                          onClick={() => router.push("/bookings/new")}
                           className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-slate-900 to-slate-800 text-white text-[11px] font-black tracking-widest uppercase shadow-lg shadow-slate-900/25 hover:-translate-y-0.5 transition flex items-center gap-1.5"
                         >
                           <PlusCircle className="w-3.5 h-3.5" />
-                          Erre a napra
+                          Új foglalás erre a napra
                         </button>
                       </div>
                     </div>

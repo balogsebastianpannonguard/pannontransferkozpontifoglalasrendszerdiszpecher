@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
       | "booking"
       | "driver"
       | "vehicle"
+      | "error_report"
       | undefined;
     const targetId = searchParams.get("targetId") || undefined;
     const limitRaw = searchParams.get("limit");

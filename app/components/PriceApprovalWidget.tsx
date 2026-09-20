@@ -30,6 +30,7 @@ interface PriceApprovalWidgetProps {
 export default function PriceApprovalWidget({ userRole }: PriceApprovalWidgetProps) {
   const [pendingBookings, setPendingBookings] = useState<PendingApprovalBooking[]>([]);
   const [loading, setLoading] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [decisionComments, setDecisionComments] = useState<Record<string, string>>({});
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
   const [toasts, setToasts] = useState<{ id: number; type: "success" | "error"; text: string }[]>([]);
@@ -61,6 +62,7 @@ export default function PriceApprovalWidget({ userRole }: PriceApprovalWidgetPro
       console.error("[PriceApprovalWidget] fetchPending error:", err);
     } finally {
       setLoading(false);
+      setHasLoaded(true);
     }
   }
 
@@ -106,7 +108,8 @@ export default function PriceApprovalWidget({ userRole }: PriceApprovalWidgetPro
     }
   }
 
-  if (pendingBookings.length === 0 && !loading) return null;
+  // Ne jelenjen meg az üres állapot az első lekérés előtt: ez okozta a villogást.
+  if (!hasLoaded || (pendingBookings.length === 0 && !loading)) return null;
 
   return (
     <>

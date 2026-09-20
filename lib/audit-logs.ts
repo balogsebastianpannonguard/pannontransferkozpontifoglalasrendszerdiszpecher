@@ -9,14 +9,18 @@ export type AuditAction =
   | 'booking.cancelled'
   | 'driver.created'
   | 'vehicle.modified'
-  | 'notification.sent';
+  | 'notification.sent'
+  | 'auth.login'
+  | 'auth.logout'
+  | 'error_report.created'
+  | 'bookings.delete_all';
 
 export interface AuditLog {
   _id?: string;
   timestamp: number;
   action: AuditAction | string;
   actor: string;
-  targetType?: 'booking' | 'driver' | 'vehicle';
+  targetType?: 'booking' | 'driver' | 'vehicle' | 'error_report';
   targetId?: string;
   details?: Record<string, any> | string;
   ipAddress?: string;
@@ -61,7 +65,7 @@ export async function createAuditLog(data: Omit<AuditLog, "_id">): Promise<Audit
 }
 
 export async function listAuditLogsForTarget(
-  targetType: 'booking' | 'driver' | 'vehicle',
+  targetType: 'booking' | 'driver' | 'vehicle' | 'error_report',
   targetId: string,
   limit: number = 50
 ): Promise<AuditLog[]> {

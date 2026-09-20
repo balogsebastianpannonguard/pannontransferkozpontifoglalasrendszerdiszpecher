@@ -168,6 +168,103 @@ function relativeTime(timestamp: number, now: number): string {
   return new Date(timestamp).toLocaleDateString("hu-HU");
 }
 
+const AUDIT_FIELD_LABELS: Record<string, string> = {
+  pickupDate: "Felvétel dátuma",
+  pickupTime: "Felvételi időpont",
+  fromAddress: "Felvételi cím",
+  toAddress: "Érkezési cím",
+  flightNumber: "Járatszám",
+  travelers: "Utasok száma",
+  luggage: "Csomagok száma",
+  comment: "Diszpécseri megjegyzés",
+  assignedDriverName: "Sofőr",
+  assignedVehicleName: "Jármű",
+  assignedDriverId: "Sofőr azonosító",
+  assignedVehicleId: "Jármű azonosító",
+  status: "Foglalás állapota",
+  price: "Ár",
+  companyName: "Cégnév",
+  travelerName: "Utas neve",
+  travelerEmail: "Utas email címe",
+  travelerPhone: "Utas telefonszáma",
+  secondTravelerEmail: "Második utas email címe",
+  secondTravelerPhone: "Második utas telefonszáma",
+  userEmail: "Foglaló email címe",
+  paymentMethod: "Fizetési mód",
+  transferType: "Transzfer típusa",
+  fromType: "Felvétel típusa",
+  toType: "Érkezés típusa",
+  category: "Kategória",
+  createdBy: "Létrehozta",
+  bookingCode: "Foglalási kód",
+};
+
+function formatAuditDetails(log: AuditLog): string {
+  let parsed: unknown = log.details;
+  if (typeof parsed === "string") {
+    const trimmed = parsed.trim();
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      try {
+        parsed = JSON.parse(trimmed);
+      } catch {
+        return parsed as string;
+      }
+    } else {
+      return trimmed;
+    }
+  }
+
+  if (!parsed || typeof parsed !== "object") return "";
+  const obj = parsed as Record<string, unknown>;
+
+  if (log.action === "booking.status_changed") {
+    const from = (obj.from || obj.oldStatus) as BookingStatus | undefined;
+    const to = (obj.to || obj.newStatus) as BookingStatus | undefined;
+    const parts: string[] = [];
+    if (from && to) parts.push(`${statusLabel(from)} → ${statusLabel(to)}`);
+    const reason = (obj.message || obj.details) as string | undefined;
+    if (reason) parts.push(reason);
+    return parts.join(" · ");
+  }
+
+  if (log.action === "booking.modified") {
+    if (obj.action === "price_approval_requested") {
+      const parts = [`Árjóváhagyás kérve: ${Number(obj.requestedPrice || 0).toLocaleString("hu-HU")} Ft`];
+      if (obj.reason) parts.push(`Indoklás: ${obj.reason}`);
+      return parts.join(" · ");
+    }
+    if (obj.action === "price_approval_approved") {
+      const parts = [`Árjóváhagyás elfogadva: ${Number(obj.requestedPrice || 0).toLocaleString("hu-HU")} Ft`];
+      if (obj.comment) parts.push(String(obj.comment));
+      return parts.join(" · ");
+    }
+    if (obj.action === "price_approval_rejected") {
+      const parts = [`Árjóváhagyás elutasítva: ${Number(obj.requestedPrice || 0).toLocaleString("hu-HU")} Ft`];
+      if (obj.comment) parts.push(String(obj.comment));
+      return parts.join(" · ");
+    }
+    if (typeof obj.message === "string" && Array.isArray(obj.changes)) {
+      const changeLines = (obj.changes as Array<{ field?: string; oldValue?: unknown; newValue?: unknown }>)
+        .map((c) => `${c.field || "Adat"}: ${c.oldValue ?? "—"} → ${c.newValue ?? "—"}`)
+        .join("; ");
+      return changeLines ? `${obj.message} (${changeLines})` : obj.message;
+    }
+    const entries = Object.entries(obj).filter(([, v]) => v !== undefined && v !== null && v !== "");
+    if (entries.length === 0) return "";
+    return entries.map(([key, value]) => `${AUDIT_FIELD_LABELS[key] || key}: ${value}`).join("; ");
+  }
+
+  if (log.action === "booking.created") {
+    const parts: string[] = [];
+    if (obj.bookingCode) parts.push(`Foglalási kód: ${obj.bookingCode}`);
+    if (obj.travelerName) parts.push(`Utas: ${obj.travelerName}`);
+    return parts.join(" · ");
+  }
+
+  const entries = Object.entries(obj).filter(([, v]) => v !== undefined && v !== null && v !== "");
+  return entries.map(([key, value]) => `${AUDIT_FIELD_LABELS[key] || key}: ${value}`).join("; ");
+}
+
 function categoryGradient(cat: string, partnerMeta = resolvePartnerMeta({})) {
   if (partnerMeta) return partnerMeta.gradient;
   switch (cat) {
@@ -1804,19 +1901,7 @@ export default function BookingDetailClient({
                   <ol className="relative">
                     <div className="absolute left-[17px] top-1.5 bottom-1.5 w-0.5 bg-gradient-to-b from-slate-200 via-slate-200/70 to-transparent" />
                     {auditLogs.slice(0, 20).map((log, idx) => {
-                      let detailsStr = "";
-                      if (log.action === "booking.status_changed" && log.details && (log.details as any).from && (log.details as any).to) {
-                        const fromLabel = statusLabel((log.details as any).from as BookingStatus);
-                        const toLabel = statusLabel((log.details as any).to as BookingStatus);
-                        detailsStr = `${fromLabel} → ${toLabel}`;
-                      } else {
-                        detailsStr =
-                          typeof log.details === "string"
-                            ? log.details
-                            : log.details
-                            ? JSON.stringify(log.details)
-                            : "";
-                      }
+                      const detailsStr = formatAuditDetails(log);
                       return (
                         <motion.li
                           key={log._id || idx}

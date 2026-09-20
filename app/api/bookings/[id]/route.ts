@@ -3,9 +3,6 @@ import { getCurrentSession } from "@/lib/auth";
 import { getBookingById, updateBooking, type Booking } from "@/lib/bookings";
 import { createAuditLog } from "@/lib/audit-logs";
 import { getPartnerPricingByKey } from "@/lib/partner-pricing";
-import { sendEmail } from "@/lib/nodemailer";
-import { buildBookingModificationEmail } from "@/lib/email-templates";
-import { buildTrackUrl } from "@/lib/partner-portal-url";
 
 export const dynamic = "force-dynamic";
 
@@ -172,22 +169,8 @@ export async function PATCH(
       details: JSON.stringify(patch),
     });
 
-    const emailTarget = existing.userEmail || existing.travelerEmail;
-    if (emailTarget && changes.length > 0) {
-      const emailResult = await sendEmail({
-        to: emailTarget,
-        subject: `Foglalás módosítva · #${existing.bookingCode}`,
-        html: buildBookingModificationEmail({
-          bookingCode: existing.bookingCode,
-          travelerName: existing.travelerName,
-          changes,
-          trackUrl: buildTrackUrl(existing.bookingTrackToken),
-        }),
-      });
-      if (!emailResult.success) {
-        console.warn("[booking PATCH] módosítási e-mail nem küldhető:", emailResult.error);
-      }
-    }
+    // A diszpécseri módosításokról (pl. felvételi időpont, sofőr/jármű, egyéb adatok)
+    // nem küldünk e-mailt az utasnak/NI-nak — csak a véglegesítésről vagy a lemondásról.
 
     return NextResponse.json({ booking: updated });
   } catch (err) {

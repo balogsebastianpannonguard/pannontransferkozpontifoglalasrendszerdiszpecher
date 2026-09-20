@@ -89,10 +89,13 @@ export async function POST(
     });
 
     const emailTarget = existing.userEmail || existing.travelerEmail;
-    if (emailTarget && oldStatus !== body.status) {
+    // E-mailt csak a lemondásról küldünk innen; minden más státuszváltásról
+    // (pl. véglegesítés) a dedikált /finalize route küld értesítést, vagy
+    // egyáltalán nem küldünk (pl. sima adminisztratív státuszváltás).
+    if (emailTarget && oldStatus !== body.status && body.status === "cancelled") {
       const emailResult = await sendEmail({
         to: emailTarget,
-        subject: `Foglalás állapota módosítva · #${existing.bookingCode}`,
+        subject: `Foglalás lemondva · #${existing.bookingCode}`,
         html: buildBookingModificationEmail({
           bookingCode: existing.bookingCode,
           travelerName: existing.travelerName,
@@ -105,7 +108,7 @@ export async function POST(
         }),
       });
       if (!emailResult.success) {
-        console.warn("[booking status] módosítási e-mail nem küldhető:", emailResult.error);
+        console.warn("[booking status] lemondási e-mail nem küldhető:", emailResult.error);
       }
     }
 

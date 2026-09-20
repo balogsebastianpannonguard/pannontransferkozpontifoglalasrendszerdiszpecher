@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Booking, BookingStatus } from "@/lib/bookings";
@@ -46,6 +47,7 @@ import {
   Plus,
   Zap,
   ChevronDown,
+  Search,
   Lock,
   AlertCircle,
 } from "lucide-react";
@@ -202,6 +204,211 @@ function formatHuDate(dateStr: string): string {
   const dt = new Date(y, (m || 1) - 1, d || 1);
   const weekday = HUN_WEEKDAYS_LONG[dt.getDay()];
   return `${weekday}, ${y}. ${HUN_MONTHS[(m || 1) - 1]} ${d}.`;
+}
+
+function AssignmentSelect({
+  label,
+  icon: Icon,
+  value,
+  placeholder,
+  options,
+  onChange,
+  variant = "default",
+}: {
+  label: string;
+  icon: typeof UserCircle2;
+  value: string;
+  placeholder: string;
+  options: Array<{
+    id: string;
+    title: string;
+    subtitle: string;
+    status?: string;
+    statusClass?: string;
+    unavailable?: boolean;
+  }>;
+  onChange: (value: string) => void;
+  variant?: "default" | "vehicle";
+}) {
+  const [open, setOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [vehicleMenuPosition, setVehicleMenuPosition] = useState<{ top: number; left: number; width: number } | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const selected = options.find((option) => option.id === value);
+  const filteredOptions = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    if (!normalizedSearch) return options;
+    return options.filter((option) =>
+      `${option.title} ${option.subtitle} ${option.status || ""}`.toLowerCase().includes(normalizedSearch)
+    );
+  }, [options, searchTerm]);
+
+  useEffect(() => {
+    function close(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setOpen(false);
+        setSearchTerm("");
+      }
+    }
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+
+  useEffect(() => {
+    if (!open || variant !== "vehicle") return;
+
+    const updateVehicleMenuPosition = () => {
+      const trigger = wrapperRef.current?.getBoundingClientRect();
+      if (!trigger) return;
+
+      const gap = 12;
+      const menuWidth = Math.min(380, Math.max(280, window.innerWidth - 32));
+      const canOpenRight = trigger.right + gap + menuWidth <= window.innerWidth - 16;
+      const left = canOpenRight
+        ? trigger.right + gap
+        : Math.max(16, trigger.left - gap - menuWidth);
+      const top = Math.min(
+        Math.max(16, trigger.top),
+        Math.max(16, window.innerHeight - Math.min(520, window.innerHeight - 32) - 16)
+      );
+
+      setVehicleMenuPosition({ top, left, width: menuWidth });
+    };
+
+    updateVehicleMenuPosition();
+    window.addEventListener("resize", updateVehicleMenuPosition);
+    return () => {
+      window.removeEventListener("resize", updateVehicleMenuPosition);
+    };
+  }, [open, variant]);
+
+  const menuContent = open ? (
+    <div
+      className={`z-[100] overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl shadow-slate-900/15 ${
+        variant === "vehicle"
+          ? `fixed ${vehicleMenuPosition ? "visible" : "invisible"}`
+          : "absolute left-0 right-0 top-full mt-2"
+      }`}
+      style={variant === "vehicle" && vehicleMenuPosition ? {
+        top: vehicleMenuPosition.top,
+        left: vehicleMenuPosition.left,
+        width: vehicleMenuPosition.width,
+      } : undefined}
+    >
+      <div className="flex items-center gap-2 border-b border-slate-100 px-2 pb-2">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+          <Search className="h-4 w-4" />
+        </div>
+        <input
+          type="search"
+          value={searchTerm}
+          onChange={(event) => setSearchTerm(event.target.value)}
+          onKeyDown={(event) => event.stopPropagation()}
+          placeholder={variant === "vehicle" ? "Keresés név vagy rendszám alapján…" : "Sofőr keresése…"}
+          className="min-w-0 flex-1 bg-transparent py-2 text-xs font-semibold text-slate-800 outline-none placeholder:text-slate-400"
+          autoFocus
+        />
+        <span className="rounded-lg bg-slate-100 px-2 py-1 text-[9px] font-black text-slate-500">
+          {filteredOptions.length}/{options.length}
+        </span>
+      </div>
+      <div className="px-2 pb-1 pt-2 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
+        Választható {label.toLowerCase()}
+      </div>
+      <div className="max-h-72 overflow-y-auto pr-0.5">
+        {filteredOptions.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            disabled={option.unavailable}
+            onClick={() => {
+              onChange(option.id);
+              setOpen(false);
+              setSearchTerm("");
+            }}
+            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${
+              option.unavailable
+                ? "cursor-not-allowed opacity-45"
+                : option.id === value
+                  ? "bg-blue-50 text-blue-900"
+                  : "hover:bg-slate-50"
+            }`}
+          >
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+              option.unavailable ? "bg-slate-100 text-slate-400" : option.id === value ? "bg-blue-600 text-white shadow-sm shadow-blue-600/20" : "bg-slate-100 text-slate-500"
+            }`}>
+              <Icon className="h-4 w-4" strokeWidth={2.2} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-black text-slate-800">{option.title}</span>
+              <span className="mt-0.5 block truncate text-[11px] font-medium text-slate-400">{option.subtitle}</span>
+            </span>
+            {option.status && (
+              <span className={`shrink-0 rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-wider ${option.statusClass || "border-slate-200 bg-slate-100 text-slate-500"}`}>
+                {option.status}
+              </span>
+            )}
+          </button>
+        ))}
+        {filteredOptions.length === 0 && (
+          <div className="px-4 py-8 text-center">
+            <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-400">
+              <Search className="h-4 w-4" />
+            </div>
+            <p className="text-xs font-bold text-slate-600">Nincs találat</p>
+            <p className="mt-1 text-[11px] text-slate-400">Próbálj másik nevet vagy rendszámot.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  ) : null;
+
+  return (
+    <div ref={wrapperRef} className={`relative ${open ? "z-[120]" : "z-0"}`}>
+      <label className="mb-2 flex items-center gap-2 text-[10px] font-black tracking-[0.2em] uppercase text-slate-400">
+        <Icon className="h-3.5 w-3.5 text-blue-500" />
+        {label}
+      </label>
+      <button
+        type="button"
+        onClick={() => {
+          setOpen((current) => !current);
+          setSearchTerm("");
+        }}
+        className={`group flex w-full items-center gap-3 rounded-2xl border px-4 py-3.5 text-left transition-all ${
+          open
+            ? "border-blue-400 bg-white shadow-lg shadow-blue-500/10 ring-4 ring-blue-500/10"
+            : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white hover:shadow-md"
+        }`}
+      >
+        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
+          selected
+            ? variant === "vehicle" ? "bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-md shadow-blue-600/25" : "bg-blue-600 text-white shadow-md shadow-blue-600/25"
+            : "bg-white text-slate-400 ring-1 ring-slate-200"
+        }`}>
+          <Icon className="h-5 w-5" strokeWidth={2.2} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className={`block truncate text-[13px] font-black ${selected ? "text-slate-900" : "text-slate-400"}`}>
+            {selected?.title || placeholder}
+          </span>
+          <span className="mt-0.5 block truncate text-[11px] font-medium text-slate-400">
+            {selected?.subtitle || (variant === "vehicle" ? "Válassz szabad járművet" : "Kattints a választható erőforrásokhoz")}
+          </span>
+        </span>
+        {selected?.status && (
+          <span className={`hidden rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-wider sm:inline-flex ${selected.statusClass || "border-slate-200 bg-slate-100 text-slate-500"}`}>
+            {selected.status}
+          </span>
+        )}
+        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? "rotate-180 text-blue-600" : ""}`} />
+      </button>
+
+      {variant === "vehicle" && menuContent
+        ? createPortal(menuContent, document.body)
+        : menuContent}
+    </div>
+  );
 }
 
 interface Toast {
@@ -1451,78 +1658,65 @@ export default function BookingDetailClient({
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-[10px] font-black tracking-[0.2em] uppercase text-slate-400 mb-2 block">
-                      Sofőr
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={selectedDriverId}
-                        onChange={(e) => setSelectedDriverId(e.target.value)}
-                        className="w-full px-4.5 py-3.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-800 focus:outline-none focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100 transition appearance-none pr-12 cursor-pointer hover:bg-slate-100/60"
-                      >
-                        <option value="">— Válassz sofőrt —</option>
-                        {drivers.map((d) => {
-                          const unavailable = d.status === "on_route" || d.status === "inactive" || d.status === "on_leave";
-                          return (
-                          <option key={d._id} value={d._id as string} disabled={unavailable && !forceAssignment}>
-                            {d.name} · {d.phone}
-                            {d.type === "substitute" ? " (pótló)" : ""}
-                            {d.status === "on_route" ? " [úton van]" : d.status === "on_leave" ? " [szabadság]" : d.status === "inactive" ? " [inaktív]" : ""}
-                          </option>
-                          );
-                        })}
-                      </select>
-                      <ChevronDown className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    </div>
-                  </div>
+                <div className="grid grid-cols-1 gap-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <AssignmentSelect
+                    label="Sofőr"
+                    icon={UserCircle2}
+                    value={selectedDriverId}
+                    onChange={setSelectedDriverId}
+                    placeholder="Válassz sofőrt"
+                    options={drivers.map((d) => {
+                      const unavailable = d.status === "on_route" || d.status === "inactive" || d.status === "on_leave";
+                      return {
+                        id: String(d._id),
+                        title: d.name,
+                        subtitle: `${d.phone || "Telefonszám nincs megadva"}${d.type === "substitute" ? " · Beugrós" : ""}`,
+                        status: d.status === "on_route" ? "Úton van" : d.status === "on_leave" ? "Szabadság" : d.status === "inactive" ? "Inaktív" : "Szabad",
+                        statusClass: d.status === "active" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700",
+                        unavailable: unavailable && !forceAssignment,
+                      };
+                    })}
+                  />
 
-                  <div>
-                    <label className="text-[10px] font-black tracking-[0.2em] uppercase text-slate-400 mb-2 block">
-                      Jármű
-                    </label>
-                    <div className="relative">
-                      <select
+                      <AssignmentSelect
+                        label="Jármű"
+                        icon={CarFront}
+                        variant="vehicle"
                         value={selectedVehicleId}
-                        onChange={(e) => setSelectedVehicleId(e.target.value)}
-                        className="w-full px-4.5 py-3.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-800 focus:outline-none focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100 transition appearance-none pr-12 cursor-pointer hover:bg-slate-100/60"
-                      >
-                        <option value="">— Válassz járművet —</option>
-                        {vehicles.map((v) => {
+                        onChange={setSelectedVehicleId}
+                        placeholder="Válassz járművet"
+                        options={vehicles.map((v) => {
                           const unavailable = v.status === "on_route" || v.condition === "not_working";
-                          return (
-                          <option key={String(v._id)} value={String(v._id)} disabled={unavailable && !forceAssignment}>
-                            {v.name}
-                            {v.seats ? ` · ${v.seats}fő` : ""}
-                            {v.color ? ` · ${v.color}` : ""}
-                            {v.plates ? ` · ${v.plates}` : ""}
-                            {v.status === "on_route" ? " [úton van]" : v.condition === "not_working" ? " [szerviz/hibás]" : ""}
-                          </option>
-                          );
+                          return {
+                            id: String(v._id),
+                            title: v.name,
+                            subtitle: [v.type, v.plates, v.seats ? `${v.seats} férőhely` : "", v.color].filter(Boolean).join(" · "),
+                            status: v.status === "on_route" ? "Úton van" : v.condition === "not_working" ? "Szerviz / hibás" : v.condition === "debrecen_only" ? "Csak Debrecen" : "Elérhető",
+                            statusClass: v.status === "on_route" || v.condition === "not_working" ? "border-rose-200 bg-rose-50 text-rose-700" : "border-emerald-200 bg-emerald-50 text-emerald-700",
+                            unavailable: unavailable && !forceAssignment,
+                          };
                         })}
-                      </select>
-                      <ChevronDown className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      />
                     </div>
 
-                    <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 cursor-pointer">
+                    <label className="flex w-full items-start gap-3 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50/60 px-4 py-3.5 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={forceAssignment}
                         onChange={(event) => setForceAssignment(event.target.checked)}
-                        className="mt-0.5 h-4 w-4 accent-amber-600"
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-amber-600"
                       />
                       <span>
                         <span className="block text-xs font-black uppercase tracking-wider text-amber-800">Manuális felülbírálás</span>
-                        <span className="block mt-1 text-xs text-amber-700">
+                        <span className="mt-1 block text-xs leading-relaxed text-amber-700">
                           Csak indokolt esetben engedi úton lévő vagy szervizelt erőforrás kiosztását.
                         </span>
                       </span>
                     </label>
                   </div>
-                </div>
 
-                <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                  <div className="flex flex-col sm:flex-row gap-3 pt-2">
                   <button
                     onClick={handleAssign}
                     disabled={assigning}

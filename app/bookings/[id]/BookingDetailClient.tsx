@@ -234,6 +234,7 @@ function AssignmentSelect({
   const [searchTerm, setSearchTerm] = useState("");
   const [vehicleMenuPosition, setVehicleMenuPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const selected = options.find((option) => option.id === value);
   const filteredOptions = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -245,7 +246,10 @@ function AssignmentSelect({
 
   useEffect(() => {
     function close(event: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const insideWrapper = wrapperRef.current?.contains(target);
+      const insideMenu = menuRef.current?.contains(target);
+      if (!insideWrapper && !insideMenu) {
         setOpen(false);
         setSearchTerm("");
       }
@@ -284,6 +288,7 @@ function AssignmentSelect({
 
   const menuContent = open ? (
     <div
+      ref={menuRef}
       className={`z-[100] overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl shadow-slate-900/15 ${
         variant === "vehicle"
           ? `fixed ${vehicleMenuPosition ? "visible" : "invisible"}`

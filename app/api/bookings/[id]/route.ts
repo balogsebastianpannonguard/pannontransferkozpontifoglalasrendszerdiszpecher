@@ -5,6 +5,7 @@ import { createAuditLog } from "@/lib/audit-logs";
 import { getPartnerPricingByKey } from "@/lib/partner-pricing";
 import { sendEmail } from "@/lib/nodemailer";
 import { buildBookingModificationEmail } from "@/lib/email-templates";
+import { buildTrackUrl } from "@/lib/partner-portal-url";
 
 export const dynamic = "force-dynamic";
 
@@ -128,7 +129,7 @@ export async function PATCH(
       pickupTime: "Felvételi időpont",
       fromAddress: "Felvételi cím",
       toAddress: "Érkezési cím",
-      flightNumber: "Járatszám",
+      flightNumber: "Flight number / Járatszám",
       travelers: "Utasok száma",
       luggage: "Csomagok száma",
       comment: "Diszpécseri megjegyzés",
@@ -180,6 +181,7 @@ export async function PATCH(
           bookingCode: existing.bookingCode,
           travelerName: existing.travelerName,
           changes,
+          trackUrl: buildTrackUrl(existing.bookingTrackToken),
         }),
       });
       if (!emailResult.success) {

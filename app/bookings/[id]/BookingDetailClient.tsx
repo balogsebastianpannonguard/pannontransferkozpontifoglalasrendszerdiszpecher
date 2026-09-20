@@ -1075,7 +1075,7 @@ export default function BookingDetailClient({
                   {booking.fromType === "airport" && booking.flightNumber && (
                     <div className="mt-3">
                       <div className="text-[10px] font-black tracking-wider uppercase text-sky-600 mb-1">
-                        Járatszám
+                        Flight number / Járatszám
                       </div>
                       <div className="font-black text-slate-900 text-[16px]">
                         {booking.flightNumber}
@@ -1093,7 +1093,7 @@ export default function BookingDetailClient({
                   {(booking.toType === "airport" || (booking.fromType !== "airport" && booking.flightNumber)) && booking.flightNumber && (
                     <div className="mt-3">
                       <div className="text-[10px] font-black tracking-wider uppercase text-sky-600 mb-1">
-                        Járatszám
+                        Flight number / Járatszám
                       </div>
                       <div className="font-black text-slate-900 text-[16px]">
                         {booking.flightNumber}

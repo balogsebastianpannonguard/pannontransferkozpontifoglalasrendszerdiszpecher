@@ -359,6 +359,7 @@ export function buildTravelerFinalizedEmail(params: {
   assignedVehicleName?: string;
   price?: number;
   comment?: string;
+  trackUrl?: string;
 }): string {
   const {
     bookingCode,
@@ -379,6 +380,7 @@ export function buildTravelerFinalizedEmail(params: {
     assignedVehicleName,
     price,
     comment,
+    trackUrl,
   } = params;
 
   const transferTypeLabel = transferType === "executive" ? "EXECUTIVE" : "STANDARD";
@@ -464,7 +466,7 @@ Megerősítve • minden részlet rögzítve
 <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;color:#1A1A1A;line-height:1.6;margin-bottom:16px;">${fromAddress}</div>
 <div style="font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:700;color:#DC2626;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Hova</div>
 <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;color:#1A1A1A;line-height:1.6;">${toAddress}</div>
-${flightNumber ? `<div style="font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:700;color:#C9A962;letter-spacing:1.5px;text-transform:uppercase;margin-top:16px;margin-bottom:6px;">Járatszám</div><div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;color:#1A1A1A;">✈ ${flightNumber}</div>` : ''}
+${flightNumber ? `<div style="font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:700;color:#C9A962;letter-spacing:1.5px;text-transform:uppercase;margin-top:16px;margin-bottom:6px;">Flight number / Járatszám</div><div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;color:#1A1A1A;">✈ ${flightNumber}</div>` : ''}
 </td>
 </tr>
 </table>
@@ -580,6 +582,13 @@ ${comment ? `<div style="margin-top:18px;padding:16px;border-radius:10px;backgro
 </table>
 </td>
 </tr>
+${trackUrl ? `<tr>
+<td style="background-color:#FFFFFF;border-left:1px solid #E8E3DA;border-right:1px solid #E8E3DA;padding:8px 48px 0 48px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td align="center" style="padding:14px 0 4px;">
+<a href="${trackUrl}" style="display:inline-block;background-color:#C9A962;color:#0B1A2A;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:13px;letter-spacing:1px;text-transform:uppercase;padding:14px 30px;border-radius:8px;">Foglalás nyomon követése</a>
+</td></tr></table>
+</td>
+</tr>` : ""}
 <tr>
 <td style="background-color:#FFFFFF;border-left:1px solid #E8E3DA;border-right:1px solid #E8E3DA;padding:24px 48px 32px 48px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#4A4A4A;line-height:1.8;">
 Kérdés esetén válaszoljon erre az e-mailre, vagy keressen minket a megadott elérhetőségeken. Köszönjük, hogy a Pannon Transfert választotta.
@@ -667,7 +676,7 @@ export function buildDriverAssignmentEmail(params: {
             <tr><td style="padding:0 16px 16px;">
               <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#64748b;">Érkezés</div>
               <div style="font-size:14px;font-weight:700;margin-top:6px;">${toAddress}</div>
-              ${flightNumber ? `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#1d4ed8;margin-top:10px;">Járatszám</div><div style="font-size:16px;font-weight:800;margin-top:4px;">✈ ${flightNumber}</div>` : ''}
+              ${flightNumber ? `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#1d4ed8;margin-top:10px;">Flight number / Járatszám</div><div style="font-size:16px;font-weight:800;margin-top:4px;">✈ ${flightNumber}</div>` : ''}
             </td></tr>
           </table>
           <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:18px;">
@@ -1033,6 +1042,7 @@ export function buildBookingModificationEmail(params: {
   bookingCode: string;
   travelerName: string;
   changes: Array<{ field: string; oldValue: unknown; newValue: unknown }>;
+  trackUrl?: string;
 }): string {
   const display = (value: unknown) =>
     value === null || value === undefined || value === "" ? "—" : String(value);
@@ -1043,12 +1053,20 @@ export function buildBookingModificationEmail(params: {
       <td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#166534;font-weight:700;">${display(change.newValue)}</td>
     </tr>`).join("");
 
+  const trackButton = params.trackUrl
+    ? `<tr><td style="padding:8px 30px 0;">
+        <table role="presentation" width="100%"><tr><td align="center" style="padding:10px 0 4px;">
+          <a href="${params.trackUrl}" style="display:inline-block;background:#41B679;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:14px 28px;border-radius:10px;">Foglalás nyomon követése</a>
+        </td></tr></table>
+      </td></tr>`
+    : "";
+
   return `<!doctype html><html lang="hu"><body style="margin:0;padding:30px 16px;background:#f1f5f9;font-family:Arial,sans-serif;color:#0f172a;">
     <table role="presentation" width="100%"><tr><td align="center"><table role="presentation" width="100%" style="max-width:620px;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #dbe3ef;">
       <tr><td style="padding:26px 30px;background:#003e7e;color:#fff;"><div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#bfdbfe;">Pannon Transfer</div><h1 style="margin:10px 0 0;font-size:24px;">Foglalás módosítva</h1></td></tr>
       <tr><td style="padding:28px 30px;"><p style="font-size:15px;line-height:1.6;">A diszpécser módosította a foglalás adatait.</p><p style="font-weight:700;">#${params.bookingCode} · ${params.travelerName}</p>
         <table role="presentation" width="100%" style="border-collapse:collapse;margin-top:20px;"><tr><th align="left" style="padding:10px 0;border-bottom:2px solid #cbd5e1;">Mező</th><th align="left" style="padding:10px 0;border-bottom:2px solid #cbd5e1;">Korábbi</th><th align="left" style="padding:10px 0;border-bottom:2px solid #cbd5e1;">Új</th></tr>${rows}</table>
         <p style="margin-top:24px;padding:14px 16px;background:#eff6ff;border-radius:10px;font-size:13px;line-height:1.6;">A legfrissebb állapotot a foglalási felületen tekintheti meg.</p>
-      </td></tr><tr><td style="padding:18px 30px;background:#f8fafc;color:#64748b;font-size:12px;">Ez az üzenet automatikusan készült a Pannon Transfer rendszeréből.</td></tr>
+      </td></tr>${trackButton}<tr><td style="padding:18px 30px;background:#f8fafc;color:#64748b;font-size:12px;">Ez az üzenet automatikusan készült a Pannon Transfer rendszeréből.</td></tr>
     </table></td></tr></table></body></html>`;
 }

@@ -71,6 +71,10 @@ export interface Booking {
     changedBy: string;
     details?: string;
   };
+  // Track link fields (shared with the partnercégek / driver apps via the same MongoDB collection)
+  bookingTrackToken?: string;   // Unique token for the passenger status/modify page
+  trackLinkActive?: boolean;    // Set to false by the driver app on trip finalization
+  sharedLinkToken?: string;     // The company shared-link token used to create this booking (if any)
 }
 
 const COLLECTION_NAME = "bookings";

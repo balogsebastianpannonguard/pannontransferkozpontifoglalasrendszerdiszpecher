@@ -10,6 +10,7 @@ import { updateDriver } from "@/lib/drivers";
 import { updateVehicle } from "@/lib/vehicles";
 import { sendEmail } from "@/lib/nodemailer";
 import { buildBookingModificationEmail } from "@/lib/email-templates";
+import { buildTrackUrl } from "@/lib/partner-portal-url";
 
 export const dynamic = "force-dynamic";
 
@@ -100,6 +101,7 @@ export async function POST(
             oldValue: oldStatus,
             newValue: body.status,
           }],
+          trackUrl: buildTrackUrl(existing.bookingTrackToken),
         }),
       });
       if (!emailResult.success) {

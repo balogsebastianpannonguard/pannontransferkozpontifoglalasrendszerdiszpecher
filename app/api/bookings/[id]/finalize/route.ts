@@ -8,6 +8,7 @@ import {
   buildDriverAssignmentEmail,
   buildTravelerFinalizedEmail,
 } from "@/lib/email-templates";
+import { buildTrackUrl } from "@/lib/partner-portal-url";
 import { getMongoDb } from "@/lib/mongodb";
 
 export const dynamic = "force-dynamic";
@@ -116,6 +117,7 @@ export async function POST(
         assignedVehicleName: booking.assignedVehicleName,
         price: booking.price,
         comment: booking.comment,
+        trackUrl: buildTrackUrl(booking.bookingTrackToken),
       });
 
       const travelerEmailResult = await sendEmail({

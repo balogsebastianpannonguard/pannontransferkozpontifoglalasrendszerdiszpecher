@@ -245,7 +245,7 @@ export default function NewBookingClient() {
                   <option value="airport">Repülőtér</option>
                 </select>
               </div>
-              {form.toType === "airport" && (
+              {(form.toType === "airport" || form.fromType === "airport") && (
                 <div>
                   <label className={labelClass}>Járatszám *</label>
                   <div className="relative">

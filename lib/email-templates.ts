@@ -347,6 +347,8 @@ export function buildTravelerFinalizedEmail(params: {
   pickupTime: string;
   fromAddress: string;
   toAddress: string;
+  toType?: "airport" | "other";
+  flightNumber?: string;
   travelers: number;
   luggage: number;
   transferType: "standard" | "executive";
@@ -365,6 +367,8 @@ export function buildTravelerFinalizedEmail(params: {
     pickupTime,
     fromAddress,
     toAddress,
+    toType,
+    flightNumber,
     travelers,
     luggage,
     transferType,
@@ -460,6 +464,7 @@ Megerősítve • minden részlet rögzítve
 <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;color:#1A1A1A;line-height:1.6;margin-bottom:16px;">${fromAddress}</div>
 <div style="font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:700;color:#DC2626;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Hova</div>
 <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;color:#1A1A1A;line-height:1.6;">${toAddress}</div>
+${flightNumber ? `<div style="font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:700;color:#C9A962;letter-spacing:1.5px;text-transform:uppercase;margin-top:16px;margin-bottom:6px;">Járatszám</div><div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;color:#1A1A1A;">✈ ${flightNumber}</div>` : ''}
 </td>
 </tr>
 </table>
@@ -615,6 +620,8 @@ export function buildDriverAssignmentEmail(params: {
   pickupTime: string;
   fromAddress: string;
   toAddress: string;
+  toType?: "airport" | "other";
+  flightNumber?: string;
   travelers: number;
   luggage: number;
   assignedVehicleName?: string;
@@ -629,6 +636,8 @@ export function buildDriverAssignmentEmail(params: {
     pickupTime,
     fromAddress,
     toAddress,
+    toType,
+    flightNumber,
     travelers,
     luggage,
     assignedVehicleName,
@@ -658,6 +667,7 @@ export function buildDriverAssignmentEmail(params: {
             <tr><td style="padding:0 16px 16px;">
               <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#64748b;">Érkezés</div>
               <div style="font-size:14px;font-weight:700;margin-top:6px;">${toAddress}</div>
+              ${flightNumber ? `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#1d4ed8;margin-top:10px;">Járatszám</div><div style="font-size:16px;font-weight:800;margin-top:4px;">✈ ${flightNumber}</div>` : ''}
             </td></tr>
           </table>
           <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:18px;">

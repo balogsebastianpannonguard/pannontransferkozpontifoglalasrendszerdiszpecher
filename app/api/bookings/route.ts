@@ -80,9 +80,9 @@ export async function POST(request: NextRequest) {
         );
       }
     }
-    if (body.toType === "airport" && !String(body.flightNumber || "").trim()) {
+    if ((body.toType === "airport" || body.fromType === "airport") && !String(body.flightNumber || "").trim()) {
       return NextResponse.json(
-        { error: "Reptéri érkezésnél a járatszám megadása kötelező." },
+        { error: "Reptéri transzfernél a járatszám megadása kötelező." },
         { status: 400 }
       );
     }

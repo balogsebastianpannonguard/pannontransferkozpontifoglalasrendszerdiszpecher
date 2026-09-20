@@ -499,6 +499,12 @@ export default function BookingsListClient({
                                   <div className="text-[13px] font-semibold text-slate-800 leading-snug truncate">
                                     {b.fromAddress}
                                   </div>
+                                  {b.flightNumber && (
+                                    <div className="mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-sky-50 border border-sky-200 text-sky-700">
+                                      <span className="text-[9px] font-black tracking-widest uppercase">Járatszám</span>
+                                      <span className="text-[11px] font-black tabular-nums">{b.flightNumber}</span>
+                                    </div>
+                                  )}
                                 </div>
                                 <div>
                                   <div className="text-[9.5px] font-black tracking-[0.18em] uppercase text-rose-600 mb-0.5">

@@ -10,6 +10,7 @@ import {
   Calendar,
   CarFront,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   Clock,
   FileText,
@@ -55,6 +56,8 @@ type FaqEntry = {
   question: string;
   answer: string;
 };
+
+type ContentTab = "all" | "menus" | "workflows" | "faq";
 
 const QUICK_SEARCHES = [
   "új foglalás",
@@ -709,6 +712,8 @@ function highlightText(text: string, query: string) {
 
 export function DocumentationView() {
   const [query, setQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<ContentTab>("all");
+  const [expandedSections, setExpandedSections] = useState<string[]>(["dashboard", "bookings", "notifications"]);
 
   const filteredSections = useMemo(() => {
     if (!query.trim()) return DOCUMENTATION_SECTIONS;
@@ -749,6 +754,21 @@ export function DocumentationView() {
   const totalMatches = filteredSections.length + filteredWorkflows.length + filteredFaq.length;
   const hasSearch = query.trim().length > 0;
   const noResults = hasSearch && totalMatches === 0;
+  const visibleSections = activeTab === "faq" ? [] : filteredSections;
+  const visibleWorkflows = activeTab === "menus" ? [] : filteredWorkflows;
+  const visibleFaq = activeTab === "menus" || activeTab === "workflows" ? [] : filteredFaq;
+
+  const toggleSection = (id: string) => {
+    setExpandedSections((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+  };
+
+  const expandAllSections = () => {
+    setExpandedSections(filteredSections.map((section) => section.id));
+  };
+
+  const collapseAllSections = () => {
+    setExpandedSections([]);
+  };
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -792,17 +812,29 @@ export function DocumentationView() {
       </div>
 
       <div className="mb-8 rounded-[2rem] border border-slate-200/80 bg-white p-5 shadow-xl shadow-slate-900/[0.04]">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Keresés a kézikönyvben</div>
             <h2 className="mt-1 text-xl font-bold text-slate-900">Találd meg gyorsan a keresett folyamatot vagy szabályt</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+              A kereső a teljes dokumentációban dolgozik, a kapcsolódó workflow-kat és a GYIK blokkot is beleértve.
+            </p>
           </div>
-          <div className="text-sm text-slate-500">
-            {hasSearch ? `Találatok: ${totalMatches}` : "Tipp: keress például sofőrre, VIP-re, módosításra vagy hibára."}
+          <div className="grid grid-cols-3 gap-3 sm:max-w-md xl:min-w-[330px]">
+            {[
+              { label: "Menük", value: filteredSections.length },
+              { label: "Workflow", value: filteredWorkflows.length },
+              { label: "GYIK", value: filteredFaq.length },
+            ].map((item) => (
+              <div key={item.label} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-center">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{item.label}</div>
+                <div className="mt-1 text-xl font-black text-slate-900">{item.value}</div>
+              </div>
+            ))}
           </div>
         </div>
 
-        <div className="mt-4 flex flex-col gap-4">
+        <div className="mt-5 flex flex-col gap-4">
           <div className="relative">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
             <input
@@ -824,6 +856,28 @@ export function DocumentationView() {
           </div>
 
           <div className="flex flex-wrap gap-2">
+            {[
+              { id: "all" as const, label: "Minden" },
+              { id: "menus" as const, label: "Csak menük" },
+              { id: "workflows" as const, label: "Csak workflow-k" },
+              { id: "faq" as const, label: "Csak GYIK" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`rounded-full border px-3 py-2 text-xs font-bold transition ${
+                  activeTab === tab.id
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
             {QUICK_SEARCHES.map((item) => {
               const active = query.trim().toLocaleLowerCase("hu-HU") === item.toLocaleLowerCase("hu-HU");
               return (
@@ -841,6 +895,16 @@ export function DocumentationView() {
                 </button>
               );
             })}
+
+            {hasSearch ? (
+              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">
+                {totalMatches} találat
+              </span>
+            ) : (
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-500">
+                Tipp: keress például VIP-re vagy hibára
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -862,7 +926,7 @@ export function DocumentationView() {
             <div className="rounded-[2rem] border border-slate-200/80 bg-white p-5 shadow-lg shadow-slate-900/[0.03]">
               <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Tartalomjegyzék</div>
               <div className="mt-4 space-y-2">
-                {filteredSections.map((section) => {
+                {visibleSections.map((section) => {
                   const Icon = section.icon;
                   return (
                     <button
@@ -931,7 +995,34 @@ export function DocumentationView() {
               </div>
             </section>
 
-            {filteredWorkflows.length > 0 ? (
+            {activeTab !== "faq" ? (
+              <section className="rounded-[2rem] border border-slate-200/80 bg-white p-5 shadow-xl shadow-slate-900/[0.04]">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Olvasási mód</div>
+                    <h2 className="mt-1 text-lg font-bold text-slate-900">Kezeld a hosszú tartalmat kényelmesebben</h2>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={expandAllSections}
+                      className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-slate-300 hover:bg-white"
+                    >
+                      Minden menü lenyitása
+                    </button>
+                    <button
+                      type="button"
+                      onClick={collapseAllSections}
+                      className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-slate-300 hover:bg-white"
+                    >
+                      Menük összecsukása
+                    </button>
+                  </div>
+                </div>
+              </section>
+            ) : null}
+
+            {visibleWorkflows.length > 0 ? (
               <section className="rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-xl shadow-slate-900/[0.04]">
                 <div className="flex items-center gap-3">
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-lg shadow-blue-600/20">
@@ -944,7 +1035,7 @@ export function DocumentationView() {
                 </div>
 
                 <div className="mt-6 grid gap-4">
-                  {filteredWorkflows.map((workflow) => (
+                  {visibleWorkflows.map((workflow) => (
                     <article key={workflow.title} className="rounded-[1.75rem] border border-slate-200 bg-slate-50/80 p-5">
                       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div className="max-w-3xl">
@@ -972,8 +1063,9 @@ export function DocumentationView() {
               </section>
             ) : null}
 
-            {filteredSections.map((section) => {
+            {visibleSections.map((section) => {
               const Icon = section.icon;
+              const isExpanded = hasSearch || expandedSections.includes(section.id);
 
               return (
                 <section
@@ -981,147 +1073,169 @@ export function DocumentationView() {
                   id={section.id}
                   className="scroll-mt-24 rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-xl shadow-slate-900/[0.04]"
                 >
-                  <div className="flex flex-col gap-4 border-b border-slate-100 pb-6 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="flex items-start gap-4">
-                      <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${section.accent} text-white shadow-lg shadow-slate-900/10`}>
-                        <Icon className="h-6 w-6" />
+                  <button
+                    type="button"
+                    onClick={() => toggleSection(section.id)}
+                    className="flex w-full flex-col gap-4 text-left"
+                  >
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="flex items-start gap-4">
+                        <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${section.accent} text-white shadow-lg shadow-slate-900/10`}>
+                          <Icon className="h-6 w-6" />
+                        </div>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <h2 className="text-2xl font-bold tracking-tight text-slate-900">{highlightText(section.title, query)}</h2>
+                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-500">
+                              {isExpanded ? "Nyitva" : "Összecsukva"}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-sm font-medium text-slate-500">{highlightText(section.subtitle, query)}</p>
+                        </div>
                       </div>
-                      <div>
-                        <h2 className="text-2xl font-bold tracking-tight text-slate-900">{highlightText(section.title, query)}</h2>
-                        <p className="mt-1 text-sm font-medium text-slate-500">{highlightText(section.subtitle, query)}</p>
-                      </div>
-                    </div>
 
-                    <div className="flex flex-wrap gap-2">
-                      {section.related.map((item) => (
-                        <span key={item} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500">
-                          {highlightText(item, query)}
+                      <div className="flex items-center gap-3">
+                        <div className="hidden flex-wrap gap-2 lg:flex">
+                          {section.related.map((item) => (
+                            <span key={item} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500">
+                              {highlightText(item, query)}
+                            </span>
+                          ))}
+                        </div>
+                        <span className={`flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-500 transition ${isExpanded ? "rotate-180" : ""}`}>
+                          <ChevronDown className="h-4 w-4" />
                         </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.95fr)]">
-                    <div className="space-y-6">
-                      <div>
-                        <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Mire való?</div>
-                        <p className="mt-2 text-sm leading-7 text-slate-600">{highlightText(section.summary, query)}</p>
-                      </div>
-
-                      <div className="grid gap-4 lg:grid-cols-2">
-                        <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
-                          <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
-                            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                            Mit tudsz itt megcsinálni?
-                          </div>
-                          <div className="mt-4 space-y-3">
-                            {section.canDo.map((item) => (
-                              <div key={item} className="flex gap-3 text-sm leading-7 text-slate-600">
-                                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
-                                <span>{highlightText(item, query)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
-                          <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
-                            <ChevronRight className="h-4 w-4 text-blue-600" />
-                            Mikor nyisd meg ezt a menüt?
-                          </div>
-                          <div className="mt-4 space-y-3">
-                            {section.whenToUse.map((item) => (
-                              <div key={item} className="flex gap-3 text-sm leading-7 text-slate-600">
-                                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
-                                <span>{highlightText(item, query)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
                       </div>
                     </div>
+                  </button>
 
-                    <div className="space-y-4">
-                      <div className="rounded-[1.5rem] border border-blue-100 bg-blue-50 p-5">
-                        <div className="flex items-center gap-2 text-sm font-bold text-blue-900">
-                          <BookOpen className="h-4 w-4" />
-                          Fontos gyakorlati tippek
-                        </div>
-                        <div className="mt-4 space-y-3">
-                          {section.tips.map((tip) => (
-                            <div key={tip} className="flex gap-3 text-sm leading-7 text-blue-950/80">
-                              <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
-                              <span>{highlightText(tip, query)}</span>
+                  {isExpanded ? (
+                    <>
+                      <div className="mt-6 border-t border-slate-100 pt-6">
+                        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.95fr)]">
+                          <div className="space-y-6">
+                            <div>
+                              <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Mire való?</div>
+                              <p className="mt-2 text-sm leading-7 text-slate-600">{highlightText(section.summary, query)}</p>
                             </div>
-                          ))}
-                        </div>
-                      </div>
 
-                      {section.warnings && section.warnings.length > 0 ? (
-                        <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50 p-5">
-                          <div className="flex items-center gap-2 text-sm font-bold text-amber-900">
-                            <ShieldAlert className="h-4 w-4" />
-                            Mire kell különösen figyelni?
-                          </div>
-                          <div className="mt-4 space-y-3">
-                            {section.warnings.map((warning) => (
-                              <div key={warning} className="flex gap-3 text-sm leading-7 text-amber-950/80">
-                                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
-                                <span>{highlightText(warning, query)}</span>
+                            <div className="grid gap-4 lg:grid-cols-2">
+                              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
+                                <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                                  Mit tudsz itt megcsinálni?
+                                </div>
+                                <div className="mt-4 space-y-3">
+                                  {section.canDo.map((item) => (
+                                    <div key={item} className="flex gap-3 text-sm leading-7 text-slate-600">
+                                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                                      <span>{highlightText(item, query)}</span>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
 
-                      <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
-                        <div className="text-sm font-bold text-slate-900">Kulcsszavak ehhez a menühöz</div>
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          {section.keywords.map((keyword) => (
-                            <button
-                              key={`${section.id}-${keyword}`}
-                              type="button"
-                              onClick={() => setQuery(keyword)}
-                              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
-                            >
-                              {highlightText(keyword, query)}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-6">
-                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Részletes működési lépések</div>
-                    <div className="mt-4 grid gap-4">
-                      {section.steps.map((step, index) => (
-                        <article key={`${section.id}-${step.title}`} className="rounded-[1.75rem] border border-slate-200 bg-slate-50 p-5">
-                          <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-sm font-black text-white">
-                              {index + 1}
+                              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
+                                <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                                  <ChevronRight className="h-4 w-4 text-blue-600" />
+                                  Mikor nyisd meg ezt a menüt?
+                                </div>
+                                <div className="mt-4 space-y-3">
+                                  {section.whenToUse.map((item) => (
+                                    <div key={item} className="flex gap-3 text-sm leading-7 text-slate-600">
+                                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
+                                      <span>{highlightText(item, query)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
                             </div>
-                            <div className="min-w-0">
-                              <h3 className="text-lg font-bold text-slate-900">{highlightText(step.title, query)}</h3>
+                          </div>
+
+                          <div className="space-y-4">
+                            <div className="rounded-[1.5rem] border border-blue-100 bg-blue-50 p-5">
+                              <div className="flex items-center gap-2 text-sm font-bold text-blue-900">
+                                <BookOpen className="h-4 w-4" />
+                                Fontos gyakorlati tippek
+                              </div>
                               <div className="mt-4 space-y-3">
-                                {step.details.map((detail) => (
-                                  <div key={detail} className="flex gap-3 text-sm leading-7 text-slate-700">
-                                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
-                                    <span>{highlightText(detail, query)}</span>
+                                {section.tips.map((tip) => (
+                                  <div key={tip} className="flex gap-3 text-sm leading-7 text-blue-950/80">
+                                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
+                                    <span>{highlightText(tip, query)}</span>
                                   </div>
                                 ))}
                               </div>
                             </div>
+
+                            {section.warnings && section.warnings.length > 0 ? (
+                              <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50 p-5">
+                                <div className="flex items-center gap-2 text-sm font-bold text-amber-900">
+                                  <ShieldAlert className="h-4 w-4" />
+                                  Mire kell különösen figyelni?
+                                </div>
+                                <div className="mt-4 space-y-3">
+                                  {section.warnings.map((warning) => (
+                                    <div key={warning} className="flex gap-3 text-sm leading-7 text-amber-950/80">
+                                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                                      <span>{highlightText(warning, query)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
+                              <div className="text-sm font-bold text-slate-900">Kulcsszavak ehhez a menühöz</div>
+                              <div className="mt-4 flex flex-wrap gap-2">
+                                {section.keywords.map((keyword) => (
+                                  <button
+                                    key={`${section.id}-${keyword}`}
+                                    type="button"
+                                    onClick={() => setQuery(keyword)}
+                                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                                  >
+                                    {highlightText(keyword, query)}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
                           </div>
-                        </article>
-                      ))}
-                    </div>
-                  </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-6">
+                        <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Részletes működési lépések</div>
+                        <div className="mt-4 grid gap-4">
+                          {section.steps.map((step, index) => (
+                            <article key={`${section.id}-${step.title}`} className="rounded-[1.75rem] border border-slate-200 bg-slate-50 p-5">
+                              <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-sm font-black text-white">
+                                  {index + 1}
+                                </div>
+                                <div className="min-w-0">
+                                  <h3 className="text-lg font-bold text-slate-900">{highlightText(step.title, query)}</h3>
+                                  <div className="mt-4 space-y-3">
+                                    {step.details.map((detail) => (
+                                      <div key={detail} className="flex gap-3 text-sm leading-7 text-slate-700">
+                                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                                        <span>{highlightText(detail, query)}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  ) : null}
                 </section>
               );
             })}
 
-            {filteredFaq.length > 0 ? (
+            {visibleFaq.length > 0 ? (
               <section className="rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-xl shadow-slate-900/[0.04]">
                 <div className="flex items-center gap-3">
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900 text-white shadow-lg shadow-slate-900/20">
@@ -1134,7 +1248,7 @@ export function DocumentationView() {
                 </div>
 
                 <div className="mt-6 grid gap-4">
-                  {filteredFaq.map((entry) => (
+                  {visibleFaq.map((entry) => (
                     <article key={entry.question} className="rounded-[1.75rem] border border-slate-200 bg-slate-50 p-5">
                       <h3 className="text-base font-bold text-slate-900">{highlightText(entry.question, query)}</h3>
                       <p className="mt-3 text-sm leading-7 text-slate-600">{highlightText(entry.answer, query)}</p>

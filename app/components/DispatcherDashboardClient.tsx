@@ -33,9 +33,11 @@ import {
   AlertTriangle,
   CheckCircle2,
   Bug,
+  BookOpen,
 } from "lucide-react";
 
 import { ClientsView } from "./ClientsView";
+import { DocumentationView } from "./DocumentationView";
 import PriceApprovalWidget from "./PriceApprovalWidget";
 import type { PartnerMeta } from "@/lib/partner-meta";
 import { getPartnerColorClasses, resolvePartnerMeta } from "@/lib/partner-meta";
@@ -62,7 +64,8 @@ type NavItemId =
   | "clients"
   | "routes"
   | "reports"
-  | "settings";
+  | "settings"
+  | "documentation";
 
 const DASHBOARD_VIEWS: NavItemId[] = [
   "dashboard",
@@ -76,6 +79,7 @@ const DASHBOARD_VIEWS: NavItemId[] = [
   "routes",
   "reports",
   "settings",
+  "documentation",
 ];
 
 interface SidebarNavItem {
@@ -706,6 +710,12 @@ export default function DispatcherDashboardClient({
         subtitle: "Statisztikák",
         icon: <FileBarChart className="w-5 h-5" />,
         locked: true,
+      },
+      {
+        id: "documentation",
+        label: "Dokumentáció",
+        subtitle: "Rendszer használati útmutató",
+        icon: <BookOpen className="w-5 h-5" />,
       },
       {
         id: "settings",
@@ -1474,6 +1484,8 @@ export default function DispatcherDashboardClient({
               <ErrorReportsView />
             ) : active === "clients" ? (
               <ClientsView bookings={realBookings} />
+            ) : active === "documentation" ? (
+              <DocumentationView />
             ) : active === "settings" ? (
               <SettingsView
                 user={user}
@@ -1634,16 +1646,6 @@ export default function DispatcherDashboardClient({
                               <div className="text-[10px] font-bold text-slate-500 px-1">+{bookings.length - 4} további…</div>
                             )}
                           </div>
-                          {/* Status bar */}
-                          {bookings.length > 0 && (
-                            <div className="absolute bottom-1.5 left-2.5 right-2.5 h-1 rounded-full overflow-hidden flex shrink-0">
-                              {bookings.slice(0, 6).map((b) => {
-                                const c = statusColor(b.status);
-                                return <div key={b.id} className={`flex-1 ${c.bar}`} />;
-                              })}
-                            </div>
-                          )}
-
                           {/* CLICK POPOVER - FELETTÉRE */}
                           {bookings.length > 0 && (
                             <div
@@ -1977,16 +1979,6 @@ export default function DispatcherDashboardClient({
                               <div className="text-[10px] font-bold text-slate-500 px-1">+{bookings.length - 3} további…</div>
                             )}
                           </div>
-                          {/* Status bar */}
-                          {bookings.length > 0 && (
-                            <div className="absolute bottom-1.5 left-2.5 right-2.5 h-1 rounded-full overflow-hidden flex">
-                              {bookings.slice(0, 6).map((b) => {
-                                const c = statusColor(b.status);
-                                return <div key={b.id} className={`flex-1 ${c.bar}`} />;
-                              })}
-                            </div>
-                          )}
-
                           {/* CLICK POPOVER - FELETTÉRE */}
                           {bookings.length > 0 && (
                             <div

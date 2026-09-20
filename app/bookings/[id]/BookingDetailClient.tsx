@@ -243,6 +243,7 @@ export default function BookingDetailClient({
   const [savingPrice, setSavingPrice] = useState(false);
   const [bookingMetaSaving, setBookingMetaSaving] = useState(false);
   const [unassigning, setUnassigning] = useState(false);
+  const [forceAssignment, setForceAssignment] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [pickupTimeSaving, setPickupTimeSaving] = useState(false);
@@ -442,6 +443,7 @@ export default function BookingDetailClient({
           driverName: driver.name,
           vehicleId: String(vehicle._id),
           vehicleName: vehicle.name,
+          forceOverride: forceAssignment,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -1461,13 +1463,16 @@ export default function BookingDetailClient({
                         className="w-full px-4.5 py-3.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-800 focus:outline-none focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100 transition appearance-none pr-12 cursor-pointer hover:bg-slate-100/60"
                       >
                         <option value="">— Válassz sofőrt —</option>
-                        {drivers.map((d) => (
-                          <option key={d._id} value={d._id as string}>
+                        {drivers.map((d) => {
+                          const unavailable = d.status === "on_route" || d.status === "inactive" || d.status === "on_leave";
+                          return (
+                          <option key={d._id} value={d._id as string} disabled={unavailable && !forceAssignment}>
                             {d.name} · {d.phone}
                             {d.type === "substitute" ? " (pótló)" : ""}
-                            {d.status === "inactive" ? " [inaktív]" : ""}
+                            {d.status === "on_route" ? " [úton van]" : d.status === "on_leave" ? " [szabadság]" : d.status === "inactive" ? " [inaktív]" : ""}
                           </option>
-                        ))}
+                          );
+                        })}
                       </select>
                       <ChevronDown className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     </div>
@@ -1484,18 +1489,36 @@ export default function BookingDetailClient({
                         className="w-full px-4.5 py-3.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-800 focus:outline-none focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100 transition appearance-none pr-12 cursor-pointer hover:bg-slate-100/60"
                       >
                         <option value="">— Válassz járművet —</option>
-                        {vehicles.map((v) => (
-                          <option key={String(v._id)} value={String(v._id)}>
+                        {vehicles.map((v) => {
+                          const unavailable = v.status === "on_route" || v.condition === "not_working";
+                          return (
+                          <option key={String(v._id)} value={String(v._id)} disabled={unavailable && !forceAssignment}>
                             {v.name}
                             {v.seats ? ` · ${v.seats}fő` : ""}
                             {v.color ? ` · ${v.color}` : ""}
                             {v.plates ? ` · ${v.plates}` : ""}
-                            {v.condition === "not_working" ? " [hibás]" : ""}
+                            {v.status === "on_route" ? " [úton van]" : v.condition === "not_working" ? " [szerviz/hibás]" : ""}
                           </option>
-                        ))}
+                          );
+                        })}
                       </select>
                       <ChevronDown className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     </div>
+
+                    <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={forceAssignment}
+                        onChange={(event) => setForceAssignment(event.target.checked)}
+                        className="mt-0.5 h-4 w-4 accent-amber-600"
+                      />
+                      <span>
+                        <span className="block text-xs font-black uppercase tracking-wider text-amber-800">Manuális felülbírálás</span>
+                        <span className="block mt-1 text-xs text-amber-700">
+                          Csak indokolt esetben engedi úton lévő vagy szervizelt erőforrás kiosztását.
+                        </span>
+                      </span>
+                    </label>
                   </div>
                 </div>
 

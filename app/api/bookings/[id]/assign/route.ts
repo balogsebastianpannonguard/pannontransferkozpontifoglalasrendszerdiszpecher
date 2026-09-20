@@ -4,10 +4,12 @@ import {
   getBookingById,
   assignBooking,
   updateBookingStatus,
+  getBookingsCollection,
 } from "@/lib/bookings";
 import { createAuditLog } from "@/lib/audit-logs";
-import { updateDriver } from "@/lib/drivers";
-import { updateVehicle } from "@/lib/vehicles";
+import { getDriversCollection, updateDriver } from "@/lib/drivers";
+import { getVehicleCollection, updateVehicle } from "@/lib/vehicles";
+import { ObjectId } from "mongodb";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +34,7 @@ export async function POST(
       driverName: string;
       vehicleId: string;
       vehicleName: string;
+      forceOverride?: boolean;
     };
 
     const shouldRelease =
@@ -45,6 +48,56 @@ export async function POST(
         { error: "Hiányzó mezők: driverId, driverName, vehicleId, vehicleName" },
         { status: 400 }
       );
+    }
+
+    if (!shouldRelease) {
+      const forceOverride = body.forceOverride === true;
+      const bookings = await getBookingsCollection();
+      const activeAssignments = await bookings.find({
+        _id: { $ne: new ObjectId(id) },
+        status: { $in: ["confirmed", "in-progress"] },
+        $or: [
+          { assignedDriverId: body.driverId },
+          { assignedVehicleId: body.vehicleId },
+        ],
+      } as any).limit(10).toArray();
+
+      if (activeAssignments.length > 0 && !forceOverride) {
+        return NextResponse.json(
+          { error: "A sofőr vagy a jármű már egy másik aktív útra van kiosztva. Manuális felülbírálással folytathatod." },
+          { status: 409 }
+        );
+      }
+
+      const driverCollection = await getDriversCollection();
+      const vehicleCollection = await getVehicleCollection();
+      if (!ObjectId.isValid(body.driverId) || !ObjectId.isValid(body.vehicleId)) {
+        return NextResponse.json({ error: "Érvénytelen sofőr- vagy járműazonosító." }, { status: 400 });
+      }
+      const driver = await driverCollection.findOne({ _id: new ObjectId(body.driverId), role: "driver" } as any);
+      const vehicle = await vehicleCollection.findOne({ _id: new ObjectId(body.vehicleId) } as any);
+
+      if (!driver) {
+        return NextResponse.json({ error: "A kiválasztott sofőr nem található." }, { status: 404 });
+      }
+      if (!vehicle) {
+        return NextResponse.json({ error: "A kiválasztott jármű nem található." }, { status: 404 });
+      }
+      if (driver.driverStatus === "on_route" && !forceOverride) {
+        return NextResponse.json(
+          { error: "A sofőr jelenleg úton van. Manuális felülbírálással folytathatod." },
+          { status: 409 }
+        );
+      }
+      if (
+        (vehicle.status === "on_route" || vehicle.condition === "not_working") &&
+        !forceOverride
+      ) {
+        return NextResponse.json(
+          { error: "A jármű úton van vagy szervizelt/nem használható. Manuális felülbírálással folytathatod." },
+          { status: 409 }
+        );
+      }
     }
 
     if (shouldRelease) {
@@ -62,11 +115,22 @@ export async function POST(
         user.email
       );
 
+      const bookings = await getBookingsCollection();
       if (previousVehicleId) {
-        await updateVehicle(previousVehicleId, { status: "parked" });
+        const remainingVehicleTrips = await bookings.countDocuments({
+          assignedVehicleId: previousVehicleId,
+          status: "in-progress",
+          _id: { $ne: new ObjectId(id) },
+        } as any);
+        if (remainingVehicleTrips === 0) await updateVehicle(previousVehicleId, { status: "parked" });
       }
       if (previousDriverId) {
-        await updateDriver(previousDriverId, { status: "active" });
+        const remainingDriverTrips = await bookings.countDocuments({
+          assignedDriverId: previousDriverId,
+          status: "in-progress",
+          _id: { $ne: new ObjectId(id) },
+        } as any);
+        if (remainingDriverTrips === 0) await updateDriver(previousDriverId, { status: "active" });
       }
 
       const updated = await updateBookingStatus(
@@ -109,9 +173,6 @@ export async function POST(
       );
     }
 
-    await updateVehicle(body.vehicleId, { status: "on_route" });
-    await updateDriver(body.driverId, { status: "on_route" });
-
     const updated = await updateBookingStatus(
       id,
       "confirmed",
@@ -125,7 +186,7 @@ export async function POST(
       actor: user.email,
       targetType: "booking",
       targetId: id,
-      details: `${body.driverName} - ${body.vehicleName}`,
+      details: `${body.driverName} - ${body.vehicleName}${body.forceOverride ? " (manuális felülbírálással)" : ""}`,
     });
 
     return NextResponse.json({

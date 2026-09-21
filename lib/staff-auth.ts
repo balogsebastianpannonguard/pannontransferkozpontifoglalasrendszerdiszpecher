@@ -26,6 +26,10 @@ export interface StaffUser {
   createdAt: number;
   updatedAt: number;
   lastLoginAt: number | null;
+  // Optional persistent "direct login" link (no password prompt). Only set for
+  // accounts that were explicitly granted a personal one-click access link.
+  directLoginTokenHash?: string | null;
+  directLoginCreatedAt?: number | null;
 }
 
 const COLLECTION_NAME = "staff_users";
@@ -41,6 +45,7 @@ export async function initStaffUserIndexes() {
     await col.createIndex({ normalizedEmail: 1 }, { unique: true });
     await col.createIndex({ inviteTokenHash: 1 });
     await col.createIndex({ inviteExpiresAt: 1 }, { expireAfterSeconds: 0 });
+    await col.createIndex({ directLoginTokenHash: 1 }, { sparse: true });
   } catch {}
 }
 
@@ -132,4 +137,17 @@ export async function recordStaffSuccessfulLogin(id: string | ObjectId): Promise
       },
     }
   );
+}
+
+/**
+ * Looks up a staff user by their personal "direct login" token (a persistent,
+ * password-less access link). Does not expire — used only for accounts that were
+ * explicitly granted such a link.
+ */
+export async function findStaffUserByDirectLoginToken(rawToken: string): Promise<StaffUser | null> {
+  await initStaffUserIndexes();
+  const col = await getStaffCollection();
+  const hash = await hashToken(rawToken);
+  const user = (await col.findOne({ directLoginTokenHash: hash })) as StaffUser | null;
+  return user;
 }

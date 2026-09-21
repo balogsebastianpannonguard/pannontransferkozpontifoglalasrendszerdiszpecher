@@ -11,6 +11,7 @@ export type AuditAction =
   | 'vehicle.modified'
   | 'notification.sent'
   | 'auth.login'
+  | 'auth.direct_login'
   | 'auth.logout'
   | 'error_report.created'
   | 'bookings.delete_all';

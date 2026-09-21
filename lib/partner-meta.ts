@@ -17,7 +17,7 @@ type PartnerAccent =
   | "green"
   | "indigo"
   | "lime"
-  | "yellow";
+  | "emerald";
 
 export interface PartnerMeta {
   id: PartnerId;
@@ -97,8 +97,8 @@ const PARTNER_META: Record<PartnerId, PartnerMeta> = {
     id: "ni",
     name: "National Instruments",
     short: "NI",
-    accent: "yellow",
-    gradient: "from-yellow-400 to-amber-500 shadow-yellow-500/25",
+    accent: "emerald",
+    gradient: "from-emerald-400 to-green-600 shadow-emerald-500/25",
     portalPath: "/ni",
   },
 };
@@ -215,14 +215,14 @@ export function getPartnerColorClasses(accent: PartnerAccent) {
         dot: "bg-lime-600",
         soft: "bg-lime-50",
       };
-    case "yellow":
+    case "emerald":
       return {
-        bg: "bg-yellow-100",
-        text: "text-yellow-700",
-        border: "border-yellow-300",
-        ring: "ring-yellow-200",
-        dot: "bg-yellow-600",
-        soft: "bg-yellow-50",
+        bg: "bg-emerald-100",
+        text: "text-emerald-700",
+        border: "border-emerald-300",
+        ring: "ring-emerald-200",
+        dot: "bg-emerald-600",
+        soft: "bg-emerald-50",
       };
   }
 }

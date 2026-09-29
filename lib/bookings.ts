@@ -16,6 +16,7 @@ export interface BookingAuditEntry {
 export interface Booking {
   _id?: string;
   portal?: string;
+  language?: 'hu' | 'en'; // Traveller UI language for traveller-facing emails
   bookingCode: string;
   userEmail: string;
   travelerEmail: string;

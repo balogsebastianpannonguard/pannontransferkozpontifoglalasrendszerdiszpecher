@@ -95,7 +95,10 @@ export async function POST(
     if (emailTarget && oldStatus !== body.status && body.status === "cancelled") {
       const emailResult = await sendEmail({
         to: emailTarget,
-        subject: `Foglalás lemondva · #${existing.bookingCode}`,
+        subject:
+          existing.language === "en"
+            ? `Booking cancelled · #${existing.bookingCode}`
+            : `Foglalás lemondva · #${existing.bookingCode}`,
         html: buildBookingModificationEmail({
           bookingCode: existing.bookingCode,
           travelerName: existing.travelerName,
@@ -105,6 +108,7 @@ export async function POST(
             newValue: body.status,
           }],
           trackUrl: buildTrackUrl(existing.bookingTrackToken),
+          language: existing.language,
         }),
       });
       if (!emailResult.success) {

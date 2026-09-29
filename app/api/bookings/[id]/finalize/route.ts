@@ -118,11 +118,15 @@ export async function POST(
         price: booking.price,
         comment: booking.comment,
         trackUrl: buildTrackUrl(booking.bookingTrackToken),
+        language: booking.language,
       });
 
       const travelerEmailResult = await sendEmail({
         to: booking.travelerEmail,
-        subject: `Utazása véglegesítve · #${booking.bookingCode} · Pannon Transfer`,
+        subject:
+          booking.language === "en"
+            ? `Your trip is confirmed · #${booking.bookingCode} · Pannon Transfer`
+            : `Utazása véglegesítve · #${booking.bookingCode} · Pannon Transfer`,
         html: travelerEmailHtml,
       });
 

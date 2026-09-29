@@ -360,6 +360,7 @@ export function buildTravelerFinalizedEmail(params: {
   price?: number;
   comment?: string;
   trackUrl?: string;
+  language?: "hu" | "en";
 }): string {
   const {
     bookingCode,
@@ -381,8 +382,10 @@ export function buildTravelerFinalizedEmail(params: {
     price,
     comment,
     trackUrl,
+    language,
   } = params;
 
+  const en = language === "en";
   const transferTypeLabel = transferType === "executive" ? "EXECUTIVE" : "STANDARD";
   const paymentMethodLabel = paymentMethod === "card" ? "Bankkártya" : "Banki átutalás";
   const priceDisplay =
@@ -393,7 +396,8 @@ export function buildTravelerFinalizedEmail(params: {
   const driverPhoneDisplay = assignedDriverPhone || "Később kerül kiküldésre";
   const vehicleDisplay = assignedVehicleName || "Később kerül kiküldésre";
 
-  return `<!DOCTYPE html>
+  if (!en) {
+    return `<!DOCTYPE html>
 <html lang="hu">
 <head>
 <meta charset="UTF-8">
@@ -608,6 +612,245 @@ Kérdés esetén válaszoljon erre az e-mailre, vagy keressen minket a megadott 
 </tr>
 <tr>
 <td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#7A7A7A;line-height:1.6;padding-top:12px;">© 2026 Pannon Transfer Executive Travel. Minden jog fenntartva.</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</body>
+</html>`;
+  }
+
+  const paymentMethodLabelEn = paymentMethod === "card" ? "Bank card" : "Bank transfer";
+  const priceDisplayEn =
+    typeof price === "number" && price > 0
+      ? `${price.toLocaleString("en-US")} HUF`
+      : "To be confirmed";
+  const driverNameDisplayEn = assignedDriverName || "To be assigned";
+  const driverPhoneDisplayEn = assignedDriverPhone || "Will be shared later";
+  const vehicleDisplayEn = assignedVehicleName || "Will be shared later";
+  const companyNameDisplayEn = companyName || "Private traveller";
+  const travelerCountLabel = `${travelers} passenger${travelers === 1 ? "" : "s"}`;
+  const luggageCountLabel = `${luggage} piece${luggage === 1 ? "" : "s"}`;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your trip is confirmed · #${bookingCode} · Pannon Transfer</title>
+</head>
+<body style="margin:0;padding:0;background-color:#FAF8F5;font-family:Arial,Helvetica,sans-serif;min-width:100%;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#FAF8F5;padding:48px 16px;">
+<tr>
+<td align="center">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px;">
+<tr>
+<td style="background-color:#0B1A2A;border:1px solid #0B1A2A;border-radius:12px 12px 0 0;padding:0;height:80px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="height:80px;">
+<tr>
+<td align="center" valign="middle" style="padding:0;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td align="center">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:36px;height:36px;border:4px solid #C9A962;border-radius:4px;">
+<tr>
+<td align="center" valign="middle" style="font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:700;color:#C9A962;">P</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#C9A962;letter-spacing:4px;text-transform:uppercase;padding-top:6px;">PANNON TRANSFER</td>
+</tr>
+<tr>
+<td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:9px;font-weight:500;color:#7A7A7A;letter-spacing:6px;text-transform:uppercase;padding-top:3px;">EXECUTIVE TRAVEL</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td style="height:1px;background-color:#C9A962;font-size:0;line-height:0;"></td>
+</tr>
+<tr>
+<td style="background-color:#FFFFFF;border-left:1px solid #E8E3DA;border-right:1px solid #E8E3DA;padding:32px 48px 0 48px;">
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;color:#C9A962;letter-spacing:4px;text-transform:uppercase;margin-bottom:12px;">Trip confirmed</div>
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:28px;font-weight:700;color:#1A1A1A;line-height:1.2;">#${bookingCode}</div>
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#7A7A7A;line-height:1.7;margin-top:10px;">
+Dear ${travelerName}, your booking has been finalized and we look forward to your journey with the details below.
+</div>
+<div style="margin-top:18px;display:inline-block;background-color:#ECFDF3;border:1px solid #B7E4C7;border-radius:999px;padding:8px 18px;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;color:#166534;letter-spacing:1.5px;text-transform:uppercase;">
+Confirmed • all details recorded
+</div>
+</td>
+</tr>
+<tr>
+<td style="background-color:#FFFFFF;border-left:1px solid #E8E3DA;border-right:1px solid #E8E3DA;padding:24px 48px 0 48px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border:1px solid #E8E3DA;border-radius:12px;background-color:#FFFFFF;">
+<tr>
+<td style="padding:28px;">
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;color:#C9A962;letter-spacing:2px;text-transform:uppercase;margin-bottom:18px;">Trip details</div>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td width="50%" style="padding-right:16px;vertical-align:top;">
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:700;color:#7A7A7A;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Date</div>
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;color:#1A1A1A;margin-bottom:18px;">${pickupDate}</div>
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:700;color:#7A7A7A;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Time</div>
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:700;color:#C9A962;">${pickupTime}</div>
+</td>
+<td width="50%" style="padding-left:16px;vertical-align:top;border-left:1px solid #F0ECE6;">
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:700;color:#16A34A;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">From</div>
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;color:#1A1A1A;line-height:1.6;margin-bottom:16px;">${fromAddress}</div>
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:700;color:#DC2626;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">To</div>
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;color:#1A1A1A;line-height:1.6;">${toAddress}</div>
+${flightNumber ? `<div style="font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:700;color:#C9A962;letter-spacing:1.5px;text-transform:uppercase;margin-top:16px;margin-bottom:6px;">Flight number</div><div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;color:#1A1A1A;">✈ ${flightNumber}</div>` : ''}
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td style="background-color:#FFFFFF;border-left:1px solid #E8E3DA;border-right:1px solid #E8E3DA;padding:24px 48px 0 48px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border:1px solid #E8E3DA;border-radius:12px;background-color:#FFFFFF;">
+<tr>
+<td style="padding:28px;">
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;color:#C9A962;letter-spacing:2px;text-transform:uppercase;margin-bottom:18px;">Driver and vehicle</div>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td style="padding-bottom:14px;border-bottom:1px solid #F0ECE6;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#7A7A7A;">Driver</td>
+<td align="right" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#1A1A1A;">${driverNameDisplayEn}</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td style="padding-top:14px;padding-bottom:14px;border-bottom:1px solid #F0ECE6;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#7A7A7A;">Driver phone number</td>
+<td align="right" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#1A1A1A;">${driverPhoneDisplayEn}</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td style="padding-top:14px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#7A7A7A;">Vehicle</td>
+<td align="right" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#1A1A1A;">${vehicleDisplayEn}</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td style="background-color:#FFFFFF;border-left:1px solid #E8E3DA;border-right:1px solid #E8E3DA;padding:24px 48px 0 48px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border:1px solid #E8E3DA;border-radius:12px;background-color:#FFFFFF;">
+<tr>
+<td style="padding:28px;">
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;color:#C9A962;letter-spacing:2px;text-transform:uppercase;margin-bottom:18px;">Additional information</div>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td style="padding-bottom:12px;border-bottom:1px solid #F0ECE6;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#7A7A7A;">Company</td>
+<td align="right" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#1A1A1A;">${companyNameDisplayEn}</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td style="padding-top:12px;padding-bottom:12px;border-bottom:1px solid #F0ECE6;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#7A7A7A;">Service level</td>
+<td align="right" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#1A1A1A;">${transferTypeLabel}</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td style="padding-top:12px;padding-bottom:12px;border-bottom:1px solid #F0ECE6;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#7A7A7A;">Payment</td>
+<td align="right" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#1A1A1A;">${paymentMethodLabelEn}</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td style="padding-top:12px;padding-bottom:12px;border-bottom:1px solid #F0ECE6;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#7A7A7A;">Passengers / luggage</td>
+<td align="right" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#1A1A1A;">${travelerCountLabel} • ${luggageCountLabel}</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td style="padding-top:12px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#7A7A7A;">Estimated fare</td>
+<td align="right" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#1A1A1A;">${priceDisplayEn}</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+${comment ? `<div style="margin-top:18px;padding:16px;border-radius:10px;background-color:#F8FAFC;border:1px solid #E2E8F0;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#475569;line-height:1.6;"><strong style="color:#0B1A2A;">Note:</strong><br>${comment}</div>` : ""}
+</td>
+</tr>
+</table>
+</td>
+</tr>
+${trackUrl ? `<tr>
+<td style="background-color:#FFFFFF;border-left:1px solid #E8E3DA;border-right:1px solid #E8E3DA;padding:8px 48px 0 48px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td align="center" style="padding:14px 0 4px;">
+<a href="${trackUrl}" style="display:inline-block;background-color:#C9A962;color:#0B1A2A;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:13px;letter-spacing:1px;text-transform:uppercase;padding:14px 30px;border-radius:8px;">Track your booking</a>
+</td></tr></table>
+</td>
+</tr>` : ""}
+<tr>
+<td style="background-color:#FFFFFF;border-left:1px solid #E8E3DA;border-right:1px solid #E8E3DA;padding:24px 48px 32px 48px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#4A4A4A;line-height:1.8;">
+If you have any questions, reply to this email or contact us using the details below. Thank you for choosing Pannon Transfer.
+</td>
+</tr>
+<tr>
+<td style="height:1px;background-color:#C9A962;font-size:0;line-height:0;"></td>
+</tr>
+<tr>
+<td style="background-color:#0B1A2A;border:1px solid #0B1A2A;border-radius:0 0 12px 12px;padding:40px 48px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;color:#C9A962;letter-spacing:3px;text-transform:uppercase;">PANNON TRANSFER</td>
+</tr>
+<tr>
+<td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#7A7A7A;line-height:1.6;padding-top:10px;">✉ minimalwebsoft@gmail.com &nbsp;·&nbsp; ☏ +36 30 665 4135</td>
+</tr>
+<tr>
+<td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#7A7A7A;line-height:1.6;padding-top:12px;">© 2026 Pannon Transfer Executive Travel. All rights reserved.</td>
 </tr>
 </table>
 </td>
@@ -1043,30 +1286,113 @@ export function buildBookingModificationEmail(params: {
   travelerName: string;
   changes: Array<{ field: string; oldValue: unknown; newValue: unknown }>;
   trackUrl?: string;
+  language?: "hu" | "en";
 }): string {
-  const display = (value: unknown) =>
-    value === null || value === undefined || value === "" ? "—" : String(value);
-  const rows = params.changes.map((change) => `
+  const en = params.language === "en";
+
+  if (!en) {
+    const display = (value: unknown) =>
+      value === null || value === undefined || value === "" ? "—" : String(value);
+    const rows = params.changes.map((change) => `
     <tr>
       <td style="padding:10px 0;border-bottom:1px solid #e2e8f0;font-weight:700;">${change.field}</td>
       <td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#64748b;">${display(change.oldValue)}</td>
       <td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#166534;font-weight:700;">${display(change.newValue)}</td>
     </tr>`).join("");
 
-  const trackButton = params.trackUrl
-    ? `<tr><td style="padding:8px 30px 0;">
+    const trackButton = params.trackUrl
+      ? `<tr><td style="padding:8px 30px 0;">
         <table role="presentation" width="100%"><tr><td align="center" style="padding:10px 0 4px;">
           <a href="${params.trackUrl}" style="display:inline-block;background:#41B679;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:14px 28px;border-radius:10px;">Foglalás nyomon követése</a>
         </td></tr></table>
       </td></tr>`
-    : "";
+      : "";
 
-  return `<!doctype html><html lang="hu"><body style="margin:0;padding:30px 16px;background:#f1f5f9;font-family:Arial,sans-serif;color:#0f172a;">
+    return `<!doctype html><html lang="hu"><body style="margin:0;padding:30px 16px;background:#f1f5f9;font-family:Arial,sans-serif;color:#0f172a;">
     <table role="presentation" width="100%"><tr><td align="center"><table role="presentation" width="100%" style="max-width:620px;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #dbe3ef;">
       <tr><td style="padding:26px 30px;background:#003e7e;color:#fff;"><div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#bfdbfe;">Pannon Transfer</div><h1 style="margin:10px 0 0;font-size:24px;">Foglalás módosítva</h1></td></tr>
       <tr><td style="padding:28px 30px;"><p style="font-size:15px;line-height:1.6;">A diszpécser módosította a foglalás adatait.</p><p style="font-weight:700;">#${params.bookingCode} · ${params.travelerName}</p>
         <table role="presentation" width="100%" style="border-collapse:collapse;margin-top:20px;"><tr><th align="left" style="padding:10px 0;border-bottom:2px solid #cbd5e1;">Mező</th><th align="left" style="padding:10px 0;border-bottom:2px solid #cbd5e1;">Korábbi</th><th align="left" style="padding:10px 0;border-bottom:2px solid #cbd5e1;">Új</th></tr>${rows}</table>
         <p style="margin-top:24px;padding:14px 16px;background:#eff6ff;border-radius:10px;font-size:13px;line-height:1.6;">A legfrissebb állapotot a foglalási felületen tekintheti meg.</p>
       </td></tr>${trackButton}<tr><td style="padding:18px 30px;background:#f8fafc;color:#64748b;font-size:12px;">Ez az üzenet automatikusan készült a Pannon Transfer rendszeréből.</td></tr>
+    </table></td></tr></table></body></html>`;
+  }
+
+  const fieldLabels: Record<string, string> = {
+    "Foglalás állapota": "Booking status",
+    "Felvétel dátuma": "Pickup date",
+    "Felvétel időpontja": "Pickup time",
+    "Felvételi időpont": "Pickup time",
+    "Indulási cím": "Pickup address",
+    "Érkezési cím": "Drop-off address",
+    "Utasok száma": "Passengers",
+    "Csomagok száma": "Luggage pieces",
+    "Fizetési mód": "Payment method",
+    "Szolgáltatás szint": "Service level",
+    "Megjegyzés": "Note",
+    "Járatszám": "Flight number",
+    "Sofőr": "Driver",
+    "Jármű": "Vehicle",
+    "Várható díj": "Estimated fare",
+  };
+  const valueLabels: Record<string, string> = {
+    pending: "Pending",
+    modified: "Modified",
+    confirmed: "Confirmed",
+    "in-progress": "In progress",
+    completed: "Completed",
+    cancelled: "Cancelled",
+    pending_approval: "Pending approval",
+    approved: "Approved",
+    rejected: "Rejected",
+    card: "Bank card",
+    bank: "Bank transfer",
+    standard: "Standard",
+    executive: "Executive",
+    "Bankkártya": "Bank card",
+    "Banki átutalás": "Bank transfer",
+  };
+
+  const translateField = (field: string) => fieldLabels[field] || field;
+  const translateValue = (value: unknown) => {
+    if (value === null || value === undefined || value === "") {
+      return "—";
+    }
+    if (typeof value !== "string") {
+      return String(value);
+    }
+
+    const exactMatch = valueLabels[value];
+    if (exactMatch) {
+      return exactMatch;
+    }
+
+    const normalized = value.trim();
+    const normalizedMatch = valueLabels[normalized] || valueLabels[normalized.toLowerCase()];
+    return normalizedMatch || value;
+  };
+
+  const rows = params.changes.map((change) => `
+    <tr>
+      <td style="padding:10px 0;border-bottom:1px solid #e2e8f0;font-weight:700;">${translateField(change.field)}</td>
+      <td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#64748b;">${translateValue(change.oldValue)}</td>
+      <td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#166534;font-weight:700;">${translateValue(change.newValue)}</td>
+    </tr>`).join("");
+
+  const trackButton = params.trackUrl
+    ? `<tr><td style="padding:8px 30px 0;">
+        <table role="presentation" width="100%"><tr><td align="center" style="padding:10px 0 4px;">
+          <a href="${params.trackUrl}" style="display:inline-block;background:#41B679;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:14px 28px;border-radius:10px;">Track your booking</a>
+        </td></tr></table>
+      </td></tr>`
+    : "";
+
+  return `<!doctype html><html lang="en"><body style="margin:0;padding:30px 16px;background:#f1f5f9;font-family:Arial,sans-serif;color:#0f172a;">
+    <table role="presentation" width="100%"><tr><td align="center"><table role="presentation" width="100%" style="max-width:620px;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #dbe3ef;">
+      <tr><td style="padding:26px 30px;background:#003e7e;color:#fff;"><div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#bfdbfe;">Pannon Transfer</div><h1 style="margin:10px 0 0;font-size:24px;">Booking updated</h1></td></tr>
+      <tr><td style="padding:28px 30px;"><p style="font-size:15px;line-height:1.6;">Your booking details have been updated by our dispatcher.</p><p style="font-weight:700;">#${params.bookingCode} · ${params.travelerName}</p>
+        <table role="presentation" width="100%" style="border-collapse:collapse;margin-top:20px;"><tr><th align="left" style="padding:10px 0;border-bottom:2px solid #cbd5e1;">Field</th><th align="left" style="padding:10px 0;border-bottom:2px solid #cbd5e1;">Previous</th><th align="left" style="padding:10px 0;border-bottom:2px solid #cbd5e1;">New</th></tr>${rows}</table>
+        <p style="margin-top:24px;padding:14px 16px;background:#eff6ff;border-radius:10px;font-size:13px;line-height:1.6;">You can review the latest status on the booking page.</p>
+      </td></tr>${trackButton}<tr><td style="padding:18px 30px;background:#f8fafc;color:#64748b;font-size:12px;">This message was generated automatically by the Pannon Transfer system.</td></tr>
     </table></td></tr></table></body></html>`;
 }

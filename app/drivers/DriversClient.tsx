@@ -23,7 +23,8 @@ import {
   Crown,
   Zap,
   ChevronRight,
-  Activity
+  Activity,
+  ClipboardCheck
 } from "lucide-react";
 import type { Driver, DriverStatus, DriverType } from "@/lib/drivers";
 
@@ -469,6 +470,9 @@ function DriverCard({ driver, onPatch, onEdit, onDelete }: any) {
         </div>
 
         <div className="flex flex-col items-end gap-2 pb-3">
+          {driver.source === "jelenleti_iv" && (
+            <Badge label="Jelenléti ív" bg="bg-emerald-50" color="text-emerald-700" border="border-emerald-200" icon={ClipboardCheck} />
+          )}
           <Badge label={typeMeta.label} bg={typeMeta.badgeBg} color={typeMeta.badgeText} border={typeMeta.badgeBorder} icon={Sparkles} />
           <Badge label={meta.label} bg={meta.bg} color={meta.text} border={meta.border} icon={StatusIcon} />
         </div>

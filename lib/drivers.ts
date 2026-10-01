@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb";
 import { getMongoDb } from "./mongodb";
+import { syncDriversFromAttendance, excludeAttendanceDriver, ATTENDANCE_SOURCE } from "./attendance-sync";
 
 export type DriverStatus = "active" | "inactive" | "on_leave" | "on_route";
 export type DriverType = "permanent" | "substitute";
@@ -13,6 +14,8 @@ export interface Driver {
   status: DriverStatus;
   assignedVehicle?: string;
   note?: string;
+  /** "jelenleti_iv": a Jelenléti ív alkalmazásból szinkronizált állandó sofőr */
+  source?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -26,6 +29,8 @@ export async function getDriversCollection() {
 }
 
 export async function getDrivers(): Promise<Driver[]> {
+  // Jelenléti ív sofőrjeinek behúzása (percenként legfeljebb egyszer, hibánál csendben kihagyja)
+  await syncDriversFromAttendance();
   const col = await getDriversCollection();
   // Csak a sofőröket kérjük le
   const docs = await col.find({ role: "driver" }).sort({ name: 1 }).toArray();
@@ -45,6 +50,7 @@ export async function getDrivers(): Promise<Driver[]> {
       status: mappedStatus,
       assignedVehicle: d.assignedVehicle || "",
       note: d.note || "",
+      source: d.source === ATTENDANCE_SOURCE ? ATTENDANCE_SOURCE : undefined,
       createdAt: d.createdAt || Date.now(),
       updatedAt: d.updatedAt || Date.now(),
     };
@@ -108,7 +114,12 @@ export async function deleteDriver(
 ): Promise<boolean> {
   const col = await getDriversCollection();
   const oid: ObjectId = typeof id === "string" ? new ObjectId(id) : id;
+  const existing = await col.findOne({ _id: oid }, { projection: { attendanceUserId: 1, name: 1 } });
   const res = await col.deleteOne({ _id: oid });
+  // Törölt jelenléti íves sofőrt a szinkron ne hozza vissza
+  if (res.deletedCount > 0 && existing?.attendanceUserId) {
+    await excludeAttendanceDriver(String(existing.attendanceUserId), existing.name);
+  }
   return res.deletedCount > 0;
 }
 

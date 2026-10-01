@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import {
   LogOut,
   CalendarCheck,
@@ -505,6 +506,13 @@ export default function DispatcherDashboardClient({
   const [dashboardViewHydrated, setDashboardViewHydrated] = useState(false);
   const [hour, setHour] = useState(new Date().getHours());
   const [renderNow, setRenderNow] = useState(() => Date.now());
+
+  // A külön oldalon nyíló menüpontokat előre betöltjük, így kattintásra azonnal váltanak
+  useEffect(() => {
+    router.prefetch("/bookings");
+    router.prefetch("/vehicles");
+    router.prefetch("/drivers");
+  }, [router]);
 
   useEffect(() => {
     const requested = new URLSearchParams(window.location.search).get("view") as NavItemId | null;
@@ -1155,37 +1163,43 @@ export default function DispatcherDashboardClient({
                         }
                         setActive(item.id);
                       }}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all group relative overflow-hidden ${
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-[background-color,box-shadow,color,scale] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.98] group relative ${
                         isActive
-                          ? "bg-gradient-to-r from-slate-900 to-slate-800 text-white shadow-lg shadow-slate-900/20 _dbg-grad-nav-active"
-                          : "text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-sm hover:border-slate-200/70"
+                          ? "text-white"
+                          : "text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-sm"
                       }`}
                     >
                       {isActive && (
-                        <span className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-7 rounded-r-full bg-gradient-to-b ${item.accent || "from-blue-400 to-indigo-500"}`} />
+                        <motion.span
+                          layoutId="sidebar-active-pill"
+                          transition={{ type: "spring", stiffness: 520, damping: 42, mass: 0.9 }}
+                          className="absolute inset-0 rounded-xl bg-gradient-to-r from-slate-900 to-slate-800 shadow-lg shadow-slate-900/20 _dbg-grad-nav-active"
+                        >
+                          <span className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-7 rounded-r-full bg-gradient-to-b ${item.accent || "from-blue-400 to-indigo-500"}`} />
+                        </motion.span>
                       )}
-                      <span className={`shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition ${
+                      <span className={`relative shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition duration-300 ease-out ${
                         isActive
                           ? "bg-white/15 text-white ring-1 ring-white/20"
                           : "bg-slate-100 text-slate-500 group-hover:bg-white group-hover:text-slate-700 ring-1 ring-slate-200/70 group-hover:ring-slate-200"
                       }`}>
                         {item.icon}
                       </span>
-                      <span className="flex-1 text-left flex flex-col items-start leading-tight">
-                        <span className={`text-[13.5px] ${isActive ? "text-white" : ""}`}>{item.label}</span>
+                      <span className="relative flex-1 text-left flex flex-col items-start leading-tight">
+                        <span className={`text-[13.5px] transition-colors duration-300 ${isActive ? "text-white" : ""}`}>{item.label}</span>
                         {item.subtitle && (
-                          <span className={`text-[10.5px] font-medium mt-0.5 ${isActive ? "text-slate-300" : "text-slate-400"}`}>{item.subtitle}</span>
+                          <span className={`text-[10.5px] font-medium mt-0.5 transition-colors duration-300 ${isActive ? "text-slate-300" : "text-slate-400"}`}>{item.subtitle}</span>
                         )}
                       </span>
                       {item.locked && (
-                        <div className="shrink-0 w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-amber-50 group-hover:text-amber-500 transition-colors">
+                        <div className="relative shrink-0 w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-amber-50 group-hover:text-amber-500 transition-colors">
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
                           </svg>
                         </div>
                       )}
                       {item.badge !== undefined && (
-                        <span className={`shrink-0 h-5 min-w-[1.25rem] px-1.5 rounded-full text-[10px] font-black flex items-center justify-center ${
+                        <span className={`relative shrink-0 h-5 min-w-[1.25rem] px-1.5 rounded-full text-[10px] font-black flex items-center justify-center transition-colors duration-300 ${
                           isActive
                             ? "bg-white text-slate-900"
                             : "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-sm shadow-blue-500/30"

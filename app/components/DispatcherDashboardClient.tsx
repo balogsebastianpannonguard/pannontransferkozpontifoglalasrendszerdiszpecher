@@ -527,6 +527,18 @@ export default function DispatcherDashboardClient({
 
   const today = useMemo(() => new Date(), []);
   const [cursorDate, setCursorDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  // Hónapváltás iránya – csak a naptár csúszó animációjához kell
+  const [monthSlideDir, setMonthSlideDir] = useState<"next" | "prev" | "none">("none");
+  const monthGridKey = `${cursorDate.getFullYear()}-${cursorDate.getMonth()}`;
+  const monthSlideClass =
+    monthSlideDir === "next" ? "cal-month-next" : monthSlideDir === "prev" ? "cal-month-prev" : "";
+
+  function changeCursorMonth(target: Date) {
+    const diff =
+      (target.getFullYear() - cursorDate.getFullYear()) * 12 + (target.getMonth() - cursorDate.getMonth());
+    if (diff !== 0) setMonthSlideDir(diff > 0 ? "next" : "prev");
+    setCursorDate(target);
+  }
 
   const [selectedDateKey, setSelectedDateKey] = useState<string>(
     `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`
@@ -960,10 +972,10 @@ export default function DispatcherDashboardClient({
   }, []);
 
   function gotoMonth(offset: number) {
-    setCursorDate(new Date(cursorDate.getFullYear(), cursorDate.getMonth() + offset, 1));
+    changeCursorMonth(new Date(cursorDate.getFullYear(), cursorDate.getMonth() + offset, 1));
   }
   function gotoToday() {
-    setCursorDate(new Date(today.getFullYear(), today.getMonth(), 1));
+    changeCursorMonth(new Date(today.getFullYear(), today.getMonth(), 1));
     setSelectedDateKey(`${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`);
   }
 
@@ -975,7 +987,7 @@ export default function DispatcherDashboardClient({
   function openSelectedDay(dayKey: string, cell?: { inMonth: boolean; year: number; month: number }) {
     setSelectedDateKey(dayKey);
     if (cell && !cell.inMonth) {
-      setCursorDate(new Date(cell.year, cell.month, 1));
+      changeCursorMonth(new Date(cell.year, cell.month, 1));
     }
     setPopoverKey(null);
     setActive("dashboard");
@@ -1467,7 +1479,7 @@ export default function DispatcherDashboardClient({
           )}
 
           {/* Content */}
-          <div className="flex-1 px-8 py-6 pb-10 overflow-x-hidden">
+          <div key={active} className="flex-1 px-8 py-6 pb-10 overflow-x-hidden view-enter">
             {active === "notifications" ? (
               <NotificationsView
                 events={notificationEvents}
@@ -1500,26 +1512,26 @@ export default function DispatcherDashboardClient({
                     <div className="flex items-center gap-4 w-full sm:w-auto">
                       <div className="flex-1 min-w-0">
                         <div className="text-[10px] font-black tracking-[0.22em] uppercase text-slate-400 mb-0.5">Teljes képernyős naptár</div>
-                        <h2 className="font-serif text-[28px] font-bold tracking-tight text-slate-900 leading-tight">
+                        <h2 key={monthGridKey} className={`font-serif text-[28px] font-bold tracking-tight text-slate-900 leading-tight ${monthSlideDir !== "none" ? "cal-title-in" : ""}`}>
                           {HUN_MONTHS[cursorDate.getMonth()]} <span className="text-slate-400">{cursorDate.getFullYear()}</span>
                         </h2>
                       </div>
                       <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-100/80 border border-slate-200 shrink-0">
                         <button
                           onClick={() => gotoMonth(-1)}
-                          className="w-9 h-9 rounded-xl hover:bg-white text-slate-600 hover:text-slate-900 flex items-center justify-center transition shadow-sm hover:shadow"
+                          className="w-9 h-9 rounded-xl hover:bg-white text-slate-600 hover:text-slate-900 flex items-center justify-center transition duration-200 ease-out shadow-sm hover:shadow active:scale-90"
                         >
                           <ChevronLeft className="w-[18px] h-[18px]" />
                         </button>
                         <button
                           onClick={gotoToday}
-                          className="h-9 px-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 text-white text-[11px] font-black tracking-widest uppercase shadow-md shadow-blue-600/25 hover:-translate-y-0.5 hover:shadow-lg transition-all"
+                          className="h-9 px-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 text-white text-[11px] font-black tracking-widest uppercase shadow-md shadow-blue-600/25 hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:scale-95 transition-all duration-200 ease-out"
                         >
                           Ma
                         </button>
                         <button
                           onClick={() => gotoMonth(1)}
-                          className="w-9 h-9 rounded-xl hover:bg-white text-slate-600 hover:text-slate-900 flex items-center justify-center transition shadow-sm hover:shadow"
+                          className="w-9 h-9 rounded-xl hover:bg-white text-slate-600 hover:text-slate-900 flex items-center justify-center transition duration-200 ease-out shadow-sm hover:shadow active:scale-90"
                         >
                           <ChevronRight className="w-[18px] h-[18px]" />
                         </button>
@@ -1557,7 +1569,7 @@ export default function DispatcherDashboardClient({
                   </div>
 
                   {/* Calendar grid (Full height) */}
-                  <div className="flex-1 grid grid-cols-7 w-full min-w-0 overflow-y-auto">
+                  <div key={monthGridKey} className={`flex-1 grid grid-cols-7 w-full min-w-0 overflow-y-auto ${monthSlideClass}`}>
                     {calendarCells.map((cell, idx) => {
                       const colIndex = idx % 7;
                       const isToday =
@@ -1573,7 +1585,7 @@ export default function DispatcherDashboardClient({
                           key={cell.key}
                           onClick={() => {
                             if (!cell.inMonth) {
-                              setCursorDate(new Date(cell.year, cell.month, 1));
+                              changeCursorMonth(new Date(cell.year, cell.month, 1));
                             }
                             setSelectedDateKey(cell.key);
                             if (bookings.length > 0) {
@@ -1583,14 +1595,14 @@ export default function DispatcherDashboardClient({
                           onMouseLeave={() => {
                             setPopoverKey(null);
                           }}
-                          className={`group relative min-h-[140px] p-2.5 text-left border-b border-r border-slate-200/70 transition-all cursor-pointer flex flex-col ${
+                          className={`group relative min-h-[140px] p-2.5 text-left border-b border-r border-slate-200/70 transition-[background-color,box-shadow] duration-200 ease-out cursor-pointer flex flex-col ${
                             cell.inMonth ? "bg-white" : "bg-slate-50/40"
-                          } ${isSelected ? "ring-2 ring-blue-500 ring-inset z-10 bg-blue-50/60" : "hover:bg-slate-50"}`}
+                          } ${isSelected ? "ring-2 ring-blue-500 ring-inset z-10 bg-blue-50/60" : "hover:bg-slate-50 active:bg-slate-100/80"}`}
                         >
                           {/* Corner: date number */}
                           <div className="flex items-center justify-between mb-2 shrink-0">
                             <span
-                              className={`inline-flex items-center justify-center min-w-[1.9rem] h-7 px-2 rounded-full text-[12px] font-bold transition ${
+                              className={`inline-flex items-center justify-center min-w-[1.9rem] h-7 px-2 rounded-full text-[12px] font-bold transition duration-200 ease-out group-active:scale-90 ${
                                 isToday
                                   ? "bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-md shadow-blue-600/30 ring-2 ring-blue-100"
                                   : cell.inMonth
@@ -1627,7 +1639,7 @@ export default function DispatcherDashboardClient({
                                     markAsViewed(b.id);
                                     router.push(`/bookings/${b.id}`);
                                   }}
-                                  className={`relative pl-2 pr-1.5 py-1 rounded-lg text-[10px] leading-tight font-semibold bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)} text-white shadow-sm cursor-pointer hover:brightness-105 transition`}
+                                  className={`relative pl-2 pr-1.5 py-1 rounded-lg text-[10px] leading-tight font-semibold bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)} text-white shadow-sm cursor-pointer transition-[translate,scale,filter,box-shadow] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:brightness-110 hover:-translate-y-px hover:shadow-md active:translate-y-0 active:scale-[0.97]`}
                                 >
                                   {isNewBadge && (
                                     <span className="absolute -top-0.5 -left-0.5 px-1 py-[1px] rounded bg-white text-blue-700 text-[7px] font-black shadow-sm border border-blue-200">
@@ -1652,12 +1664,12 @@ export default function DispatcherDashboardClient({
                               onMouseLeave={() => {
                                 setPopoverKey(null);
                               }}
-                              className={`absolute z-[80] bottom-full w-[380px] max-w-[90vw] transition-all ease-out duration-200 ${
-                                colIndex < 2 ? "left-0" : colIndex > 4 ? "right-0" : "left-1/2 -translate-x-1/2"
+                              className={`absolute z-[80] bottom-full w-[380px] max-w-[90vw] transition-[opacity,translate,scale] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[opacity,translate,scale] ${
+                                colIndex < 2 ? "left-0 origin-bottom-left" : colIndex > 4 ? "right-0 origin-bottom-right" : "left-1/2 -translate-x-1/2 origin-bottom"
                               } ${
                                 popoverKey === cell.key
-                                  ? "opacity-100 translate-y-0 pointer-events-auto"
-                                  : "opacity-0 translate-y-2 pointer-events-none"
+                                  ? "opacity-100 translate-y-0 scale-100 pointer-events-auto"
+                                  : "opacity-0 translate-y-1.5 scale-[0.97] pointer-events-none"
                               }`}
                             >
                               <div className="relative rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/[0.08] overflow-hidden">
@@ -1691,7 +1703,7 @@ export default function DispatcherDashboardClient({
                                             markAsViewed(b.id);
                                             router.push(`/bookings/${b.id}`);
                                           }}
-                                          className="group relative flex items-center gap-3 rounded-xl border border-slate-200/80 bg-white p-3 cursor-pointer hover:shadow-md hover:border-slate-300 hover:-translate-y-[1px] transition-all overflow-hidden"
+                                          className="group relative flex items-center gap-3 rounded-xl border border-slate-200/80 bg-white p-3 cursor-pointer hover:shadow-md hover:border-slate-300 hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.99] transition-all duration-200 ease-out overflow-hidden"
                                         >
                                           <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)}`} />
 
@@ -1833,26 +1845,26 @@ export default function DispatcherDashboardClient({
                     <div className="flex items-center gap-4 w-full sm:w-auto">
                       <div className="flex-1 min-w-0">
                         <div className="text-[10px] font-black tracking-[0.22em] uppercase text-slate-400 mb-0.5">Menetrend naptár</div>
-                        <h2 className="font-serif text-[28px] font-bold tracking-tight text-slate-900 leading-tight">
+                        <h2 key={monthGridKey} className={`font-serif text-[28px] font-bold tracking-tight text-slate-900 leading-tight ${monthSlideDir !== "none" ? "cal-title-in" : ""}`}>
                           {HUN_MONTHS[cursorDate.getMonth()]} <span className="text-slate-400">{cursorDate.getFullYear()}</span>
                         </h2>
                       </div>
                       <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-100/80 border border-slate-200 shrink-0">
                         <button
                           onClick={() => gotoMonth(-1)}
-                          className="w-9 h-9 rounded-xl hover:bg-white text-slate-600 hover:text-slate-900 flex items-center justify-center transition shadow-sm hover:shadow"
+                          className="w-9 h-9 rounded-xl hover:bg-white text-slate-600 hover:text-slate-900 flex items-center justify-center transition duration-200 ease-out shadow-sm hover:shadow active:scale-90"
                         >
                           <ChevronLeft className="w-[18px] h-[18px]" />
                         </button>
                         <button
                           onClick={gotoToday}
-                          className="h-9 px-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 text-white text-[11px] font-black tracking-widest uppercase shadow-md shadow-blue-600/25 hover:-translate-y-0.5 hover:shadow-lg transition-all"
+                          className="h-9 px-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 text-white text-[11px] font-black tracking-widest uppercase shadow-md shadow-blue-600/25 hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:scale-95 transition-all duration-200 ease-out"
                         >
                           Ma
                         </button>
                         <button
                           onClick={() => gotoMonth(1)}
-                          className="w-9 h-9 rounded-xl hover:bg-white text-slate-600 hover:text-slate-900 flex items-center justify-center transition shadow-sm hover:shadow"
+                          className="w-9 h-9 rounded-xl hover:bg-white text-slate-600 hover:text-slate-900 flex items-center justify-center transition duration-200 ease-out shadow-sm hover:shadow active:scale-90"
                         >
                           <ChevronRight className="w-[18px] h-[18px]" />
                         </button>
@@ -1890,7 +1902,7 @@ export default function DispatcherDashboardClient({
                   </div>
 
                   {/* Calendar grid */}
-                  <div className="grid grid-cols-7 w-full min-w-0">
+                  <div key={monthGridKey} className={`grid grid-cols-7 w-full min-w-0 ${monthSlideClass}`}>
                     {calendarCells.map((cell, idx) => {
                       const colIndex = idx % 7;
                       const isToday =
@@ -1906,7 +1918,7 @@ export default function DispatcherDashboardClient({
                           key={cell.key}
                           onClick={() => {
                             if (!cell.inMonth) {
-                              setCursorDate(new Date(cell.year, cell.month, 1));
+                              changeCursorMonth(new Date(cell.year, cell.month, 1));
                             }
                             setSelectedDateKey(cell.key);
                             if (bookings.length > 0) {
@@ -1916,14 +1928,14 @@ export default function DispatcherDashboardClient({
                           onMouseLeave={() => {
                             setPopoverKey(null);
                           }}
-                          className={`group relative min-h-[120px] p-2.5 text-left border-b border-r border-slate-200/70 transition-all cursor-pointer ${
+                          className={`group relative min-h-[120px] p-2.5 text-left border-b border-r border-slate-200/70 transition-[background-color,box-shadow] duration-200 ease-out cursor-pointer ${
                             cell.inMonth ? "bg-white" : "bg-slate-50/40"
-                          } ${isSelected ? "ring-2 ring-blue-500 ring-inset z-10 bg-blue-50/60" : "hover:bg-slate-50"}`}
+                          } ${isSelected ? "ring-2 ring-blue-500 ring-inset z-10 bg-blue-50/60" : "hover:bg-slate-50 active:bg-slate-100/80"}`}
                         >
                           {/* Corner: date number */}
                           <div className="flex items-center justify-between mb-2">
                             <span
-                              className={`inline-flex items-center justify-center min-w-[1.9rem] h-7 px-2 rounded-full text-[12px] font-bold transition ${
+                              className={`inline-flex items-center justify-center min-w-[1.9rem] h-7 px-2 rounded-full text-[12px] font-bold transition duration-200 ease-out group-active:scale-90 ${
                                 isToday
                                   ? "bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-md shadow-blue-600/30 ring-2 ring-blue-100"
                                   : cell.inMonth
@@ -1960,7 +1972,7 @@ export default function DispatcherDashboardClient({
                                     markAsViewed(b.id);
                                     router.push(`/bookings/${b.id}`);
                                   }}
-                                  className={`relative pl-2 pr-1.5 py-1 rounded-lg text-[10px] leading-tight font-semibold bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)} text-white shadow-sm cursor-pointer hover:brightness-105 transition`}
+                                  className={`relative pl-2 pr-1.5 py-1 rounded-lg text-[10px] leading-tight font-semibold bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)} text-white shadow-sm cursor-pointer transition-[translate,scale,filter,box-shadow] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:brightness-110 hover:-translate-y-px hover:shadow-md active:translate-y-0 active:scale-[0.97]`}
                                 >
                                   {isNewBadge && (
                                     <span className="absolute -top-0.5 -left-0.5 px-1 py-[1px] rounded bg-white text-blue-700 text-[7px] font-black shadow-sm border border-blue-200">
@@ -1985,12 +1997,12 @@ export default function DispatcherDashboardClient({
                               onMouseLeave={() => {
                                 setPopoverKey(null);
                               }}
-                              className={`absolute z-[80] bottom-full w-[380px] max-w-[90vw] transition-all ease-out duration-200 ${
-                                colIndex < 2 ? "left-0" : colIndex > 4 ? "right-0" : "left-1/2 -translate-x-1/2"
+                              className={`absolute z-[80] bottom-full w-[380px] max-w-[90vw] transition-[opacity,translate,scale] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[opacity,translate,scale] ${
+                                colIndex < 2 ? "left-0 origin-bottom-left" : colIndex > 4 ? "right-0 origin-bottom-right" : "left-1/2 -translate-x-1/2 origin-bottom"
                               } ${
                                 popoverKey === cell.key
-                                  ? "opacity-100 translate-y-0 pointer-events-auto"
-                                  : "opacity-0 translate-y-2 pointer-events-none"
+                                  ? "opacity-100 translate-y-0 scale-100 pointer-events-auto"
+                                  : "opacity-0 translate-y-1.5 scale-[0.97] pointer-events-none"
                               }`}
                             >
                               <div className="relative rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/[0.08] overflow-hidden">
@@ -2024,7 +2036,7 @@ export default function DispatcherDashboardClient({
                                             markAsViewed(b.id);
                                             router.push(`/bookings/${b.id}`);
                                           }}
-                                          className="group relative flex items-center gap-3 rounded-xl border border-slate-200/80 bg-white p-3 cursor-pointer hover:shadow-md hover:border-slate-300 hover:-translate-y-[1px] transition-all overflow-hidden"
+                                          className="group relative flex items-center gap-3 rounded-xl border border-slate-200/80 bg-white p-3 cursor-pointer hover:shadow-md hover:border-slate-300 hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.99] transition-all duration-200 ease-out overflow-hidden"
                                         >
                                           <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)}`} />
 
@@ -2138,7 +2150,7 @@ export default function DispatcherDashboardClient({
                         </button>
                       </div>
                     </div>
-                    <div className="p-2 max-h-[460px] overflow-y-auto">
+                    <div key={selectedDateKey} className="p-2 max-h-[460px] overflow-y-auto cal-day-in">
                       {selectedBookings.length === 0 ? (
                         <div className="py-16 px-8 flex flex-col items-center justify-center text-center">
                           <div className="w-20 h-20 rounded-[28px] bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 flex items-center justify-center mb-4 shadow-inner">

@@ -1509,7 +1509,7 @@ export default function DispatcherDashboardClient({
                 <section className="flex-1 flex flex-col rounded-[2.5rem] bg-white shadow-xl shadow-slate-900/[0.04] border border-slate-200/80 min-h-[800px] overflow-hidden">
                   {/* Calendar toolbar */}
                   <div className="px-7 pt-6 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/80 w-full bg-gradient-to-br from-slate-50/80 via-white to-blue-50/40 shrink-0">
-                    <div className="flex items-center gap-4 w-full sm:w-auto">
+                    <div className="flex items-center gap-4 w-full">
                       <div className="flex-1 min-w-0">
                         <div className="text-[10px] font-black tracking-[0.22em] uppercase text-slate-400 mb-0.5">Teljes képernyős naptár</div>
                         <h2 key={monthGridKey} className={`font-serif text-[28px] font-bold tracking-tight text-slate-900 leading-tight ${monthSlideDir !== "none" ? "cal-title-in" : ""}`}>
@@ -1536,23 +1536,6 @@ export default function DispatcherDashboardClient({
                           <ChevronRight className="w-[18px] h-[18px]" />
                         </button>
                       </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2.5">
-                      {(
-                        [
-                          { c: "from-sky-500 to-indigo-600", t: "Repülőtéri" },
-                          { c: "from-violet-500 to-fuchsia-600", t: "Városi" },
-                          { c: "from-orange-500 to-rose-600", t: "Távolsági" },
-                          { c: "from-amber-400 to-amber-600", t: "VIP" },
-                          { c: "from-emerald-500 to-teal-600", t: "Partner" },
-                          { c: "from-blue-500 to-indigo-600", t: "Új / Módosítva" },
-                        ] as { c: string; t: string }[]
-                      ).map((l) => (
-                        <span key={l.t} className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-slate-50 border border-slate-200">
-                          <span className={`w-2.5 h-2.5 rounded-full bg-gradient-to-r ${l.c}`} />
-                          <span className="text-[10.5px] font-bold text-slate-600">{l.t}</span>
-                        </span>
-                      ))}
                     </div>
                   </div>
 
@@ -1842,7 +1825,7 @@ export default function DispatcherDashboardClient({
                 <section className="rounded-[28px] bg-white shadow-xl shadow-slate-900/[0.04] border border-slate-200/80 overflow-hidden w-full">
                   {/* Calendar toolbar */}
                   <div className="px-7 pt-6 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/80 w-full bg-gradient-to-br from-slate-50/80 via-white to-blue-50/40 _dbg-grad-calendar-head">
-                    <div className="flex items-center gap-4 w-full sm:w-auto">
+                    <div className="flex items-center gap-4 w-full">
                       <div className="flex-1 min-w-0">
                         <div className="text-[10px] font-black tracking-[0.22em] uppercase text-slate-400 mb-0.5">Menetrend naptár</div>
                         <h2 key={monthGridKey} className={`font-serif text-[28px] font-bold tracking-tight text-slate-900 leading-tight ${monthSlideDir !== "none" ? "cal-title-in" : ""}`}>
@@ -1869,23 +1852,6 @@ export default function DispatcherDashboardClient({
                           <ChevronRight className="w-[18px] h-[18px]" />
                         </button>
                       </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2.5">
-                      {(
-                        [
-                          { c: "from-sky-500 to-indigo-600", t: "Repülőtéri" },
-                          { c: "from-violet-500 to-fuchsia-600", t: "Városi" },
-                          { c: "from-orange-500 to-rose-600", t: "Távolsági" },
-                          { c: "from-amber-400 to-amber-600", t: "VIP" },
-                          { c: "from-emerald-500 to-teal-600", t: "Partner" },
-                          { c: "from-blue-500 to-indigo-600", t: "Új / Módosítva" },
-                        ] as { c: string; t: string }[]
-                      ).map((l) => (
-                        <span key={l.t} className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-slate-50 border border-slate-200">
-                          <span className={`w-2.5 h-2.5 rounded-full bg-gradient-to-r ${l.c}`} />
-                          <span className="text-[10.5px] font-bold text-slate-600">{l.t}</span>
-                        </span>
-                      ))}
                     </div>
                   </div>
 

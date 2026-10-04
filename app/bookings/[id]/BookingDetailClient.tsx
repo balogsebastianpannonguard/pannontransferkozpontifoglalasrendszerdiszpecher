@@ -329,9 +329,13 @@ function AssignmentSelect({
 }) {
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [vehicleMenuPosition, setVehicleMenuPosition] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight: number } | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const keyboardNav = useRef(false);
   const selected = options.find((option) => option.id === value);
   const filteredOptions = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -356,84 +360,182 @@ function AssignmentSelect({
   }, []);
 
   useEffect(() => {
-    if (!open || variant !== "vehicle") return;
+    if (!open) return;
 
-    const updateVehicleMenuPosition = () => {
+    // Egész pixelre kerekítve, és csak tényleges változásnál frissítünk (nincs felesleges újrarenderelés)
+    const applyPosition = (next: NonNullable<typeof menuPosition>) => {
+      const rounded = {
+        ...next,
+        top: next.top === undefined ? undefined : Math.round(next.top),
+        bottom: next.bottom === undefined ? undefined : Math.round(next.bottom),
+        left: Math.round(next.left),
+        width: Math.round(next.width),
+        maxHeight: Math.round(next.maxHeight),
+      };
+      setMenuPosition((prev) =>
+        prev &&
+        prev.top === rounded.top &&
+        prev.bottom === rounded.bottom &&
+        prev.left === rounded.left &&
+        prev.width === rounded.width &&
+        prev.maxHeight === rounded.maxHeight
+          ? prev
+          : rounded
+      );
+    };
+
+    const updateMenuPosition = () => {
       const trigger = wrapperRef.current?.getBoundingClientRect();
       if (!trigger) return;
+      const gap = 8;
+      const margin = 16;
 
-      const gap = 12;
-      const menuWidth = Math.min(380, Math.max(280, window.innerWidth - 32));
-      const canOpenRight = trigger.right + gap + menuWidth <= window.innerWidth - 16;
-      const left = canOpenRight
-        ? trigger.right + gap
-        : Math.max(16, trigger.left - gap - menuWidth);
-      const top = Math.min(
-        Math.max(16, trigger.top),
-        Math.max(16, window.innerHeight - Math.min(520, window.innerHeight - 32) - 16)
-      );
+      if (variant === "vehicle") {
+        const sideGap = 12;
+        const menuWidth = Math.min(380, Math.max(280, window.innerWidth - 32));
+        const canOpenRight = trigger.right + sideGap + menuWidth <= window.innerWidth - margin;
+        const left = canOpenRight ? trigger.right + sideGap : Math.max(margin, trigger.left - sideGap - menuWidth);
+        const maxHeight = Math.min(520, window.innerHeight - margin * 2);
+        const top = Math.min(Math.max(margin, trigger.top), Math.max(margin, window.innerHeight - maxHeight - margin));
+        applyPosition({ top, left, width: menuWidth, maxHeight });
+        return;
+      }
 
-      setVehicleMenuPosition({ top, left, width: menuWidth });
+      const desired = 400;
+      const spaceBelow = window.innerHeight - trigger.bottom - gap - margin;
+      const spaceAbove = trigger.top - gap - margin;
+      const openBelow = spaceBelow >= Math.min(desired, 300) || spaceBelow >= spaceAbove;
+      const width = Math.min(trigger.width, window.innerWidth - margin * 2);
+      const left = Math.min(Math.max(margin, trigger.left), Math.max(margin, window.innerWidth - width - margin));
+      if (openBelow) {
+        applyPosition({ top: trigger.bottom + gap, left, width, maxHeight: Math.max(200, Math.min(desired, spaceBelow)) });
+      } else {
+        applyPosition({ bottom: window.innerHeight - trigger.top + gap, left, width, maxHeight: Math.max(200, Math.min(desired, spaceAbove)) });
+      }
     };
 
-    updateVehicleMenuPosition();
-    window.addEventListener("resize", updateVehicleMenuPosition);
+    updateMenuPosition();
+    let frame = 0;
+    const scheduleUpdate = (event?: Event) => {
+      // A menü saját listájának görgetése nem mozgathatja a menüt
+      if (event?.target instanceof Node && menuRef.current?.contains(event.target)) return;
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        updateMenuPosition();
+      });
+    };
+    window.addEventListener("resize", scheduleUpdate);
+    window.addEventListener("scroll", scheduleUpdate, true);
     return () => {
-      window.removeEventListener("resize", updateVehicleMenuPosition);
+      if (frame) cancelAnimationFrame(frame);
+      window.removeEventListener("resize", scheduleUpdate);
+      window.removeEventListener("scroll", scheduleUpdate, true);
     };
   }, [open, variant]);
+
+  useEffect(() => {
+    if (!open) return;
+    // Telefonon/érintőképernyőn nem fókuszálunk automatikusan, mert felugrana a billentyűzet és eltakarná a listát
+    if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
+      searchRef.current?.focus({ preventScroll: true });
+    }
+  }, [open]);
+
+  useEffect(() => {
+    // Csak billentyűzetes lépkedésnél görgetünk az elemhez – egérrel/érintéssel soha, mert az szembemenne a görgetéssel
+    if (!open || !keyboardNav.current) return;
+    keyboardNav.current = false;
+    const list = listRef.current;
+    const el = list?.querySelector<HTMLElement>(`[data-index="${activeIndex}"]`);
+    if (!list || !el) return;
+    if (el.offsetTop < list.scrollTop) list.scrollTop = el.offsetTop;
+    else if (el.offsetTop + el.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = el.offsetTop + el.offsetHeight - list.clientHeight;
+  }, [activeIndex, open]);
+
+  const closeMenu = () => {
+    setOpen(false);
+    setSearchTerm("");
+  };
+
+  const selectOption = (option: { id: string; unavailable?: boolean }) => {
+    if (option.unavailable) return;
+    onChange(option.id);
+    closeMenu();
+  };
+
+  const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    event.stopPropagation();
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      keyboardNav.current = true;
+      setActiveIndex((i) => Math.max(0, Math.min(filteredOptions.length - 1, i + 1)));
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      keyboardNav.current = true;
+      setActiveIndex((i) => Math.max(0, i - 1));
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      const option = filteredOptions[activeIndex];
+      if (option) selectOption(option);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      closeMenu();
+    }
+  };
 
   const menuContent = open ? (
     <div
       ref={menuRef}
-      className={`z-[100] overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl shadow-slate-900/15 ${
-        variant === "vehicle"
-          ? `fixed ${vehicleMenuPosition ? "visible" : "invisible"}`
-          : "absolute left-0 right-0 top-full mt-2"
-      }`}
-      style={variant === "vehicle" && vehicleMenuPosition ? {
-        top: vehicleMenuPosition.top,
-        left: vehicleMenuPosition.left,
-        width: vehicleMenuPosition.width,
+      className={`fixed z-[1000] flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl shadow-slate-900/15 ${menuPosition ? "visible" : "invisible"}`}
+      style={menuPosition ? {
+        top: menuPosition.top,
+        bottom: menuPosition.bottom,
+        left: menuPosition.left,
+        width: menuPosition.width,
+        maxHeight: menuPosition.maxHeight,
       } : undefined}
     >
-      <div className="flex items-center gap-2 border-b border-slate-100 px-2 pb-2">
+      <div className="flex shrink-0 items-center gap-2 border-b border-slate-100 px-2 pb-2">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
           <Search className="h-4 w-4" />
         </div>
         <input
           type="search"
           value={searchTerm}
-          onChange={(event) => setSearchTerm(event.target.value)}
-          onKeyDown={(event) => event.stopPropagation()}
+          onChange={(event) => {
+            setSearchTerm(event.target.value);
+            setActiveIndex(0);
+          }}
+          onKeyDown={handleSearchKeyDown}
           placeholder={variant === "vehicle" ? "Keresés név vagy rendszám alapján…" : "Sofőr keresése…"}
           className="min-w-0 flex-1 bg-transparent py-2 text-xs font-semibold text-slate-800 outline-none placeholder:text-slate-400"
-          autoFocus
+          ref={searchRef}
         />
         <span className="rounded-lg bg-slate-100 px-2 py-1 text-[9px] font-black text-slate-500">
           {filteredOptions.length}/{options.length}
         </span>
       </div>
-      <div className="px-2 pb-1 pt-2 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
+      <div className="shrink-0 px-2 pb-1 pt-2 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
         Választható {label.toLowerCase()}
       </div>
-      <div className="max-h-72 overflow-y-auto pr-0.5">
-        {filteredOptions.map((option) => (
+      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-0.5 [-webkit-overflow-scrolling:touch] [scrollbar-width:thin]">
+        {filteredOptions.map((option, index) => (
           <button
             key={option.id}
             type="button"
+            data-index={index}
             disabled={option.unavailable}
-            onClick={() => {
-              onChange(option.id);
-              setOpen(false);
-              setSearchTerm("");
-            }}
-            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${
+            onClick={() => selectOption(option)}
+            onMouseEnter={() => setActiveIndex(index)}
+            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors duration-100 active:bg-blue-50 ${
               option.unavailable
                 ? "cursor-not-allowed opacity-45"
                 : option.id === value
                   ? "bg-blue-50 text-blue-900"
-                  : "hover:bg-slate-50"
+                  : index === activeIndex
+                    ? "bg-slate-50"
+                    : ""
             }`}
           >
             <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
@@ -474,6 +576,10 @@ function AssignmentSelect({
       <button
         type="button"
         onClick={() => {
+          if (!open) {
+            setMenuPosition(null);
+            setActiveIndex(Math.max(0, options.findIndex((option) => option.id === value)));
+          }
           setOpen((current) => !current);
           setSearchTerm("");
         }}
@@ -506,9 +612,7 @@ function AssignmentSelect({
         <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? "rotate-180 text-blue-600" : ""}`} />
       </button>
 
-      {variant === "vehicle" && menuContent
-        ? createPortal(menuContent, document.body)
-        : menuContent}
+      {menuContent ? createPortal(menuContent, document.body) : null}
     </div>
   );
 }

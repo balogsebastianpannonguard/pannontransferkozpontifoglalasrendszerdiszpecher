@@ -4,15 +4,16 @@ import { getMongoDb } from "./mongodb";
 export type VehicleStatus = "parked" | "on_route";
 export type VehicleCondition = "working" | "debrecen_only" | "not_working";
 export type VehicleType =
-  | "Toyota Proace Verso"
-  | "Skoda Octavia (Újabb)"
-  | "Skoda Octavia (Régebbi)"
+  | "Toyota Proace"
+  | "Skoda Octavia"
   | "Ford Transit"
+  | "Ford Transit Custom"
   | "Opel Vivaro"
-  | "Ford 9 Személyes Kisbusz"
   | "Mercedes V-Klass"
-  | "Mercedes V-Klass (Szürke)"
-  | "Skoda Superb (Újabb, Barna)";
+  | "Mercedes S-Klass"
+  | "Skoda Superb"
+  | "MAN 20+1"
+  | "Mercedes Sprinter 19+1";
 
 export interface Vehicle {
   _id?: string | ObjectId;
@@ -84,22 +85,26 @@ export async function deleteVehicle(id: ObjectId | string): Promise<boolean> {
 }
 
 export const DEFAULT_VEHICLE_SEED: Omit<Vehicle, "_id" | "createdAt" | "updatedAt">[] = [
-  { name: "Toyota Proace Verso #1", type: "Toyota Proace Verso", seats: 8, color: "Fehér", status: "parked", condition: "working" },
-  { name: "Toyota Proace Verso #2", type: "Toyota Proace Verso", seats: 8, color: "Fehér", status: "parked", condition: "working" },
-  { name: "Toyota Proace Verso #3", type: "Toyota Proace Verso", seats: 8, color: "Szürke", status: "parked", condition: "working" },
-  { name: "Skoda Octavia Kombi Újabb #1", type: "Skoda Octavia (Újabb)", seats: 5, color: "Fehér", status: "parked", condition: "working" },
-  { name: "Skoda Octavia Kombi Újabb #2", type: "Skoda Octavia (Újabb)", seats: 5, color: "Kék", status: "parked", condition: "working" },
-  { name: "Skoda Octavia Kombi Régebbi", type: "Skoda Octavia (Régebbi)", seats: 5, color: "Fekete", status: "parked", condition: "working" },
-  { name: "Ford Transit", type: "Ford Transit", seats: 9, color: "Fehér", status: "parked", condition: "working" },
-  { name: "Opel Vivaro #1", type: "Opel Vivaro", seats: 8, color: "Fehér", status: "parked", condition: "working" },
-  { name: "Opel Vivaro #2", type: "Opel Vivaro", seats: 8, color: "Szürke", status: "parked", condition: "working" },
-  { name: "Ford 9 Személyes Kisbusz", type: "Ford 9 Személyes Kisbusz", seats: 9, color: "Fehér", status: "parked", condition: "working" },
-  { name: "Mercedes V-Klass #1", type: "Mercedes V-Klass", seats: 7, color: "Fekete", status: "parked", condition: "working" },
-  { name: "Mercedes V-Klass #2", type: "Mercedes V-Klass", seats: 7, color: "Fekete", status: "parked", condition: "working" },
-  { name: "Mercedes V-Klass #3", type: "Mercedes V-Klass", seats: 7, color: "Fehér", status: "parked", condition: "working" },
-  { name: "Mercedes V-Klass #4", type: "Mercedes V-Klass", seats: 7, color: "Fekete", status: "parked", condition: "working" },
-  { name: "Mercedes V-Klass (Szürke)", type: "Mercedes V-Klass (Szürke)", seats: 7, color: "Szürke", status: "parked", condition: "working" },
-  { name: "Skoda Superb Barna", type: "Skoda Superb (Újabb, Barna)", seats: 5, color: "Barna", status: "parked", condition: "working" },
+  { name: "Mercedes V-Klass #1", type: "Mercedes V-Klass", plates: "AAAU-500", seats: 7, color: "", status: "parked", condition: "working" },
+  { name: "Mercedes V-Klass #2", type: "Mercedes V-Klass", plates: "SUP-644", seats: 7, color: "", status: "parked", condition: "working" },
+  { name: "Mercedes V-Klass #3", type: "Mercedes V-Klass", plates: "AICF-982", seats: 7, color: "", status: "parked", condition: "working" },
+  { name: "Mercedes V-Klass #4", type: "Mercedes V-Klass", plates: "AOAZ-300", seats: 7, color: "", status: "parked", condition: "working" },
+  { name: "Mercedes S-Klass", type: "Mercedes S-Klass", plates: "SZS-973", seats: 4, color: "", status: "parked", condition: "working" },
+  { name: "Skoda Octavia #1", type: "Skoda Octavia", plates: "TCR-365", seats: 4, color: "", status: "parked", condition: "working" },
+  { name: "Skoda Octavia #2", type: "Skoda Octavia", plates: "TCR-366", seats: 4, color: "", status: "parked", condition: "working" },
+  { name: "Skoda Octavia #3", type: "Skoda Octavia", plates: "PVT-242", seats: 4, color: "", status: "parked", condition: "working" },
+  { name: "Skoda Octavia #4", type: "Skoda Octavia", plates: "AEKM-834", seats: 4, color: "", status: "parked", condition: "working" },
+  { name: "Skoda Superb", type: "Skoda Superb", plates: "SFN-871", seats: 4, color: "", status: "parked", condition: "working" },
+  { name: "Opel Vivaro #1", type: "Opel Vivaro", plates: "RMD-432", seats: 8, color: "", status: "parked", condition: "working" },
+  { name: "Opel Vivaro #2", type: "Opel Vivaro", plates: "RMD-433", seats: 8, color: "", status: "parked", condition: "working" },
+  { name: "Ford Transit", type: "Ford Transit", plates: "RMD-597", seats: 8, color: "", status: "parked", condition: "working" },
+  { name: "Ford Transit Custom", type: "Ford Transit Custom", plates: "REX-072", seats: 8, color: "", status: "parked", condition: "working" },
+  { name: "Toyota Proace #1", type: "Toyota Proace", plates: "AOAZ-586", seats: 8, color: "", status: "parked", condition: "working" },
+  { name: "Toyota Proace #2", type: "Toyota Proace", plates: "AODM-004", seats: 8, color: "", status: "parked", condition: "working" },
+  { name: "Toyota Proace #3", type: "Toyota Proace", plates: "AODM-005", seats: 8, color: "", status: "parked", condition: "working" },
+  { name: "MAN 20+1 #1", type: "MAN 20+1", plates: "ROC-567", seats: 20, color: "", status: "parked", condition: "working" },
+  { name: "MAN 20+1 #2", type: "MAN 20+1", plates: "RJE-624", seats: 20, color: "", status: "parked", condition: "working" },
+  { name: "Mercedes Sprinter 19+1", type: "Mercedes Sprinter 19+1", plates: "AEEP-292", seats: 19, color: "", status: "parked", condition: "working" },
 ];
 
 export async function seedVehiclesIfEmpty(): Promise<number> {
@@ -109,8 +114,8 @@ export async function seedVehiclesIfEmpty(): Promise<number> {
   const now = Date.now();
   const docs: Vehicle[] = DEFAULT_VEHICLE_SEED.map((s, i) => ({
     ...s,
-    plates: "",
-    note: "",
+    plates: s.plates ?? "",
+    note: s.note ?? "",
     createdAt: now + i,
     updatedAt: now + i,
   }));

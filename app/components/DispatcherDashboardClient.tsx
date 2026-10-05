@@ -35,10 +35,12 @@ import {
   CheckCircle2,
   Bug,
   BookOpen,
+  MessageSquareText,
 } from "lucide-react";
 
 import { ClientsView } from "./ClientsView";
 import { DocumentationView } from "./DocumentationView";
+import { FeedbackView } from "./FeedbackView";
 import PriceApprovalWidget from "./PriceApprovalWidget";
 import type { PartnerMeta } from "@/lib/partner-meta";
 import { getPartnerColorClasses, resolvePartnerMeta } from "@/lib/partner-meta";
@@ -59,6 +61,7 @@ type NavItemId =
   | "calendar"
   | "bookings"
   | "notifications"
+  | "feedback"
   | "error-reports"
   | "vehicles"
   | "drivers"
@@ -73,6 +76,7 @@ const DASHBOARD_VIEWS: NavItemId[] = [
   "calendar",
   "bookings",
   "notifications",
+  "feedback",
   "error-reports",
   "vehicles",
   "drivers",
@@ -691,6 +695,13 @@ export default function DispatcherDashboardClient({
           ? unreadBookingCount + unreadModificationCount
           : undefined,
         accent: "from-amber-400 to-orange-500",
+      },
+      {
+        id: "feedback",
+        label: "Visszajelzések",
+        subtitle: "Utasok véleménye",
+        icon: <MessageSquareText className="w-5 h-5" />,
+        accent: "from-emerald-400 to-teal-500",
       },
       {
         id: "error-reports",
@@ -1506,6 +1517,8 @@ export default function DispatcherDashboardClient({
                 }}
                 onRead={markNotificationRead}
               />
+            ) : active === "feedback" ? (
+              <FeedbackView />
             ) : active === "error-reports" ? (
               <ErrorReportsView />
             ) : active === "clients" ? (

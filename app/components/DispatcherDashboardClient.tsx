@@ -1518,7 +1518,7 @@ export default function DispatcherDashboardClient({
                 onRead={markNotificationRead}
               />
             ) : active === "feedback" ? (
-              <FeedbackView />
+              <FeedbackView isAdmin={user.role === "admin"} defaultTestEmail={user.email} />
             ) : active === "error-reports" ? (
               <ErrorReportsView />
             ) : active === "clients" ? (

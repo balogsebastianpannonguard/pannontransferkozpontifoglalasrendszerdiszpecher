@@ -1,6 +1,7 @@
 import DispatcherPremiumLogin from "./components/DispatcherPremiumLogin";
 import DirectLoginRedirect from "./components/DirectLoginRedirect";
 import { findStaffUserByDirectLoginToken } from "@/lib/staff-auth";
+import { safeNextPath } from "@/lib/safe-next";
 
 export const dynamic = "force-dynamic";
 
@@ -23,5 +24,5 @@ export default async function LoginPage({
     }
   }
 
-  return <DispatcherPremiumLogin />;
+  return <DispatcherPremiumLogin nextPath={safeNextPath(params?.next)} />;
 }

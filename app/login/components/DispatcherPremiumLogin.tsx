@@ -22,7 +22,7 @@ function cn(...inputs: ClassValue[]) {
 
 type State = "login" | "done";
 
-export default function DispatcherPremiumLogin() {
+export default function DispatcherPremiumLogin({ nextPath }: { nextPath?: string | null }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -58,7 +58,7 @@ export default function DispatcherPremiumLogin() {
       if (json?.user) {
         setState("done");
         setTimeout(() => {
-          router.push("/");
+          router.push(nextPath || "/");
         }, 1800);
         return;
       }

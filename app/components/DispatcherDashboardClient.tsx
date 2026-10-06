@@ -36,6 +36,7 @@ import {
   Bug,
   BookOpen,
   MessageSquareText,
+  CalendarPlus,
 } from "lucide-react";
 
 import { ClientsView } from "./ClientsView";
@@ -69,7 +70,8 @@ type NavItemId =
   | "routes"
   | "reports"
   | "settings"
-  | "documentation";
+  | "documentation"
+  | "advance-bookings";
 
 const DASHBOARD_VIEWS: NavItemId[] = [
   "dashboard",
@@ -120,6 +122,11 @@ interface DemoBooking {
   status: BookingStatus;
   category: BookingCategory;
   partnerMeta: PartnerMeta | null;
+  companyName?: string;
+  /** Előre felvett út (a diszpécserek vitték fel egy listából) */
+  advance?: boolean;
+  /** Aki felvette az utat (név vagy e-mail) */
+  addedBy?: string;
   price?: number;
   createdAt?: number;
 }
@@ -148,6 +155,9 @@ interface RealBooking {
   price?: number;
   comment?: string;
   createdAt: number;
+  createdBy?: string;
+  createdByName?: string;
+  advanceEntry?: boolean;
 }
 
 interface RecentBookingNotif {
@@ -345,6 +355,52 @@ function categoryLabel(cat: BookingCategory, partnerMeta?: PartnerMeta | null) {
   }[cat];
 }
 
+/** Beállított partner nélküli, de céges út → szürke kocka a naptárban. */
+function isUnconfiguredCompany(b: { partnerMeta?: PartnerMeta | null; companyName?: string }) {
+  return !b.partnerMeta && !!(b.companyName || "").trim();
+}
+
+function tileGradient(
+  b: { category: BookingCategory; partnerMeta?: PartnerMeta | null; companyName?: string },
+  isNewOrModified: boolean = false
+) {
+  if (isUnconfiguredCompany(b)) return "from-slate-400 to-slate-500 shadow-slate-400/25";
+  return categoryGradient(b.category, isNewOrModified, b.partnerMeta);
+}
+
+function tileLabel(b: { category: BookingCategory; partnerMeta?: PartnerMeta | null; companyName?: string }) {
+  if (isUnconfiguredCompany(b)) return (b.companyName || "").trim();
+  return categoryLabel(b.category, b.partnerMeta);
+}
+
+/** "szucs.eva@pannonguard.hu" / "szucs.eva" → "Szucs Eva" */
+function prettyActor(value?: string) {
+  const source = value && value.includes("@") ? value.split("@")[0] : value || "";
+  return source
+    .split(/[._\-\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function actorInitials(value?: string) {
+  return prettyActor(value)
+    .split(" ")
+    .map((part) => part.charAt(0))
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function AddedByChip({ b }: { b: { advance?: boolean; addedBy?: string } }) {
+  if (!b.advance || !b.addedBy) return null;
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[8.5px] font-black uppercase tracking-wider text-slate-500">
+      <UserCircle2 className="h-2.5 w-2.5" /> Felvette: {prettyActor(b.addedBy)}
+    </span>
+  );
+}
+
 function todayString() {
   const d = new Date();
   const y = d.getFullYear();
@@ -516,6 +572,7 @@ export default function DispatcherDashboardClient({
     router.prefetch("/bookings");
     router.prefetch("/vehicles");
     router.prefetch("/drivers");
+    router.prefetch("/advance-bookings");
   }, [router]);
 
   useEffect(() => {
@@ -743,6 +800,13 @@ export default function DispatcherDashboardClient({
         locked: true,
       },
       {
+        id: "advance-bookings",
+        label: "Előre felvett utak",
+        subtitle: "Menetrend felvitele",
+        icon: <CalendarPlus className="w-5 h-5" />,
+        accent: "from-blue-500 to-indigo-600",
+      },
+      {
         id: "documentation",
         label: "Dokumentáció",
         subtitle: "Rendszer használati útmutató",
@@ -771,13 +835,19 @@ export default function DispatcherDashboardClient({
         month: m,
         year: y,
         time: b.pickupTime,
-        client: b.travelerName + (b.companyName ? ` · ${b.companyName}` : ""),
+        client:
+          b.advanceEntry && (!b.travelerName || b.travelerName === "Nincs megadva")
+            ? `${b.companyName || "Előre felvett út"} · ${b.travelers} fő`
+            : b.travelerName + (b.companyName ? ` · ${b.companyName}` : ""),
         route: b.fromAddress + " → " + b.toAddress,
         vehicle: b.assignedVehicleName || "Hozzárendelés függőben",
         pax: b.travelers,
         status: b.status,
         category: b.category,
         partnerMeta,
+        companyName: b.companyName,
+        advance: b.advanceEntry === true,
+        addedBy: b.advanceEntry ? b.createdByName || b.createdBy : undefined,
         price: b.price,
         createdAt: b.createdAt,
       };
@@ -1166,6 +1236,10 @@ export default function DispatcherDashboardClient({
                         }
                         if (item.id === "bookings") {
                           router.push("/bookings");
+                          return;
+                        }
+                        if (item.id === "advance-bookings") {
+                          router.push("/advance-bookings");
                           return;
                         }
                         if (item.id === "notifications") {
@@ -1649,7 +1723,8 @@ export default function DispatcherDashboardClient({
                                     markAsViewed(b.id);
                                     router.push(`/bookings/${b.id}`);
                                   }}
-                                  className={`relative pl-2 pr-1.5 py-1 rounded-lg text-[10px] leading-tight font-semibold bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)} text-white shadow-sm cursor-pointer transition-[translate,scale,filter,box-shadow] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:brightness-110 hover:-translate-y-px hover:shadow-md active:translate-y-0 active:scale-[0.97]`}
+                                  title={b.advance && b.addedBy ? `${b.client} – Felvette: ${prettyActor(b.addedBy)}` : undefined}
+                                  className={`relative pl-2 pr-1.5 py-1 rounded-lg text-[10px] leading-tight font-semibold bg-gradient-to-r ${tileGradient(b, isNewOrMod)} text-white shadow-sm cursor-pointer transition-[translate,scale,filter,box-shadow] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:brightness-110 hover:-translate-y-px hover:shadow-md active:translate-y-0 active:scale-[0.97]`}
                                 >
                                   {isNewBadge && (
                                     <span className="absolute -top-0.5 -left-0.5 px-1 py-[1px] rounded bg-white text-blue-700 text-[7px] font-black shadow-sm border border-blue-200">
@@ -1658,7 +1733,11 @@ export default function DispatcherDashboardClient({
                                   )}
                                   <div className="flex items-center justify-between gap-1">
                                     <span className="font-mono font-black tabular-nums tracking-tight opacity-95">{b.time}</span>
-                                    <span className={`w-1.5 h-1.5 rounded-full ${b.status === "in-progress" ? "animate-pulse" : ""} bg-white/90`} />
+                                    {b.advance && b.addedBy ? (
+                                      <span className="rounded bg-white/25 px-1 text-[8px] font-black leading-[12px] tracking-wide">{actorInitials(b.addedBy)}</span>
+                                    ) : (
+                                      <span className={`w-1.5 h-1.5 rounded-full ${b.status === "in-progress" ? "animate-pulse" : ""} bg-white/90`} />
+                                    )}
                                   </div>
                                   <div className="truncate font-bold">{b.client}</div>
                                 </div>
@@ -1715,9 +1794,9 @@ export default function DispatcherDashboardClient({
                                           }}
                                           className="group relative flex items-center gap-3 rounded-xl border border-slate-200/80 bg-white p-3 cursor-pointer hover:shadow-md hover:border-slate-300 hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.99] transition-all duration-200 ease-out overflow-hidden"
                                         >
-                                          <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)}`} />
+                                          <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${tileGradient(b, isNewOrMod)}`} />
 
-                                          <div className={`shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)} shadow-md flex flex-col items-center justify-center text-white relative`}>
+                                          <div className={`shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${tileGradient(b, isNewOrMod)} shadow-md flex flex-col items-center justify-center text-white relative`}>
                                             {isNewBadge && (
                                               <span className="absolute -top-1 -right-1 px-1 py-[1px] rounded bg-white text-blue-700 text-[7px] font-black shadow-sm border border-blue-200">
                                                 ÚJ
@@ -1734,9 +1813,10 @@ export default function DispatcherDashboardClient({
                                                 <span className={`w-1 h-1 rounded-full ${s.dot} ${b.status === "in-progress" ? "animate-pulse" : ""}`} />
                                                 {s.label}
                                               </span>
-                                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)} text-white text-[8.5px] font-black tracking-wider uppercase shadow-sm`}>
-                                                {categoryLabel(b.category, b.partnerMeta)}
+                                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md bg-gradient-to-r ${tileGradient(b, isNewOrMod)} text-white text-[8.5px] font-black tracking-wider uppercase shadow-sm`}>
+                                                {tileLabel(b)}
                                               </span>
+                                              <AddedByChip b={b} />
                                             </div>
                                             <div className="flex items-center gap-1 text-[11px] text-slate-500 font-medium">
                                               <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
@@ -1965,7 +2045,8 @@ export default function DispatcherDashboardClient({
                                     markAsViewed(b.id);
                                     router.push(`/bookings/${b.id}`);
                                   }}
-                                  className={`relative pl-2 pr-1.5 py-1 rounded-lg text-[10px] leading-tight font-semibold bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)} text-white shadow-sm cursor-pointer transition-[translate,scale,filter,box-shadow] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:brightness-110 hover:-translate-y-px hover:shadow-md active:translate-y-0 active:scale-[0.97]`}
+                                  title={b.advance && b.addedBy ? `${b.client} – Felvette: ${prettyActor(b.addedBy)}` : undefined}
+                                  className={`relative pl-2 pr-1.5 py-1 rounded-lg text-[10px] leading-tight font-semibold bg-gradient-to-r ${tileGradient(b, isNewOrMod)} text-white shadow-sm cursor-pointer transition-[translate,scale,filter,box-shadow] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:brightness-110 hover:-translate-y-px hover:shadow-md active:translate-y-0 active:scale-[0.97]`}
                                 >
                                   {isNewBadge && (
                                     <span className="absolute -top-0.5 -left-0.5 px-1 py-[1px] rounded bg-white text-blue-700 text-[7px] font-black shadow-sm border border-blue-200">
@@ -1974,7 +2055,11 @@ export default function DispatcherDashboardClient({
                                   )}
                                   <div className="flex items-center justify-between gap-1">
                                     <span className="font-mono font-black tabular-nums tracking-tight opacity-95">{b.time}</span>
-                                    <span className={`w-1.5 h-1.5 rounded-full ${b.status === "in-progress" ? "animate-pulse" : ""} bg-white/90`} />
+                                    {b.advance && b.addedBy ? (
+                                      <span className="rounded bg-white/25 px-1 text-[8px] font-black leading-[12px] tracking-wide">{actorInitials(b.addedBy)}</span>
+                                    ) : (
+                                      <span className={`w-1.5 h-1.5 rounded-full ${b.status === "in-progress" ? "animate-pulse" : ""} bg-white/90`} />
+                                    )}
                                   </div>
                                   <div className="truncate font-bold">{b.client}</div>
                                 </div>
@@ -2031,9 +2116,9 @@ export default function DispatcherDashboardClient({
                                           }}
                                           className="group relative flex items-center gap-3 rounded-xl border border-slate-200/80 bg-white p-3 cursor-pointer hover:shadow-md hover:border-slate-300 hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.99] transition-all duration-200 ease-out overflow-hidden"
                                         >
-                                          <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)}`} />
+                                          <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${tileGradient(b, isNewOrMod)}`} />
 
-                                          <div className={`shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)} shadow-md flex flex-col items-center justify-center text-white relative`}>
+                                          <div className={`shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${tileGradient(b, isNewOrMod)} shadow-md flex flex-col items-center justify-center text-white relative`}>
                                             {isNewBadge && (
                                               <span className="absolute -top-1 -right-1 px-1 py-[1px] rounded bg-white text-blue-700 text-[7px] font-black shadow-sm border border-blue-200">
                                                 ÚJ
@@ -2050,9 +2135,10 @@ export default function DispatcherDashboardClient({
                                                 <span className={`w-1 h-1 rounded-full ${s.dot} ${b.status === "in-progress" ? "animate-pulse" : ""}`} />
                                                 {s.label}
                                               </span>
-                                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)} text-white text-[8.5px] font-black tracking-wider uppercase shadow-sm`}>
-                                                {categoryLabel(b.category, b.partnerMeta)}
+                                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md bg-gradient-to-r ${tileGradient(b, isNewOrMod)} text-white text-[8.5px] font-black tracking-wider uppercase shadow-sm`}>
+                                                {tileLabel(b)}
                                               </span>
+                                              <AddedByChip b={b} />
                                             </div>
                                             <div className="flex items-center gap-1 text-[11px] text-slate-500 font-medium">
                                               <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
@@ -2163,9 +2249,9 @@ export default function DispatcherDashboardClient({
                                 key={b.id}
                                 className="group relative rounded-2xl border border-slate-200 bg-white hover:shadow-lg hover:border-slate-300 transition-all p-4 overflow-hidden"
                               >
-                                <div className={`absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)}`} />
+                                <div className={`absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b ${tileGradient(b, isNewOrMod)}`} />
                                 <div className="flex items-start gap-4 pl-2">
-                                  <div className={`shrink-0 w-16 h-16 rounded-2xl bg-gradient-to-br ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)} shadow-lg flex flex-col items-center justify-center text-white relative`}>
+                                  <div className={`shrink-0 w-16 h-16 rounded-2xl bg-gradient-to-br ${tileGradient(b, isNewOrMod)} shadow-lg flex flex-col items-center justify-center text-white relative`}>
                                     {isNewBadge && (
                                       <span className="absolute -top-1 -right-1 px-1 py-[1px] rounded bg-white text-blue-700 text-[8px] font-black shadow-sm border border-blue-200">
                                         ÚJ
@@ -2181,9 +2267,10 @@ export default function DispatcherDashboardClient({
                                         <span className={`w-1.5 h-1.5 rounded-full ${s.dot} ${b.status === "in-progress" ? "animate-pulse" : ""}`} />
                                         {s.label}
                                       </span>
-                                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md bg-gradient-to-r ${categoryGradient(b.category, isNewOrMod, b.partnerMeta)} text-white text-[9.5px] font-black tracking-wider uppercase shadow-sm`}>
-                                        {categoryLabel(b.category, b.partnerMeta)}
+                                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md bg-gradient-to-r ${tileGradient(b, isNewOrMod)} text-white text-[9.5px] font-black tracking-wider uppercase shadow-sm`}>
+                                        {tileLabel(b)}
                                       </span>
+                                      <AddedByChip b={b} />
                                       {isNewBadge && (
                                         <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 border border-blue-200 text-[9.5px] font-black tracking-wider uppercase">
                                           🔵 ÚJ

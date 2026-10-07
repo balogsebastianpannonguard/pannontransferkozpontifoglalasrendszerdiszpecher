@@ -20,7 +20,7 @@ import {
   UserCircle2,
   Users2,
 } from "lucide-react";
-import { getAllPartnerMeta, resolvePartnerMeta } from "@/lib/partner-meta";
+import { getAllPartnerMeta, getPartnerColorClasses, resolvePartnerMeta } from "@/lib/partner-meta";
 import { looksLikeAirport } from "@/lib/airport-detect";
 import type { AdvanceListItem } from "@/lib/advance-bookings";
 
@@ -75,6 +75,136 @@ function prettyActor(name?: string, email?: string): string {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function CompanySelect({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  options: string[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const focusTimer = window.setTimeout(() => inputRef.current?.focus(), 10);
+    function onDocClick(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("mousedown", onDocClick);
+    };
+  }, [open]);
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const filtered = normalizedQuery ? options.filter((name) => name.toLowerCase().includes(normalizedQuery)) : options;
+  const exactMatch = options.some((name) => name.toLowerCase() === normalizedQuery);
+  const showCreate = normalizedQuery.length > 0 && !exactMatch;
+
+  function commit(name: string) {
+    onChange(name);
+    setOpen(false);
+  }
+
+  const trimmedValue = value.trim();
+  const selectedMeta = trimmedValue ? resolvePartnerMeta({ companyName: trimmedValue }) : null;
+  const selectedTone = selectedMeta ? getPartnerColorClasses(selectedMeta.accent) : null;
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <button
+        type="button"
+        onClick={() => {
+          setQuery("");
+          setOpen((v) => !v);
+        }}
+        aria-expanded={open}
+        className={`flex w-full items-center justify-between gap-2 rounded-xl border bg-white px-3.5 py-3 text-left text-[15px] font-medium outline-none transition focus:ring-4 ${
+          open ? "border-blue-400 ring-4 ring-blue-100" : "border-slate-200 focus:border-blue-400 focus:ring-blue-100"
+        }`}
+      >
+        <span className="flex min-w-0 items-center gap-2.5">
+          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${selectedTone ? selectedTone.dot : trimmedValue ? "bg-slate-400" : "bg-slate-200"}`} />
+          <span className={`truncate ${trimmedValue ? "font-semibold text-slate-800" : "text-slate-400"}`}>
+            {trimmedValue || "Válassz vagy írj be egy céget"}
+          </span>
+        </span>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div className="combo-pop-in absolute z-30 mt-2 w-full origin-top overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/10">
+          <div className="border-b border-slate-100 p-2">
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setOpen(false);
+                if (event.key === "Enter" && showCreate) {
+                  event.preventDefault();
+                  commit(query.trim());
+                } else if (event.key === "Enter" && filtered.length === 1) {
+                  event.preventDefault();
+                  commit(filtered[0]);
+                }
+              }}
+              placeholder="Keresés vagy új cég neve…"
+              autoComplete="off"
+              spellCheck={false}
+              data-1p-ignore
+              data-lpignore="true"
+              className="w-full rounded-xl border border-transparent bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-800 outline-none transition focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-100"
+            />
+          </div>
+          <div className="max-h-56 overflow-y-auto p-1.5">
+            {showCreate && (
+              <button
+                type="button"
+                onClick={() => commit(query.trim())}
+                className="mb-1 flex w-full items-center gap-2.5 rounded-xl border border-dashed border-blue-300 bg-blue-50/70 px-3 py-2.5 text-left text-sm font-bold text-blue-700 transition hover:bg-blue-50 active:scale-[0.99]"
+              >
+                <Plus className="h-4 w-4 shrink-0" />
+                <span className="min-w-0 flex-1 truncate">
+                  Egyéb cég: <span className="font-black">„{query.trim()}”</span>
+                </span>
+              </button>
+            )}
+            {filtered.length === 0 && !showCreate && (
+              <div className="px-3 py-6 text-center text-xs font-medium text-slate-400">Nincs találat</div>
+            )}
+            {filtered.map((name) => {
+              const meta = resolvePartnerMeta({ companyName: name });
+              const tone = meta ? getPartnerColorClasses(meta.accent) : null;
+              const active = name.trim().toLowerCase() === trimmedValue.toLowerCase();
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => commit(name)}
+                  className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm transition active:scale-[0.99] ${
+                    active ? "bg-blue-50 font-bold text-blue-800" : "font-semibold text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${tone ? tone.dot : "bg-slate-400"}`} />
+                  <span className="min-w-0 flex-1 truncate">{name}</span>
+                  {meta && <span className="shrink-0 text-[10px] font-black uppercase tracking-wider text-slate-400">{meta.short}</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function CompanyChip({ company }: { company: string }) {
@@ -322,12 +452,6 @@ export default function AdvanceBookingsClient({ viewer }: { viewer: Viewer }) {
           </div>
         )}
 
-        <datalist id="company-options">
-          {companyOptions.map((name) => (
-            <option key={name} value={name} />
-          ))}
-        </datalist>
-
         <section className="space-y-4">
           {rows.map((row, index) => {
             const airport = looksLikeAirport(row.from) || looksLikeAirport(row.to);
@@ -392,14 +516,7 @@ export default function AdvanceBookingsClient({ viewer }: { viewer: Viewer }) {
 
                 <div className="mt-3">
                   <label className={labelClass}>Cég</label>
-                  <input
-                    list="company-options"
-                    value={row.company}
-                    onChange={(e) => update(row.key, { company: e.target.value })}
-                    placeholder="pl. National Instruments"
-                    autoComplete="off"
-                    className={inputClass}
-                  />
+                  <CompanySelect value={row.company} onChange={(name) => update(row.key, { company: name })} options={companyOptions} />
                   <CompanyChip company={row.company} />
                 </div>
 

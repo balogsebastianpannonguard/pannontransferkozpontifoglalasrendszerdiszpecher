@@ -37,6 +37,7 @@ import {
   BookOpen,
   MessageSquareText,
   CalendarPlus,
+  ImagePlus,
 } from "lucide-react";
 
 import { ClientsView } from "./ClientsView";
@@ -45,6 +46,7 @@ import { FeedbackView } from "./FeedbackView";
 import PriceApprovalWidget from "./PriceApprovalWidget";
 import type { PartnerMeta } from "@/lib/partner-meta";
 import { getPartnerColorClasses, resolvePartnerMeta } from "@/lib/partner-meta";
+import { formatPrice, type Currency } from "@/lib/currency";
 
 interface DispatcherDashboardUser {
   email: string;
@@ -128,6 +130,7 @@ interface DemoBooking {
   /** Aki felvette az utat (név vagy e-mail) */
   addedBy?: string;
   price?: number;
+  priceCurrency?: Currency;
   createdAt?: number;
 }
 
@@ -153,6 +156,7 @@ interface RealBooking {
   assignedDriverName?: string;
   assignedVehicleName?: string;
   price?: number;
+  priceCurrency?: Currency;
   comment?: string;
   createdAt: number;
   createdBy?: string;
@@ -426,6 +430,13 @@ function formatModificationChange(change: PartnerModificationChange): string {
   return `${labels[change.field] || change.field}: ${value(change.oldValue)} → ${value(change.newValue)}`;
 }
 
+interface ErrorReportAttachmentItem {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+}
+
 interface ErrorReportItem {
   _id?: string;
   title: string;
@@ -433,7 +444,11 @@ interface ErrorReportItem {
   reporterName: string;
   createdAt: number;
   status: "open" | "in_progress" | "resolved";
+  attachments?: ErrorReportAttachmentItem[];
 }
+
+const MAX_REPORT_ATTACHMENTS = 5;
+const MAX_REPORT_ATTACHMENT_BYTES = 2_500_000;
 
 function ErrorReportsView() {
   const [reports, setReports] = useState<ErrorReportItem[]>([]);
@@ -442,6 +457,10 @@ function ErrorReportsView() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [filePreviews, setFilePreviews] = useState<string[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function loadReports() {
     setLoading(true);
@@ -461,21 +480,63 @@ function ErrorReportsView() {
     void loadReports();
   }, []);
 
+  function addFiles(selected: FileList | File[]) {
+    setAttachmentError(null);
+    const incoming = Array.from(selected).filter((file) => file.type.startsWith("image/"));
+    if (incoming.length === 0 && selected.length > 0) {
+      setAttachmentError("Csak kép (PNG, JPG, WEBP, GIF) csatolható.");
+      return;
+    }
+    const combined = [...files, ...incoming];
+    if (combined.length > MAX_REPORT_ATTACHMENTS) {
+      setAttachmentError(`Legfeljebb ${MAX_REPORT_ATTACHMENTS} kép csatolható.`);
+      return;
+    }
+    const tooBig = incoming.find((file) => file.size > MAX_REPORT_ATTACHMENT_BYTES);
+    if (tooBig) {
+      setAttachmentError(`A(z) "${tooBig.name}" kép túl nagy (legfeljebb 2,5 MB).`);
+      return;
+    }
+    setFiles(combined);
+    setFilePreviews((prev) => [...prev, ...incoming.map((file) => URL.createObjectURL(file))]);
+  }
+
+  function removeFile(index: number) {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+    setFilePreviews((prev) => {
+      URL.revokeObjectURL(prev[index]);
+      return prev.filter((_, i) => i !== index);
+    });
+  }
+
   async function submitReport(event: React.FormEvent) {
     event.preventDefault();
     setMessage(null);
     setSending(true);
     try {
-      const response = await fetch("/api/error-reports", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ title, description }),
-      });
+      let response: Response;
+      if (files.length > 0) {
+        const form = new FormData();
+        form.set("title", title);
+        form.set("description", description);
+        for (const file of files) form.append("files", file);
+        response = await fetch("/api/error-reports", { method: "POST", credentials: "include", body: form });
+      } else {
+        response = await fetch("/api/error-reports", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ title, description }),
+        });
+      }
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "A hibabejelentés nem küldhető el.");
       setTitle("");
       setDescription("");
+      filePreviews.forEach((url) => URL.revokeObjectURL(url));
+      setFiles([]);
+      setFilePreviews([]);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       setMessage("A hibabejelentés elküldve és e-mailben továbbítva.");
       await loadReports();
     } catch (error) {
@@ -517,6 +578,49 @@ function ErrorReportsView() {
             placeholder="Írja le részletesen, mi történt, milyen lépésekkel reprodukálható, és mikor jelentkezett."
             className="w-full resize-y rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
           />
+
+          <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              multiple
+              className="hidden"
+              onChange={(event) => {
+                if (event.target.files) addFiles(event.target.files);
+                event.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+            >
+              <ImagePlus className="h-4 w-4" />
+              Kép / képernyőfotó csatolása
+              <span className="text-slate-400 font-normal">(max. {MAX_REPORT_ATTACHMENTS} db, 2,5 MB/kép)</span>
+            </button>
+            {attachmentError && <p className="mt-2 text-xs font-semibold text-rose-600">{attachmentError}</p>}
+            {filePreviews.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-3">
+                {filePreviews.map((src, index) => (
+                  <div key={src} className="group relative h-20 w-20 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={src} alt={files[index]?.name || "csatolt kép"} className="h-full w-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removeFile(index)}
+                      aria-label="Kép eltávolítása"
+                      className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900/70 text-white opacity-0 transition group-hover:opacity-100"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center justify-between gap-4">
             {message && <p className="text-sm font-medium text-slate-600">{message}</p>}
             <button
@@ -546,6 +650,23 @@ function ErrorReportsView() {
                   </time>
                 </div>
                 <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{report.description}</p>
+                {report.attachments && report.attachments.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {report.attachments.map((attachment) => (
+                      <a
+                        key={attachment.id}
+                        href={`/api/error-reports/files/${attachment.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white transition hover:border-blue-300"
+                        title={attachment.name}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={`/api/error-reports/files/${attachment.id}`} alt={attachment.name} className="h-full w-full object-cover" />
+                      </a>
+                    ))}
+                  </div>
+                )}
               </article>
             ))}
           </div>
@@ -849,6 +970,7 @@ export default function DispatcherDashboardClient({
         advance: b.advanceEntry === true,
         addedBy: b.advanceEntry ? b.createdByName || b.createdBy : undefined,
         price: b.price,
+        priceCurrency: b.priceCurrency,
         createdAt: b.createdAt,
       };
     });
@@ -1827,8 +1949,7 @@ export default function DispatcherDashboardClient({
                                           <div className="shrink-0 flex flex-col items-end gap-1">
                                             {b.price !== undefined && b.price > 0 && (
                                               <div className="font-black text-slate-900 text-[13px] tracking-tight tabular-nums whitespace-nowrap">
-                                                {b.price.toLocaleString("hu-HU")}
-                                                <span className="text-[10px] text-slate-400 font-bold ml-0.5">Ft</span>
+                                                {formatPrice(b.price, b.priceCurrency)}
                                               </div>
                                             )}
                                             <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition" />
@@ -2149,8 +2270,7 @@ export default function DispatcherDashboardClient({
                                           <div className="shrink-0 flex flex-col items-end gap-1">
                                             {b.price !== undefined && b.price > 0 && (
                                               <div className="font-black text-slate-900 text-[13px] tracking-tight tabular-nums whitespace-nowrap">
-                                                {b.price.toLocaleString("hu-HU")}
-                                                <span className="text-[10px] text-slate-400 font-bold ml-0.5">Ft</span>
+                                                {formatPrice(b.price, b.priceCurrency)}
                                               </div>
                                             )}
                                             <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition" />
@@ -2295,8 +2415,7 @@ export default function DispatcherDashboardClient({
                                   <div className="shrink-0 flex flex-col items-end gap-1.5">
                                     {b.price !== undefined && (
                                       <div className="font-black text-slate-900 text-lg tracking-tight tabular-nums">
-                                        {b.price.toLocaleString("hu-HU")}
-                                        <span className="text-xs text-slate-400 font-bold ml-1">Ft</span>
+                                        {formatPrice(b.price, b.priceCurrency)}
                                       </div>
                                     )}
                                     <div className="flex gap-1.5">

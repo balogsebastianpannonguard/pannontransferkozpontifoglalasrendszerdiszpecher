@@ -1,5 +1,6 @@
 import { ObjectId, Filter } from "mongodb";
 import { getMongoDb } from "./mongodb";
+import type { Currency } from "./currency";
 
 export type BookingStatus = 'pending' | 'modified' | 'confirmed' | 'in-progress' | 'completed' | 'cancelled';
 export type BookingCategory = 'airport' | 'city' | 'long-distance' | 'vip' | 'partner';
@@ -47,12 +48,16 @@ export interface Booking {
   driverNotified?: boolean;
   driverAcknowledged?: boolean;
   price?: number;
+  /** A `price` pénzneme – nincs megadva esetén HUF. */
+  priceCurrency?: Currency;
   priceApprovalStatus?: 'pending_approval' | 'approved' | 'rejected' | null;
   priceApprovalRequest?: {
     requestedPrice: number;
     requestedBy: string;
     requestedAt: number;
     originalPrice?: number;
+    /** A requestedPrice/originalPrice pénzneme – nincs megadva esetén HUF. */
+    currency?: Currency;
     reason?: string;
   } | null;
   priceApprovalResponse?: {

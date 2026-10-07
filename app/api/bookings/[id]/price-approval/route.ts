@@ -5,6 +5,7 @@ import { createAuditLog } from "@/lib/audit-logs";
 import { sendEmail } from "@/lib/nodemailer";
 import { getStaffCollection } from "@/lib/staff-auth";
 import { ObjectId } from "mongodb";
+import { formatPrice, normalizeCurrency } from "@/lib/currency";
 
 export const dynamic = "force-dynamic";
 
@@ -27,12 +28,14 @@ export async function POST(
 
     const body = (await request.json().catch(() => ({}))) as {
       requestedPrice?: number;
+      currency?: string;
       reason?: string;
     };
 
     if (!body.requestedPrice || isNaN(body.requestedPrice)) {
       return NextResponse.json({ error: "Érvénytelen ár" }, { status: 400 });
     }
+    const requestedCurrency = normalizeCurrency(body.currency ?? booking.priceCurrency);
 
     const now = Date.now();
 
@@ -49,6 +52,7 @@ export async function POST(
             requestedBy: user.email,
             requestedAt: now,
             originalPrice: booking.price,
+            currency: requestedCurrency,
             reason: body.reason || undefined,
           },
           priceApprovalResponse: null,
@@ -59,7 +63,7 @@ export async function POST(
             timestamp: now,
             action: "price.approval_requested",
             actor: user.email,
-            details: `Jóváhagyás kérve: ${body.requestedPrice} Ft${body.reason ? ` - Indok: ${body.reason}` : ""}`,
+            details: `Jóváhagyás kérve: ${formatPrice(body.requestedPrice, requestedCurrency)}${body.reason ? ` - Indok: ${body.reason}` : ""}`,
           },
         },
       }
@@ -114,11 +118,11 @@ export async function POST(
                 </tr>
                 <tr style="background: #f8fafc;">
                   <td style="padding: 8px 12px; border: 1px solid #e2e8f0; font-weight: bold;">Jelenlegi ár</td>
-                  <td style="padding: 8px 12px; border: 1px solid #e2e8f0;">${booking.price ? booking.price.toLocaleString("hu-HU") + " Ft" : "Nincs beállítva"}</td>
+                  <td style="padding: 8px 12px; border: 1px solid #e2e8f0;">${booking.price ? formatPrice(booking.price, booking.priceCurrency) : "Nincs beállítva"}</td>
                 </tr>
                 <tr>
                   <td style="padding: 8px 12px; border: 1px solid #e2e8f0; font-weight: bold; color: #0ea5e9;">Kért ár</td>
-                  <td style="padding: 8px 12px; border: 1px solid #e2e8f0; color: #0ea5e9; font-weight: bold;">${body.requestedPrice.toLocaleString("hu-HU")} Ft</td>
+                  <td style="padding: 8px 12px; border: 1px solid #e2e8f0; color: #0ea5e9; font-weight: bold;">${formatPrice(body.requestedPrice, requestedCurrency)}</td>
                 </tr>
                 ${body.reason ? `
                 <tr style="background: #f8fafc;">
@@ -206,6 +210,9 @@ export async function PATCH(
 
     if (body.decision === "approved") {
       updateSet.price = booking.priceApprovalRequest.requestedPrice;
+      if (booking.priceApprovalRequest.currency) {
+        updateSet.priceCurrency = booking.priceApprovalRequest.currency;
+      }
     }
 
     await col.updateOne(
@@ -217,7 +224,7 @@ export async function PATCH(
             timestamp: now,
             action: `price.approval_${body.decision}`,
             actor: user.email,
-            details: `Ár ${body.decision === "approved" ? "jóváhagyva" : "elutasítva"}: ${booking.priceApprovalRequest.requestedPrice} Ft${body.comment ? ` - Megjegyzés: ${body.comment}` : ""}`,
+            details: `Ár ${body.decision === "approved" ? "jóváhagyva" : "elutasítva"}: ${formatPrice(booking.priceApprovalRequest.requestedPrice, booking.priceApprovalRequest.currency)}${body.comment ? ` - Megjegyzés: ${body.comment}` : ""}`,
           },
         },
       }
@@ -260,7 +267,7 @@ export async function PATCH(
               </tr>
               <tr>
                 <td style="padding: 8px 12px; border: 1px solid #e2e8f0; font-weight: bold;">Kért ár</td>
-                <td style="padding: 8px 12px; border: 1px solid #e2e8f0;">${booking.priceApprovalRequest.requestedPrice.toLocaleString("hu-HU")} Ft</td>
+                <td style="padding: 8px 12px; border: 1px solid #e2e8f0;">${formatPrice(booking.priceApprovalRequest.requestedPrice, booking.priceApprovalRequest.currency)}</td>
               </tr>
               <tr style="background: #f8fafc;">
                 <td style="padding: 8px 12px; border: 1px solid #e2e8f0; font-weight: bold;">Döntés</td>

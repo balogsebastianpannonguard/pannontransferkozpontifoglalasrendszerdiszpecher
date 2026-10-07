@@ -116,6 +116,7 @@ export async function POST(
         assignedDriverPhone: assignedDriver?.phone || undefined,
         assignedVehicleName: booking.assignedVehicleName,
         price: booking.price,
+        priceCurrency: booking.priceCurrency,
         comment: booking.comment,
         trackUrl: buildTrackUrl(booking.bookingTrackToken),
         language: booking.language,

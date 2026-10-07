@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Check, Clock, Loader2, Lock, RefreshCw, X } from "lucide-react";
+import { formatPrice } from "@/lib/currency";
 
 interface PriceApprovalRequest {
   requestedPrice: number;
   requestedBy: string;
   requestedAt: number;
   originalPrice?: number;
+  currency?: string;
   reason?: string;
 }
 
@@ -182,11 +184,11 @@ export default function PriceApprovalWidget({ userRole }: PriceApprovalWidgetPro
                           Diszpécer: {req.requestedBy}
                         </span>
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 font-black">
-                          Kért ár: {req.requestedPrice.toLocaleString("hu-HU")} Ft
+                          Kért ár: {formatPrice(req.requestedPrice, req.currency)}
                         </span>
                         {req.originalPrice !== undefined && req.originalPrice !== null && (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 font-medium">
-                            Eredeti: {req.originalPrice.toLocaleString("hu-HU")} Ft
+                            Eredeti: {formatPrice(req.originalPrice, req.currency)}
                           </span>
                         )}
                       </div>

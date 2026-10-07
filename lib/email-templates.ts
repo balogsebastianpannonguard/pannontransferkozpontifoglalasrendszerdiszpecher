@@ -1,3 +1,5 @@
+import { formatPrice } from "./currency";
+
 export function buildCustomerConfirmationEmail(params: {
   bookingCode: string;
   travelerName: string;
@@ -358,6 +360,7 @@ export function buildTravelerFinalizedEmail(params: {
   assignedDriverPhone?: string;
   assignedVehicleName?: string;
   price?: number;
+  priceCurrency?: string;
   comment?: string;
   trackUrl?: string;
   language?: "hu" | "en";
@@ -380,6 +383,7 @@ export function buildTravelerFinalizedEmail(params: {
     assignedDriverPhone,
     assignedVehicleName,
     price,
+    priceCurrency,
     comment,
     trackUrl,
     language,
@@ -389,9 +393,7 @@ export function buildTravelerFinalizedEmail(params: {
   const transferTypeLabel = transferType === "executive" ? "EXECUTIVE" : "STANDARD";
   const paymentMethodLabel = paymentMethod === "card" ? "Bankkártya" : "Banki átutalás";
   const priceDisplay =
-    typeof price === "number" && price > 0
-      ? `${price.toLocaleString("hu-HU")} Ft`
-      : "Egyeztetés alatt";
+    typeof price === "number" && price > 0 ? formatPrice(price, priceCurrency) : "Egyeztetés alatt";
   const driverNameDisplay = assignedDriverName || "Kijelölés alatt";
   const driverPhoneDisplay = assignedDriverPhone || "Később kerül kiküldésre";
   const vehicleDisplay = assignedVehicleName || "Később kerül kiküldésre";
@@ -626,9 +628,7 @@ Kérdés esetén válaszoljon erre az e-mailre, vagy keressen minket a megadott 
 
   const paymentMethodLabelEn = paymentMethod === "card" ? "Bank card" : "Bank transfer";
   const priceDisplayEn =
-    typeof price === "number" && price > 0
-      ? `${price.toLocaleString("en-US")} HUF`
-      : "To be confirmed";
+    typeof price === "number" && price > 0 ? formatPrice(price, priceCurrency) : "To be confirmed";
   const driverNameDisplayEn = assignedDriverName || "To be assigned";
   const driverPhoneDisplayEn = assignedDriverPhone || "Will be shared later";
   const vehicleDisplayEn = assignedVehicleName || "Will be shared later";

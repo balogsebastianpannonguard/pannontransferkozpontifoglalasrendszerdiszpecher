@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Booking, BookingStatus } from "@/lib/bookings";
+import { formatPrice } from "@/lib/currency";
 import {
   getAllPartnerMeta,
   getPartnerColorClasses,
@@ -574,8 +575,7 @@ export default function BookingsListClient({
                             </div>
                             {b.price !== undefined && (
                               <div className="font-black text-slate-900 text-[15px] tracking-tight tabular-nums mt-0.5">
-                                {b.price.toLocaleString("hu-HU")}
-                                <span className="text-xs text-slate-400 font-bold ml-1">Ft</span>
+                                {formatPrice(b.price, b.priceCurrency)}
                               </div>
                             )}
                           </div>

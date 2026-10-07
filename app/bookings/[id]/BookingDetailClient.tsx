@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Booking, BookingStatus } from "@/lib/bookings";
+import { CURRENCIES, currencySymbol, formatPrice, normalizeCurrency, type Currency } from "@/lib/currency";
 import { getPartnerColorClasses, resolvePartnerMeta } from "@/lib/partner-meta";
 import type { Driver } from "@/lib/drivers";
 import type { Vehicle } from "@/lib/vehicles";
@@ -649,7 +650,9 @@ export default function BookingDetailClient({
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>(
     booking.assignedVehicleId || ""
   );
-  const [priceValue, setPriceValue] = useState<number>(booking.price || 0);
+  // Szöveges állapot (nem number!): így törölhető a mező elejéről a felesleges "0" beírás közben.
+  const [priceValue, setPriceValue] = useState<string>(booking.price ? String(booking.price) : "");
+  const [priceCurrency, setPriceCurrency] = useState<Currency>(normalizeCurrency(booking.priceCurrency));
   const [statusValue, setStatusValue] = useState<BookingStatus>(booking.status);
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
   const [assigning, setAssigning] = useState(false);
@@ -660,6 +663,9 @@ export default function BookingDetailClient({
   const [refreshing, setRefreshing] = useState(false);
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [pickupTimeSaving, setPickupTimeSaving] = useState(false);
+  const [pickupTimeAutosaved, setPickupTimeAutosaved] = useState(false);
+  const pickupTimeDirtyRef = useRef(false);
+  const pickupTimeAutosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [noteDraft, setNoteDraft] = useState(initialBooking.comment || "");
   const [pickupTimeDraft, setPickupTimeDraft] = useState(initialBooking.pickupTime || "");
   const [priceNeedsApproval, setPriceNeedsApproval] = useState(false);
@@ -703,8 +709,11 @@ export default function BookingDetailClient({
           fetch(`/api/bookings/${bookingId}`).then((r) => r.json().catch(() => ({}))),
           fetch(`/api/bookings/${bookingId}/audit`).then((r) => r.json().catch(() => ({}))),
         ]);
-        if (bRes?.booking) setBooking(bRes.booking);
-        setPickupTimeDraft(bRes.booking.pickupTime || "");
+        if (bRes?.booking) {
+          setBooking(bRes.booking);
+          // Amíg a diszpécser épp szerkeszti (vagy az autosave még nem futott le), ne írjuk felül a piszkozatát.
+          if (!pickupTimeDirtyRef.current) setPickupTimeDraft(bRes.booking.pickupTime || "");
+        }
         if (Array.isArray(aRes?.logs)) setAuditLogs(aRes.logs.slice(0, 20));
       } catch {
       } finally {
@@ -725,7 +734,8 @@ export default function BookingDetailClient({
         setBooking(bRes.booking);
         setSelectedDriverId(bRes.booking.assignedDriverId || "");
         setSelectedVehicleId(bRes.booking.assignedVehicleId || "");
-        setPriceValue(bRes.booking.price || 0);
+        setPriceValue(bRes.booking.price ? String(bRes.booking.price) : "");
+        setPriceCurrency(normalizeCurrency(bRes.booking.priceCurrency));
         setStatusValue(bRes.booking.status);
       }
       if (Array.isArray(aRes?.logs)) setAuditLogs(aRes.logs.slice(0, 20));
@@ -764,6 +774,7 @@ export default function BookingDetailClient({
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.booking) throw new Error(data?.error || "Hiba");
       setBooking(data.booking);
+      pickupTimeDirtyRef.current = false;
       setPickupTimeDraft(data.booking.pickupTime || "");
       setNoteDraft(data.booking.comment || "");
       setIsEditingNote(false);
@@ -777,13 +788,18 @@ export default function BookingDetailClient({
 
   }
 
-  async function handleSavePickupTime() {
+  async function handleSavePickupTime(options: { silent?: boolean } = {}) {
     const nextPickup = pickupTimeDraft.trim();
     if (!nextPickup) {
-      pushToast("error", "Hiányzó felvételi időpont", "Add meg az adott foglalás felvételi idejét.");
+      if (!options.silent) {
+        pushToast("error", "Hiányzó felvételi időpont", "Add meg az adott foglalás felvételi idejét.");
+      }
       return;
     }
-    if (nextPickup === (booking.pickupTime || "")) return;
+    if (nextPickup === (booking.pickupTime || "")) {
+      pickupTimeDirtyRef.current = false;
+      return;
+    }
 
     try {
       setPickupTimeSaving(true);
@@ -795,8 +811,14 @@ export default function BookingDetailClient({
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.booking) throw new Error(data?.error || "Hiba");
       setBooking(data.booking);
+      pickupTimeDirtyRef.current = false;
       setPickupTimeDraft(data.booking.pickupTime || "");
-      pushToast("success", "Felvételi időpont mentve", "Ez az időpont kerül kiküldésre az utasnak és a sofőrnek.");
+      if (options.silent) {
+        setPickupTimeAutosaved(true);
+        setTimeout(() => setPickupTimeAutosaved(false), 2500);
+      } else {
+        pushToast("success", "Felvételi időpont mentve", "Ez az időpont kerül kiküldésre az utasnak és a sofőrnek.");
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : undefined;
       pushToast("error", "Időpont mentése sikertelen", msg);
@@ -804,6 +826,26 @@ export default function BookingDetailClient({
       setPickupTimeSaving(false);
     }
   }
+
+  // Autosave: amint a diszpécser érvényes, teljes HH:MM időpontot állít be, pár tized másodperc múlva
+  // automatikusan mentjük - nem kell külön rákattintani a "Mentés" gombra.
+  useEffect(() => {
+    const trimmed = pickupTimeDraft.trim();
+    const isCompleteTime = /^([01]\d|2[0-3]):([0-5]\d)$/.test(trimmed);
+    const changed = trimmed !== (booking.pickupTime || "");
+    pickupTimeDirtyRef.current = isCompleteTime && changed;
+
+    if (pickupTimeAutosaveTimer.current) clearTimeout(pickupTimeAutosaveTimer.current);
+    if (!isCompleteTime || !changed) return;
+
+    pickupTimeAutosaveTimer.current = setTimeout(() => {
+      void handleSavePickupTime({ silent: true });
+    }, 800);
+    return () => {
+      if (pickupTimeAutosaveTimer.current) clearTimeout(pickupTimeAutosaveTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickupTimeDraft]);
 
   async function handleStatusChange(newStatus: BookingStatus) {
     if (newStatus === booking.status) {
@@ -909,7 +951,7 @@ export default function BookingDetailClient({
       const res = await fetch(`/api/bookings/${bookingId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ price: Number(priceValue) || 0 }),
+        body: JSON.stringify({ price: Number(priceValue) || 0, priceCurrency }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "Hiba");
@@ -922,7 +964,7 @@ export default function BookingDetailClient({
       if (!data?.booking) throw new Error(data?.error || "Hiba");
       setBooking(data.booking);
       setIsEditingPrice(false);
-      pushToast("success", "Ár mentve", `${Number(priceValue).toLocaleString("hu-HU")} Ft`);
+      pushToast("success", "Ár mentve", formatPrice(Number(priceValue) || 0, priceCurrency));
     } catch (err) {
       const msg = err instanceof Error ? err.message : undefined;
       pushToast("error", "Ár mentés sikertelen", msg);
@@ -937,7 +979,7 @@ export default function BookingDetailClient({
       const res = await fetch(`/api/bookings/${bookingId}/price-approval`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requestedPrice: Number(priceValue), reason: approvalReason }),
+        body: JSON.stringify({ requestedPrice: Number(priceValue) || 0, currency: priceCurrency, reason: approvalReason }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.booking) throw new Error(data?.error || "Hiba");
@@ -1241,14 +1283,29 @@ export default function BookingDetailClient({
                   aria-label="Diszpécseri felvételi időpont"
                   className="w-full sm:w-auto rounded-xl border border-blue-300 bg-white px-4 py-2 text-xl font-black text-blue-800 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
                 />
-                <button
-                  type="button"
-                  onClick={handleSavePickupTime}
-                  disabled={pickupTimeSaving || !pickupTimeDraft.trim() || pickupTimeDraft === (booking.pickupTime || "")}
-                  className="sm:ml-auto rounded-xl bg-blue-600 px-4 py-2.5 text-[10px] font-black tracking-[0.16em] uppercase text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {pickupTimeSaving ? "Mentés..." : "Időpont mentése"}
-                </button>
+                <div className="sm:ml-auto flex items-center gap-2">
+                  {pickupTimeSaving ? (
+                    <span className="flex items-center gap-1.5 text-[10px] font-black tracking-[0.16em] uppercase text-blue-600">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Mentés...
+                    </span>
+                  ) : pickupTimeAutosaved ? (
+                    <span className="flex items-center gap-1.5 text-[10px] font-black tracking-[0.16em] uppercase text-emerald-600">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Automatikusan mentve
+                    </span>
+                  ) : pickupTimeDraft.trim() && pickupTimeDraft !== (booking.pickupTime || "") ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleSavePickupTime()}
+                      className="rounded-xl bg-blue-600 px-4 py-2.5 text-[10px] font-black tracking-[0.16em] uppercase text-white transition hover:bg-blue-700"
+                    >
+                      Mentés most
+                    </button>
+                  ) : (
+                    <span className="text-[10px] font-black tracking-[0.16em] uppercase text-blue-400">
+                      Automatikusan mentődik
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -1405,8 +1462,7 @@ export default function BookingDetailClient({
                   </div>
                   {hasPrice ? (
                     <div className="font-black text-slate-900 text-2xl tabular-nums tracking-tight">
-                      {booking.price!.toLocaleString("hu-HU")}
-                      <span className="text-sm font-bold text-slate-400 ml-1">Ft</span>
+                      {formatPrice(booking.price, booking.priceCurrency)}
                     </div>
                   ) : (
                     <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-50 border border-amber-200 text-[11px] font-bold text-amber-700">
@@ -1684,12 +1740,11 @@ export default function BookingDetailClient({
                           Becsült teljes összeg
                         </div>
                         <div className="font-black text-slate-900 text-4xl tabular-nums tracking-tight">
-                          {booking.price!.toLocaleString("hu-HU")}
-                          <span className="text-sm font-bold text-slate-400 ml-1.5">Ft</span>
+                          {formatPrice(booking.price, booking.priceCurrency)}
                         </div>
                       </div>
                       <button
-                        onClick={() => { setPriceValue(booking.price || 0); setIsEditingPrice(true); }}
+                        onClick={() => { setPriceValue(booking.price ? String(booking.price) : ""); setPriceCurrency(normalizeCurrency(booking.priceCurrency)); setIsEditingPrice(true); }}
                         className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 text-xs font-black tracking-[0.18em] uppercase hover:bg-slate-100 hover:border-slate-300 transition-all"
                       >
                         <Save className="w-3.5 h-3.5" />
@@ -1701,24 +1756,44 @@ export default function BookingDetailClient({
                       <div className="flex flex-col sm:flex-row sm:items-end gap-4">
                         <div className="flex-1">
                           <label className="text-[10px] font-black tracking-[0.2em] uppercase text-slate-400 mb-1.5 block">
-                            Összeg (Ft)
+                            Összeg
                           </label>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              value={priceValue}
-                              onChange={(e) => { setPriceValue(Number(e.target.value)); setPriceNeedsApproval(false); }}
-                              className={`w-full px-5 py-3.5 pr-16 rounded-xl bg-slate-50 border text-[20px] font-black text-slate-900 tabular-nums focus:outline-none focus:ring-4 transition ${priceNeedsApproval ? "border-amber-400 focus:border-amber-500 focus:ring-amber-100" : "border-slate-200 focus:border-slate-400 focus:ring-slate-100"}`}
-                              placeholder="0"
-                            />
-                            {priceNeedsApproval && (
-                              <span className="pointer-events-none absolute right-12 top-1/2 -translate-y-1/2">
-                                <Lock className="w-4 h-4 text-amber-500" />
+                          <div className="flex gap-2">
+                            <div className="relative flex-1">
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                value={priceValue}
+                                onChange={(e) => {
+                                  // Csak számjegyek, felesleges vezető nulla nélkül - de a mező üresre törölhető.
+                                  const digitsOnly = e.target.value.replace(/[^\d]/g, "");
+                                  const cleaned = digitsOnly.replace(/^0+(?=\d)/, "");
+                                  setPriceValue(cleaned);
+                                  setPriceNeedsApproval(false);
+                                }}
+                                className={`w-full px-5 py-3.5 pr-16 rounded-xl bg-slate-50 border text-[20px] font-black text-slate-900 tabular-nums focus:outline-none focus:ring-4 transition ${priceNeedsApproval ? "border-amber-400 focus:border-amber-500 focus:ring-amber-100" : "border-slate-200 focus:border-slate-400 focus:ring-slate-100"}`}
+                                placeholder="0"
+                              />
+                              {priceNeedsApproval && (
+                                <span className="pointer-events-none absolute right-12 top-1/2 -translate-y-1/2">
+                                  <Lock className="w-4 h-4 text-amber-500" />
+                                </span>
+                              )}
+                              <span className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-[11px] font-black tracking-[0.18em] uppercase text-slate-400">
+                                {currencySymbol(priceCurrency)}
                               </span>
-                            )}
-                            <span className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-[11px] font-black tracking-[0.18em] uppercase text-slate-400">
-                              Ft
-                            </span>
+                            </div>
+                            <select
+                              value={priceCurrency}
+                              onChange={(e) => { setPriceCurrency(normalizeCurrency(e.target.value)); setPriceNeedsApproval(false); }}
+                              aria-label="Pénznem"
+                              className="rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-slate-700 focus:outline-none focus:ring-4 focus:ring-slate-100 focus:border-slate-400"
+                            >
+                              {CURRENCIES.map((c) => (
+                                <option key={c.value} value={c.value}>{c.value}</option>
+                              ))}
+                            </select>
                           </div>
                         </div>
                         <button
@@ -1749,7 +1824,7 @@ export default function BookingDetailClient({
                             <div>
                               <div className="text-sm font-black text-amber-900 mb-0.5">Az ár jóváhagyásra szorul</div>
                               <div className="text-xs text-amber-700">
-                                A megadott ár ({Number(priceValue).toLocaleString("hu-HU")} Ft) kívül esik az elfogadható tartományon.
+                                A megadott ár ({formatPrice(Number(priceValue) || 0, priceCurrency)}) kívül esik az elfogadható tartományon.
                                 {approvalRange && (
                                   <span> Elfogadható: {approvalRange.minAcceptable.toLocaleString("hu-HU")} – {approvalRange.maxAcceptable.toLocaleString("hu-HU")} Ft</span>
                                 )}
@@ -1773,7 +1848,7 @@ export default function BookingDetailClient({
                             <span className="text-xs font-black text-amber-900">Admin jóváhagyásra vár</span>
                           </div>
                           <div className="text-xs text-amber-700">
-                            Kért ár: <strong>{booking.priceApprovalRequest.requestedPrice.toLocaleString("hu-HU")} Ft</strong>
+                            Kért ár: <strong>{formatPrice(booking.priceApprovalRequest.requestedPrice, booking.priceApprovalRequest.currency)}</strong>
                             {booking.priceApprovalRequest.reason && <> · Indok: {booking.priceApprovalRequest.reason}</>}
                           </div>
                         </div>
@@ -2076,7 +2151,7 @@ export default function BookingDetailClient({
 
               <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 mb-5">
                 <div className="text-xs font-bold text-amber-800 mb-0.5">Kért ár</div>
-                <div className="text-2xl font-black tabular-nums text-amber-900">{Number(priceValue).toLocaleString("hu-HU")} <span className="text-sm font-bold text-amber-600">Ft</span></div>
+                <div className="text-2xl font-black tabular-nums text-amber-900">{formatPrice(Number(priceValue) || 0, priceCurrency)}</div>
                 {approvalRange && (
                   <div className="text-xs text-amber-700 mt-1">
                     Elfogadható tartomány: {approvalRange.minAcceptable.toLocaleString("hu-HU")} – {approvalRange.maxAcceptable.toLocaleString("hu-HU")} Ft

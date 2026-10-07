@@ -80,6 +80,7 @@ export async function PATCH(
       "assignedVehicleId",
       "assignedVehicleName",
       "price",
+      "priceCurrency",
       "createdBy",
     ];
 
@@ -101,13 +102,18 @@ export async function PATCH(
       patch.pickupTime = pickupTime;
     }
 
-    // Ha diszpécer módosítja az árat, ellenőrizze a partner pricing alapján
-    if ("price" in patch && user.role === "dispatcher" && existing.portal) {
+    // Ha diszpécer módosítja az árat, ellenőrizze a partner pricing alapján. Más pénznemnél (nem HUF) a
+    // forintban számolt partner-ártartomány nem értelmezhető, ott ezt a jóváhagyási kaput kihagyjuk.
+    const effectiveCurrency = (patch.priceCurrency ?? existing.priceCurrency ?? "HUF") as string;
+    if ("price" in patch && user.role === "dispatcher" && existing.portal && effectiveCurrency === "HUF") {
       const partnerPricing = await getPartnerPricingByKey(existing.portal, { seedIfMissing: false });
       if (partnerPricing && partnerPricing.vehicles.length > 0) {
         const prices = partnerPricing.vehicles.map((v) => v.newPrice2026);
         const minAcceptable = Math.min(...prices) * 0.7;
-        const maxAcceptable = Math.max(...prices) * 1.5;
+        // A partner-árazásból számolt felső határ reálisan alacsony tud lenni (pl. kisebb partnereknél
+        // ~260 000 Ft), ami szükségtelen jóváhagyást kényszerít ki hosszabb/különleges utaknál - ezért
+        // sosem alacsonyabb 1 500 000 Ft-nál.
+        const maxAcceptable = Math.max(Math.max(...prices) * 1.5, 1_500_000);
         const requestedPrice = Number(patch.price);
 
         if (requestedPrice < minAcceptable || requestedPrice > maxAcceptable) {

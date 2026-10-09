@@ -53,6 +53,7 @@ import {
   AlertCircle,
   Banknote,
   Eye,
+  EyeOff,
 } from "lucide-react";
 
 const HUN_MONTHS = [
@@ -1376,29 +1377,45 @@ export default function BookingDetailClient({
                   <span className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl bg-gradient-to-r ${categoryGradient(booking.category, partnerMeta)} text-white text-[11px] font-black tracking-wider uppercase shadow-md`}>
                     {categoryLabel(booking.category, partnerMeta)}
                   </span>
-                  {booking.driverNotified && (
-                    <motion.span
-                      key={booking.driverAcknowledged ? "driver-acknowledged" : "driver-notified"}
-                      initial={booking.driverAcknowledged ? { scale: 0.82, opacity: 0.5 } : false}
-                      animate={booking.driverAcknowledged ? { scale: [0.82, 1.08, 1], opacity: 1 } : { opacity: 1 }}
-                      transition={{ duration: 0.55, ease: "easeOut" }}
-                      className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl border text-[11px] font-black tracking-wider uppercase ${booking.driverAcknowledged ? 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-lg shadow-emerald-200/70' : 'bg-blue-50 text-blue-700 border-blue-200'}`}
-                    >
-                      {booking.driverAcknowledged ? (
-                        <><ShieldCheck className="w-3.5 h-3.5" /> Sofőr látta</>
+                  <motion.span
+                    key={booking.driverAcknowledged ? "driver-acknowledged" : booking.driverNotified ? "driver-notified" : "driver-pending"}
+                    initial={booking.driverAcknowledged ? { scale: 0.82, opacity: 0.5 } : false}
+                    animate={booking.driverAcknowledged ? { scale: [0.82, 1.08, 1], opacity: 1 } : { opacity: 1 }}
+                    transition={{ duration: 0.55, ease: "easeOut" }}
+                    className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl border text-[11px] font-black tracking-wider uppercase ${
+                      booking.driverAcknowledged
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200 shadow-lg shadow-emerald-200/70"
+                        : booking.driverNotified
+                        ? "bg-blue-50 text-blue-700 border-blue-200"
+                        : "bg-slate-50 text-slate-400 border-slate-200"
+                    }`}
+                  >
+                    {booking.driverAcknowledged ? (
+                      <><ShieldCheck className="w-3.5 h-3.5" /> Sofőr látta</>
+                    ) : booking.driverNotified ? (
+                      <><Clock className="w-3.5 h-3.5 animate-pulse" /> Sofőr értesítve</>
+                    ) : (
+                      <><EyeOff className="w-3.5 h-3.5" /> Sofőr még nem látta</>
+                    )}
+                  </motion.span>
+                  <div className="relative group">
+                    <span className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl border text-[11px] font-black tracking-wider uppercase cursor-default ${
+                      Array.isArray(booking.viewedBy) && booking.viewedBy.length > 0
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : "bg-slate-50 text-slate-400 border-slate-200"
+                    }`}>
+                      {Array.isArray(booking.viewedBy) && booking.viewedBy.length > 0 ? (
+                        <>
+                          <Eye className="w-3.5 h-3.5" />
+                          {booking.viewedBy.length === 1
+                            ? `Diszpécser látta: ${booking.viewedBy[0].name || booking.viewedBy[0].email}`
+                            : `${booking.viewedBy.length} diszpécser látta`}
+                        </>
                       ) : (
-                        <><Clock className="w-3.5 h-3.5 animate-pulse" /> Sofőr értesítve</>
+                        <><EyeOff className="w-3.5 h-3.5" /> Diszpécser még nem látta</>
                       )}
-                    </motion.span>
-                  )}
-                  {Array.isArray(booking.viewedBy) && booking.viewedBy.length > 0 && (
-                    <div className="relative group">
-                      <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl border border-slate-200 bg-slate-50 text-slate-600 text-[11px] font-black tracking-wider uppercase cursor-default">
-                        <Eye className="w-3.5 h-3.5" />
-                        {booking.viewedBy.length === 1
-                          ? `Látta: ${booking.viewedBy[0].name || booking.viewedBy[0].email}`
-                          : `${booking.viewedBy.length} diszpécser látta`}
-                      </span>
+                    </span>
+                    {Array.isArray(booking.viewedBy) && booking.viewedBy.length > 0 && (
                       <div className="pointer-events-none absolute left-0 top-full mt-2 w-64 rounded-2xl bg-slate-900 text-white shadow-2xl p-3 opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all z-30">
                         <div className="text-[10px] font-black tracking-[0.16em] uppercase text-slate-400 mb-2">Megtekintették</div>
                         <div className="space-y-1.5 max-h-40 overflow-y-auto">
@@ -1412,8 +1429,8 @@ export default function BookingDetailClient({
                             ))}
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="mt-5 flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border-2 border-blue-200 bg-blue-50/70 px-5 py-3.5 shadow-sm">

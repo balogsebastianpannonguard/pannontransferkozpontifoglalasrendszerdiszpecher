@@ -44,7 +44,6 @@ import {
   ShieldCheck,
   Building2,
   BadgeCheck,
-  WalletCards,
   RefreshCw,
   Plus,
   Zap,
@@ -52,6 +51,7 @@ import {
   Search,
   Lock,
   AlertCircle,
+  Banknote,
 } from "lucide-react";
 
 const HUN_MONTHS = [
@@ -68,14 +68,46 @@ const STATUS_OPTIONS: { value: BookingStatus; label: string }[] = [
   { value: "cancelled", label: "Lemondott" },
 ];
 
-const PAYMENT_OPTIONS: { value: PaymentMethod; label: string }[] = [
-  { value: "card", label: "Bankkártya" },
-  { value: "bank", label: "Banki átutalás" },
-  { value: "cash", label: "Készpénz" },
+const PAYMENT_OPTIONS: {
+  value: PaymentMethod;
+  label: string;
+  description: string;
+  icon: typeof CreditCard;
+  iconBg: string;
+  iconText: string;
+}[] = [
+  {
+    value: "card",
+    label: "Bankkártya",
+    description: "Online, kártyás fizetés",
+    icon: CreditCard,
+    iconBg: "bg-blue-50",
+    iconText: "text-blue-600",
+  },
+  {
+    value: "bank",
+    label: "Banki átutalás",
+    description: "Előre utalással rendezve",
+    icon: Building2,
+    iconBg: "bg-violet-50",
+    iconText: "text-violet-600",
+  },
+  {
+    value: "cash",
+    label: "Készpénz",
+    description: "Helyszíni, készpénzes fizetés",
+    icon: Banknote,
+    iconBg: "bg-emerald-50",
+    iconText: "text-emerald-600",
+  },
 ];
 
 function paymentLabel(method: PaymentMethod) {
   return PAYMENT_OPTIONS.find((o) => o.value === method)?.label || method;
+}
+
+function paymentMeta(method: PaymentMethod) {
+  return PAYMENT_OPTIONS.find((o) => o.value === method) || PAYMENT_OPTIONS[0];
 }
 
 function statusMeta(status: BookingStatus) {
@@ -630,6 +662,9 @@ export default function BookingDetailClient({
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
   const [paymentDropdownOpen, setPaymentDropdownOpen] = useState(false);
   const [paymentSaving, setPaymentSaving] = useState(false);
+  const [paymentMenuPos, setPaymentMenuPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const paymentTriggerRef = useRef<HTMLButtonElement>(null);
+  const paymentMenuRef = useRef<HTMLDivElement>(null);
   const [pickupDateDraft, setPickupDateDraft] = useState(initialBooking.pickupDate || "");
   const [pickupDateSaving, setPickupDateSaving] = useState(false);
   const [assigning, setAssigning] = useState(false);
@@ -858,6 +893,35 @@ export default function BookingDetailClient({
       pushToast("error", "Sikertelen státuszváltás", msg);
     }
   }
+
+  // Portálon (document.body) keresztül jelenítjük meg a fizetési mód menüt, hogy
+  // az őt tartalmazó kártya overflow-hidden határa ne vágja le a listát.
+  useEffect(() => {
+    if (!paymentDropdownOpen) return;
+
+    function updatePosition() {
+      const rect = paymentTriggerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setPaymentMenuPos({ top: rect.bottom + 8, left: rect.left, width: Math.max(rect.width, 256) });
+    }
+    updatePosition();
+
+    function close(event: MouseEvent) {
+      const target = event.target as Node;
+      const insideTrigger = paymentTriggerRef.current?.contains(target);
+      const insideMenu = paymentMenuRef.current?.contains(target);
+      if (!insideTrigger && !insideMenu) setPaymentDropdownOpen(false);
+    }
+
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    document.addEventListener("mousedown", close);
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+      document.removeEventListener("mousedown", close);
+    };
+  }, [paymentDropdownOpen]);
 
   async function handleSavePaymentMethod(method: PaymentMethod) {
     if (method === booking.paymentMethod) {
@@ -1463,40 +1527,62 @@ export default function BookingDetailClient({
                     Fizetés
                   </div>
                   <button
+                    ref={paymentTriggerRef}
                     type="button"
                     onClick={() => setPaymentDropdownOpen((v) => !v)}
                     disabled={paymentSaving}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200 text-[11px] font-black text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition disabled:opacity-60"
+                    className={`inline-flex items-center gap-2 pl-1.5 pr-2.5 py-1.5 rounded-xl bg-white border border-slate-200 text-[12px] font-bold text-slate-700 hover:border-slate-300 hover:shadow-sm transition disabled:opacity-60 ${paymentDropdownOpen ? "border-blue-300 shadow-sm ring-4 ring-blue-50" : ""}`}
                   >
-                    <WalletCards className="w-3.5 h-3.5 text-slate-500" />
-                    {paymentSaving ? "Mentés…" : paymentLabel(booking.paymentMethod)}
+                    <span className={`inline-flex items-center justify-center w-6 h-6 rounded-lg ${paymentMeta(booking.paymentMethod).iconBg} ${paymentMeta(booking.paymentMethod).iconText}`}>
+                      {(() => {
+                        const PayIcon = paymentMeta(booking.paymentMethod).icon;
+                        return <PayIcon className="w-3.5 h-3.5" />;
+                      })()}
+                    </span>
+                    <span className="font-black">{paymentSaving ? "Mentés…" : paymentLabel(booking.paymentMethod)}</span>
                     <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${paymentDropdownOpen ? "rotate-180" : ""}`} />
                   </button>
-                  <AnimatePresence>
-                    {paymentDropdownOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -4 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -4 }}
-                        className="absolute left-0 top-full mt-1.5 z-20 w-44 rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden"
-                      >
-                        {PAYMENT_OPTIONS.map((opt) => {
-                          const active = opt.value === booking.paymentMethod;
-                          return (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              onClick={() => handleSavePaymentMethod(opt.value)}
-                              className={`w-full text-left px-3 py-2 text-[12px] font-bold flex items-center justify-between hover:bg-slate-50 transition ${active ? "text-blue-600 bg-blue-50/60" : "text-slate-700"}`}
-                            >
-                              {opt.label}
-                              {active && <Check className="w-3.5 h-3.5" />}
-                            </button>
-                          );
-                        })}
-                      </motion.div>
+                  {typeof document !== "undefined" &&
+                    createPortal(
+                      <AnimatePresence>
+                        {paymentDropdownOpen && paymentMenuPos && (
+                          <motion.div
+                            ref={paymentMenuRef}
+                            initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                            transition={{ duration: 0.15 }}
+                            style={{ position: "fixed", top: paymentMenuPos.top, left: paymentMenuPos.left, width: paymentMenuPos.width }}
+                            className="rounded-2xl bg-white shadow-2xl shadow-slate-900/10 border border-slate-200 overflow-hidden z-50"
+                          >
+                            <div className="p-2 space-y-0.5">
+                              {PAYMENT_OPTIONS.map((opt) => {
+                                const active = opt.value === booking.paymentMethod;
+                                const OptIcon = opt.icon;
+                                return (
+                                  <button
+                                    key={opt.value}
+                                    type="button"
+                                    onClick={() => handleSavePaymentMethod(opt.value)}
+                                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition ${active ? "bg-slate-100" : "hover:bg-slate-50"}`}
+                                  >
+                                    <span className={`inline-flex items-center justify-center w-9 h-9 rounded-xl shrink-0 ${opt.iconBg} ${opt.iconText}`}>
+                                      <OptIcon className="w-4 h-4" />
+                                    </span>
+                                    <span className="flex-1 min-w-0">
+                                      <span className="block text-[13px] font-black text-slate-800">{opt.label}</span>
+                                      <span className="block text-[10.5px] font-semibold text-slate-400 truncate">{opt.description}</span>
+                                    </span>
+                                    {active && <Check className="w-4 h-4 text-blue-600 shrink-0" />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>,
+                      document.body
                     )}
-                  </AnimatePresence>
                 </div>
               </div>
             </div>

@@ -667,6 +667,9 @@ export default function BookingDetailClient({
   const paymentMenuRef = useRef<HTMLDivElement>(null);
   const [pickupDateDraft, setPickupDateDraft] = useState(initialBooking.pickupDate || "");
   const [pickupDateSaving, setPickupDateSaving] = useState(false);
+  const [pickupDateAutosaved, setPickupDateAutosaved] = useState(false);
+  const pickupDateDirtyRef = useRef(false);
+  const pickupDateAutosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [assigning, setAssigning] = useState(false);
   const [savingPrice, setSavingPrice] = useState(false);
   const [bookingMetaSaving, setBookingMetaSaving] = useState(false);
@@ -749,7 +752,7 @@ export default function BookingDetailClient({
         setPriceValue(bRes.booking.price ? String(bRes.booking.price) : "");
         setPriceCurrency(normalizeCurrency(bRes.booking.priceCurrency));
         setStatusValue(bRes.booking.status);
-        setPickupDateDraft(bRes.booking.pickupDate || "");
+        if (!pickupDateDirtyRef.current) setPickupDateDraft(bRes.booking.pickupDate || "");
       }
       if (Array.isArray(aRes?.logs)) setAuditLogs(aRes.logs.slice(0, 20));
       pushToast("success", "Frissítve", "A foglalás adatai frissítve.");
@@ -948,10 +951,13 @@ export default function BookingDetailClient({
     }
   }
 
-  async function handleSavePickupDate(nextDateRaw: string) {
+  async function handleSavePickupDate(nextDateRaw: string, options: { silent?: boolean } = {}) {
     const nextDate = nextDateRaw.trim();
     if (!nextDate) return;
-    if (nextDate === (booking.pickupDate || "")) return;
+    if (nextDate === (booking.pickupDate || "")) {
+      pickupDateDirtyRef.current = false;
+      return;
+    }
     try {
       setPickupDateSaving(true);
       const res = await fetch(`/api/bookings/${bookingId}`, {
@@ -962,8 +968,14 @@ export default function BookingDetailClient({
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.booking) throw new Error(data?.error || "Hiba");
       setBooking(data.booking);
+      pickupDateDirtyRef.current = false;
       setPickupDateDraft(data.booking.pickupDate || "");
-      pushToast("success", "Dátum módosítva", "Az utazás dátuma frissítve.");
+      if (options.silent) {
+        setPickupDateAutosaved(true);
+        setTimeout(() => setPickupDateAutosaved(false), 2500);
+      } else {
+        pushToast("success", "Dátum módosítva", "Az utazás dátuma frissítve.");
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : undefined;
       pushToast("error", "Dátum mentése sikertelen", msg);
@@ -972,6 +984,26 @@ export default function BookingDetailClient({
       setPickupDateSaving(false);
     }
   }
+
+  // Autosave: amint a diszpécser érvényes dátumot állít be, pár tized másodperc múlva
+  // automatikusan mentjük - nem kell külön rákattintani a "Mentés" gombra.
+  useEffect(() => {
+    const trimmed = pickupDateDraft.trim();
+    const isCompleteDate = /^\d{4}-\d{2}-\d{2}$/.test(trimmed);
+    const changed = trimmed !== (booking.pickupDate || "");
+    pickupDateDirtyRef.current = isCompleteDate && changed;
+
+    if (pickupDateAutosaveTimer.current) clearTimeout(pickupDateAutosaveTimer.current);
+    if (!isCompleteDate || !changed) return;
+
+    pickupDateAutosaveTimer.current = setTimeout(() => {
+      void handleSavePickupDate(trimmed, { silent: true });
+    }, 800);
+    return () => {
+      if (pickupDateAutosaveTimer.current) clearTimeout(pickupDateAutosaveTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickupDateDraft]);
 
   async function handleAssign() {
     const driver = drivers.find((d) => d._id === selectedDriverId);
@@ -1419,6 +1451,10 @@ export default function BookingDetailClient({
                     <span className="flex items-center gap-1.5 text-[10px] font-black tracking-[0.16em] uppercase text-slate-600">
                       <Loader2 className="w-3.5 h-3.5 animate-spin" /> Mentés...
                     </span>
+                  ) : pickupDateAutosaved ? (
+                    <span className="flex items-center gap-1.5 text-[10px] font-black tracking-[0.16em] uppercase text-emerald-600">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Automatikusan mentve
+                    </span>
                   ) : pickupDateDraft.trim() && pickupDateDraft !== (booking.pickupDate || "") ? (
                     <button
                       type="button"
@@ -1427,7 +1463,11 @@ export default function BookingDetailClient({
                     >
                       Mentés most
                     </button>
-                  ) : null}
+                  ) : (
+                    <span className="text-[10px] font-black tracking-[0.16em] uppercase text-slate-400">
+                      Automatikusan mentődik
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

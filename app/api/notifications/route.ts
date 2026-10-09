@@ -115,6 +115,12 @@ export async function GET(request: Request) {
             return true;
           })
           .filter((entry: any) => {
+            // Ha bármelyik diszpécser már megnyitotta a foglalást az esemény óta,
+            // az eltűnik az értesítések közül mindenkinél - nem csak a megtekintőnél.
+            const seenAt = typeof doc.notificationsSeenAt === "number" ? doc.notificationsSeenAt : 0;
+            return typeof entry.timestamp !== "number" || entry.timestamp > seenAt;
+          })
+          .filter((entry: any) => {
             const actor = String(entry.actor || "").toLowerCase();
             const isDispatcherAction =
               dispatcherActors.has(actor) ||

@@ -19,6 +19,12 @@ export interface BookingAuditEntry {
   details?: string;
 }
 
+export interface BookingViewer {
+  email: string;
+  name: string;
+  viewedAt: number;
+}
+
 export interface Booking {
   _id?: string;
   portal?: string;
@@ -86,6 +92,10 @@ export interface Booking {
   bookingTrackToken?: string;   // Unique token for the passenger status/modify page
   trackLinkActive?: boolean;    // Set to false by the driver app on trip finalization
   sharedLinkToken?: string;     // The company shared-link token used to create this booking (if any)
+  /** Mely diszpécserek nyitották meg eddig ezt a foglalást (legutóbbi megtekintésük időpontjával). */
+  viewedBy?: BookingViewer[];
+  /** Az utolsó megtekintés időpontja - az ennél korábbi auditTrail események már nem jelennek meg értesítésként senkinek. */
+  notificationsSeenAt?: number;
 }
 
 const COLLECTION_NAME = "bookings";
@@ -153,6 +163,39 @@ export async function getBookingByCode(code: string): Promise<Booking | null> {
   const doc = await col.findOne({ bookingCode: code });
   if (!doc) return null;
   return convertId(doc);
+}
+
+/**
+ * Feljegyzi, hogy egy diszpécser megnyitotta a foglalást: hozzáadja/frissíti a
+ * viewedBy listát, és előre tolja a notificationsSeenAt határt, hogy a meglévő
+ * értesítések (ennél korábbi auditTrail események) eltűnjenek mindenki számára -
+ * ne csak a megtekintő böngészőjében.
+ */
+export async function markBookingViewed(
+  id: ObjectId | string,
+  viewer: { email: string; name: string }
+): Promise<Booking | null> {
+  const col = await getBookingsCollection();
+  const oid: ObjectId = typeof id === "string" ? new ObjectId(id) : id;
+  const existing = await col.findOne({ _id: oid } as any);
+  if (!existing) return null;
+
+  const now = Date.now();
+  const viewedBy: BookingViewer[] = Array.isArray(existing.viewedBy) ? existing.viewedBy.slice() : [];
+  const idx = viewedBy.findIndex((v) => v.email === viewer.email);
+  if (idx >= 0) {
+    viewedBy[idx] = { ...viewedBy[idx], name: viewer.name, viewedAt: now };
+  } else {
+    viewedBy.push({ email: viewer.email, name: viewer.name, viewedAt: now });
+  }
+
+  const res = await col.findOneAndUpdate(
+    { _id: oid } as any,
+    { $set: { viewedBy, notificationsSeenAt: now } },
+    { returnDocument: 'after' }
+  );
+  if (!res) return null;
+  return convertId(res);
 }
 
 export async function assignBooking(

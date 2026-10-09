@@ -1,5 +1,5 @@
 import BookingDetailClient from "./BookingDetailClient";
-import { getBookingById, type Booking } from "@/lib/bookings";
+import { getBookingById, markBookingViewed, type Booking } from "@/lib/bookings";
 import { getDrivers, type Driver } from "@/lib/drivers";
 import { listVehicles, type Vehicle } from "@/lib/vehicles";
 import { listAuditLogsForTarget, type AuditLog } from "@/lib/audit-logs";
@@ -76,9 +76,14 @@ export default async function BookingDetailPage({
 
   const auditLogs = await listAuditLogsForTarget("booking", id, 20);
 
+  // Megnyitáskor feljegyezzük, hogy ez a diszpécser látta a foglalást - ettől
+  // tűnnek el az erről szóló értesítések mindenkinél, és ez jelenik meg a
+  // "Megtekintették" listában a foglalás részletező oldalán.
+  const viewedBooking = await markBookingViewed(id, { email: user.email, name: user.name });
+
   return (
     <BookingDetailClient
-      booking={booking as Booking}
+      booking={(viewedBooking || booking) as Booking}
       drivers={drivers as Driver[]}
       vehicles={vehicles as Vehicle[]}
       auditLogs={auditLogs as AuditLog[]}

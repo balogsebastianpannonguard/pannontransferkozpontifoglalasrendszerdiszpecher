@@ -52,6 +52,7 @@ import {
   Lock,
   AlertCircle,
   Banknote,
+  Eye,
 } from "lucide-react";
 
 const HUN_MONTHS = [
@@ -1389,6 +1390,29 @@ export default function BookingDetailClient({
                         <><Clock className="w-3.5 h-3.5 animate-pulse" /> Sofőr értesítve</>
                       )}
                     </motion.span>
+                  )}
+                  {Array.isArray(booking.viewedBy) && booking.viewedBy.length > 0 && (
+                    <div className="relative group">
+                      <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl border border-slate-200 bg-slate-50 text-slate-600 text-[11px] font-black tracking-wider uppercase cursor-default">
+                        <Eye className="w-3.5 h-3.5" />
+                        {booking.viewedBy.length === 1
+                          ? `Látta: ${booking.viewedBy[0].name || booking.viewedBy[0].email}`
+                          : `${booking.viewedBy.length} diszpécser látta`}
+                      </span>
+                      <div className="pointer-events-none absolute left-0 top-full mt-2 w-64 rounded-2xl bg-slate-900 text-white shadow-2xl p-3 opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all z-30">
+                        <div className="text-[10px] font-black tracking-[0.16em] uppercase text-slate-400 mb-2">Megtekintették</div>
+                        <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                          {[...booking.viewedBy]
+                            .sort((a, b) => b.viewedAt - a.viewedAt)
+                            .map((v) => (
+                              <div key={v.email} className="flex items-center justify-between gap-3 text-[12px]">
+                                <span className="font-bold truncate">{v.name || v.email}</span>
+                                <span className="text-slate-400 shrink-0">{relativeTime(v.viewedAt, now)}</span>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>

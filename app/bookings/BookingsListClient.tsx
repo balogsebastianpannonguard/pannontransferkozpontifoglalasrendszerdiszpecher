@@ -19,6 +19,7 @@ import {
   CalendarCheck,
   Users2,
   Clock,
+  Eye,
   CarFront,
   ListChecks,
   ShieldCheck,
@@ -445,6 +446,15 @@ export default function BookingsListClient({
                               <span className={`w-1.5 h-1.5 rounded-full ${s.dot} ${b.status === "in-progress" ? "animate-pulse" : ""}`} />
                               {s.label}
                             </span>
+                            {Array.isArray(b.viewedBy) && b.viewedBy.length > 0 && (
+                              <span
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-slate-500 text-[10.5px] font-black tracking-wider uppercase"
+                                title={b.viewedBy.map((v) => v.name || v.email).join(", ")}
+                              >
+                                <Eye className="w-3 h-3" />
+                                {b.viewedBy.length === 1 ? (b.viewedBy[0].name || "Látva") : `${b.viewedBy.length} látta`}
+                              </span>
+                            )}
                           </div>
                           <div className="flex items-center gap-2 text-[15px] font-bold text-slate-900 mb-3 flex-wrap">
                             <CalendarCheck className="w-4.5 h-4.5 text-slate-400 shrink-0" />

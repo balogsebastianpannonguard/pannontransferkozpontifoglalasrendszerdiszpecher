@@ -47,6 +47,7 @@ import PriceApprovalWidget from "./PriceApprovalWidget";
 import type { PartnerMeta } from "@/lib/partner-meta";
 import { getPartnerColorClasses, resolvePartnerMeta } from "@/lib/partner-meta";
 import { formatPrice, type Currency } from "@/lib/currency";
+import { getStatusDisplay, type BookingStatus } from "@/lib/booking-status";
 
 interface DispatcherDashboardUser {
   email: string;
@@ -108,7 +109,6 @@ const HUN_MONTHS = [
 const HUN_WEEKDAYS_LONG = ["Vasárnap", "Hétfő", "Kedd", "Szerda", "Csütörtök", "Péntek", "Szombat"];
 const HUN_WEEKDAYS_SHORT = ["V", "H", "K", "Sz", "Cs", "P", "Szo"];
 
-type BookingStatus = "confirmed" | "pending" | "in-progress" | "completed" | "cancelled" | "modified";
 type BookingCategory = "airport" | "city" | "long-distance" | "vip" | "partner";
 
 interface DemoBooking {
@@ -281,50 +281,8 @@ function formatGreeting(hour: number, name: string) {
 }
 
 function statusColor(status: BookingStatus) {
-  switch (status) {
-    case "confirmed":
-      return {
-        dot: "bg-emerald-500",
-        chip: "bg-emerald-50 text-emerald-700 border-emerald-200",
-        bar: "bg-gradient-to-r from-emerald-500 to-teal-500",
-        label: "Megerősítve",
-      };
-    case "pending":
-      return {
-        dot: "bg-amber-500",
-        chip: "bg-amber-50 text-amber-700 border-amber-200",
-        bar: "bg-gradient-to-r from-amber-500 to-orange-500",
-        label: "Függőben",
-      };
-    case "modified":
-      return {
-        dot: "bg-blue-500",
-        chip: "bg-blue-50 text-blue-700 border-blue-200",
-        bar: "bg-gradient-to-r from-blue-500 to-indigo-500",
-        label: "Módosítva",
-      };
-    case "in-progress":
-      return {
-        dot: "bg-blue-500",
-        chip: "bg-blue-50 text-blue-700 border-blue-200",
-        bar: "bg-gradient-to-r from-blue-500 to-indigo-500",
-        label: "Folyamatban",
-      };
-    case "completed":
-      return {
-        dot: "bg-slate-400",
-        chip: "bg-slate-50 text-slate-600 border-slate-200",
-        bar: "bg-gradient-to-r from-slate-400 to-slate-500",
-        label: "Befejezett",
-      };
-    case "cancelled":
-      return {
-        dot: "bg-rose-500",
-        chip: "bg-rose-50 text-rose-700 border-rose-200",
-        bar: "bg-gradient-to-r from-rose-500 to-red-500",
-        label: "Lemondott",
-      };
-  }
+  const d = getStatusDisplay(status);
+  return { dot: d.dot, chip: d.chip, bar: `bg-gradient-to-r ${d.gradient}`, label: d.label };
 }
 
 function categoryGradient(

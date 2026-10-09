@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Booking, BookingStatus } from "@/lib/bookings";
+import { getStatusDisplay } from "@/lib/booking-status";
 import { formatPrice } from "@/lib/currency";
 import {
   getAllPartnerMeta,
@@ -43,44 +44,8 @@ interface Stats {
 }
 
 function statusMeta(status: BookingStatus) {
-  switch (status) {
-    case "confirmed":
-      return {
-        chip: "bg-emerald-50 text-emerald-700 border-emerald-200",
-        dot: "bg-emerald-500",
-        label: "Jóváhagyott",
-      };
-    case "pending":
-      return {
-        chip: "bg-amber-50 text-amber-700 border-amber-200",
-        dot: "bg-amber-500",
-        label: "Függőben",
-      };
-    case "in-progress":
-      return {
-        chip: "bg-blue-50 text-blue-700 border-blue-200",
-        dot: "bg-blue-500",
-        label: "Folyamatban",
-      };
-    case "completed":
-      return {
-        chip: "bg-slate-50 text-slate-600 border-slate-200",
-        dot: "bg-slate-400",
-        label: "Befejezett",
-      };
-    case "cancelled":
-      return {
-        chip: "bg-rose-50 text-rose-700 border-rose-200",
-        dot: "bg-rose-500",
-        label: "Lemondott",
-      };
-    case "modified":
-      return {
-        chip: "bg-orange-50 text-orange-700 border-orange-200",
-        dot: "bg-orange-500",
-        label: "Módosítva",
-      };
-  }
+  const d = getStatusDisplay(status);
+  return { chip: d.chip, dot: d.dot, label: d.label };
 }
 
 function categoryLabel(cat: string) {
@@ -201,8 +166,8 @@ export default function BookingsListClient({
 
   const filterTabs = [
     { id: "all" as const, label: "Minden", count: initialStats.total },
-    { id: "pending" as const, label: "Függőben", count: initialStats.processing },
-    { id: "confirmed" as const, label: "Jóváhagyott", count: initialStats.confirmed },
+    { id: "pending" as const, label: "Beérkezett", count: initialStats.processing },
+    { id: "confirmed" as const, label: "Értesítve", count: initialStats.confirmed },
     { id: "closed" as const, label: "Lezárt", count: initialStats.closed },
   ];
 
@@ -448,7 +413,12 @@ export default function BookingsListClient({
               const s = statusMeta(b.status);
               const isExpanded = expandedIds.has(b._id || "");
               const isExecutive = b.transferType === "executive";
-              const paymentLabel = b.paymentMethod === "card" ? "Bankkártya" : "Banki átutalás";
+              const paymentLabel =
+                b.paymentMethod === "card"
+                  ? "Bankkártya"
+                  : b.paymentMethod === "cash"
+                  ? "Készpénz"
+                  : "Banki átutalás";
               const partnerMeta = resolvePartnerMeta(b);
               const partnerTone = partnerMeta ? getPartnerColorClasses(partnerMeta.accent) : null;
 

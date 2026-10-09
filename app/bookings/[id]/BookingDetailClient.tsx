@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import type { Booking, BookingStatus } from "@/lib/bookings";
+import type { Booking, BookingStatus, PaymentMethod } from "@/lib/bookings";
+import { getStatusDisplay } from "@/lib/booking-status";
 import { CURRENCIES, currencySymbol, formatPrice, normalizeCurrency, type Currency } from "@/lib/currency";
 import { getPartnerColorClasses, resolvePartnerMeta } from "@/lib/partner-meta";
 import type { Driver } from "@/lib/drivers";
@@ -60,59 +61,31 @@ const HUN_MONTHS = [
 const HUN_WEEKDAYS_LONG = ["Vasárnap", "Hétfő", "Kedd", "Szerda", "Csütörtök", "Péntek", "Szombat"];
 
 const STATUS_OPTIONS: { value: BookingStatus; label: string }[] = [
-  { value: "pending", label: "Függőben" },
-  { value: "modified", label: "Módosítva" },
-  { value: "confirmed", label: "Megerősítve" },
-  { value: "in-progress", label: "Folyamatban" },
+  { value: "pending", label: "Beérkezett" },
+  { value: "modified", label: "Módosított" },
+  { value: "confirmed", label: "Értesítve" },
   { value: "completed", label: "Befejezett" },
   { value: "cancelled", label: "Lemondott" },
 ];
 
+const PAYMENT_OPTIONS: { value: PaymentMethod; label: string }[] = [
+  { value: "card", label: "Bankkártya" },
+  { value: "bank", label: "Banki átutalás" },
+  { value: "cash", label: "Készpénz" },
+];
+
+function paymentLabel(method: PaymentMethod) {
+  return PAYMENT_OPTIONS.find((o) => o.value === method)?.label || method;
+}
+
 function statusMeta(status: BookingStatus) {
-  switch (status) {
-    case "confirmed":
-      return {
-        chip: "bg-emerald-50 text-emerald-700 border-emerald-200",
-        pill: "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-emerald-500/30",
-        dot: "bg-emerald-500",
-        label: "Megerősítve",
-      };
-    case "pending":
-      return {
-        chip: "bg-amber-50 text-amber-700 border-amber-200",
-        pill: "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-amber-500/30",
-        dot: "bg-amber-500",
-        label: "Függőben",
-      };
-    case "in-progress":
-      return {
-        chip: "bg-blue-50 text-blue-700 border-blue-200",
-        pill: "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-blue-500/30",
-        dot: "bg-blue-500",
-        label: "Folyamatban",
-      };
-    case "completed":
-      return {
-        chip: "bg-slate-50 text-slate-600 border-slate-200",
-        pill: "bg-gradient-to-r from-slate-400 to-slate-500 text-white shadow-slate-500/30",
-        dot: "bg-slate-400",
-        label: "Befejezett",
-      };
-    case "cancelled":
-      return {
-        chip: "bg-rose-50 text-rose-700 border-rose-200",
-        pill: "bg-gradient-to-r from-rose-500 to-red-500 text-white shadow-rose-500/30",
-        dot: "bg-rose-500",
-        label: "Lemondott",
-      };
-    case "modified":
-      return {
-        chip: "bg-orange-50 text-orange-700 border-orange-200",
-        pill: "bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-orange-500/30",
-        dot: "bg-orange-500",
-        label: "Módosítva",
-      };
-  }
+  const d = getStatusDisplay(status);
+  return {
+    chip: d.chip,
+    pill: `bg-gradient-to-r ${d.gradient} text-white ${d.shadow}`,
+    dot: d.dot,
+    label: d.label,
+  };
 }
 
 function actionBadge(action: string) {
@@ -655,6 +628,10 @@ export default function BookingDetailClient({
   const [priceCurrency, setPriceCurrency] = useState<Currency>(normalizeCurrency(booking.priceCurrency));
   const [statusValue, setStatusValue] = useState<BookingStatus>(booking.status);
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
+  const [paymentDropdownOpen, setPaymentDropdownOpen] = useState(false);
+  const [paymentSaving, setPaymentSaving] = useState(false);
+  const [pickupDateDraft, setPickupDateDraft] = useState(initialBooking.pickupDate || "");
+  const [pickupDateSaving, setPickupDateSaving] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [savingPrice, setSavingPrice] = useState(false);
   const [bookingMetaSaving, setBookingMetaSaving] = useState(false);
@@ -737,6 +714,7 @@ export default function BookingDetailClient({
         setPriceValue(bRes.booking.price ? String(bRes.booking.price) : "");
         setPriceCurrency(normalizeCurrency(bRes.booking.priceCurrency));
         setStatusValue(bRes.booking.status);
+        setPickupDateDraft(bRes.booking.pickupDate || "");
       }
       if (Array.isArray(aRes?.logs)) setAuditLogs(aRes.logs.slice(0, 20));
       pushToast("success", "Frissítve", "A foglalás adatai frissítve.");
@@ -878,6 +856,56 @@ export default function BookingDetailClient({
     } catch (err) {
       const msg = err instanceof Error ? err.message : undefined;
       pushToast("error", "Sikertelen státuszváltás", msg);
+    }
+  }
+
+  async function handleSavePaymentMethod(method: PaymentMethod) {
+    if (method === booking.paymentMethod) {
+      setPaymentDropdownOpen(false);
+      return;
+    }
+    try {
+      setPaymentDropdownOpen(false);
+      setPaymentSaving(true);
+      const res = await fetch(`/api/bookings/${bookingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentMethod: method }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.booking) throw new Error(data?.error || "Hiba");
+      setBooking(data.booking);
+      pushToast("success", "Fizetési mód módosítva", PAYMENT_OPTIONS.find((o) => o.value === method)?.label);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : undefined;
+      pushToast("error", "Fizetési mód mentése sikertelen", msg);
+    } finally {
+      setPaymentSaving(false);
+    }
+  }
+
+  async function handleSavePickupDate(nextDateRaw: string) {
+    const nextDate = nextDateRaw.trim();
+    if (!nextDate) return;
+    if (nextDate === (booking.pickupDate || "")) return;
+    try {
+      setPickupDateSaving(true);
+      const res = await fetch(`/api/bookings/${bookingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pickupDate: nextDate }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.booking) throw new Error(data?.error || "Hiba");
+      setBooking(data.booking);
+      setPickupDateDraft(data.booking.pickupDate || "");
+      pushToast("success", "Dátum módosítva", "Az utazás dátuma frissítve.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : undefined;
+      pushToast("error", "Dátum mentése sikertelen", msg);
+      setPickupDateDraft(booking.pickupDate || "");
+    } finally {
+      setPickupDateSaving(false);
     }
   }
 
@@ -1307,6 +1335,37 @@ export default function BookingDetailClient({
                   )}
                 </div>
               </div>
+              <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border-2 border-slate-200 bg-slate-50/70 px-5 py-3.5 shadow-sm">
+                <div className="flex items-center gap-3 min-w-0">
+                  <CalendarDays className="w-6 h-6 shrink-0 text-slate-600" />
+                  <span className="text-[11px] font-black tracking-[0.2em] uppercase text-slate-600 whitespace-nowrap">
+                    Felvételi dátum
+                  </span>
+                </div>
+                <input
+                  type="date"
+                  value={pickupDateDraft}
+                  onChange={(e) => setPickupDateDraft(e.target.value)}
+                  required
+                  aria-label="Diszpécseri felvételi dátum"
+                  className="w-full sm:w-auto rounded-xl border border-slate-300 bg-white px-4 py-2 text-base font-black text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                />
+                <div className="sm:ml-auto flex items-center gap-2">
+                  {pickupDateSaving ? (
+                    <span className="flex items-center gap-1.5 text-[10px] font-black tracking-[0.16em] uppercase text-slate-600">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Mentés...
+                    </span>
+                  ) : pickupDateDraft.trim() && pickupDateDraft !== (booking.pickupDate || "") ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleSavePickupDate(pickupDateDraft)}
+                      className="rounded-xl bg-slate-800 px-4 py-2.5 text-[10px] font-black tracking-[0.16em] uppercase text-white transition hover:bg-slate-900"
+                    >
+                      Mentés most
+                    </button>
+                  ) : null}
+                </div>
+              </div>
             </div>
           </div>
         </motion.div>
@@ -1381,13 +1440,15 @@ export default function BookingDetailClient({
                   <div className="text-[10px] font-black tracking-wider uppercase text-slate-400 mb-1.5">
                     Transfer
                   </div>
-                  <div className="font-bold text-slate-900 text-[14px]">
-                    {partnerMeta ? (
+                  <div className="font-bold text-slate-900 text-[14px] flex flex-wrap items-center gap-1.5">
+                    {partnerMeta && (
                       <span className="inline-flex items-center gap-1.5">
                         <BadgeCheck className={`w-4 h-4 ${partnerTone ? partnerTone.text : "text-blue-600"}`} />
                         {partnerMeta.short} Partner
                       </span>
-                    ) : booking.transferType === "executive" ? (
+                    )}
+                    {partnerMeta && <span className="text-slate-300">·</span>}
+                    {booking.transferType === "executive" ? (
                       <span className="inline-flex items-center gap-1.5">
                         <BadgeCheck className="w-4 h-4 text-amber-500" />
                         Executive
@@ -1397,14 +1458,45 @@ export default function BookingDetailClient({
                     )}
                   </div>
                 </div>
-                <div>
+                <div className="relative">
                   <div className="text-[10px] font-black tracking-wider uppercase text-slate-400 mb-1.5">
                     Fizetés
                   </div>
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200 text-[11px] font-black text-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentDropdownOpen((v) => !v)}
+                    disabled={paymentSaving}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200 text-[11px] font-black text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition disabled:opacity-60"
+                  >
                     <WalletCards className="w-3.5 h-3.5 text-slate-500" />
-                    {booking.paymentMethod === "card" ? "Bankkártya" : "Banki átutalás"}
-                  </div>
+                    {paymentSaving ? "Mentés…" : paymentLabel(booking.paymentMethod)}
+                    <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${paymentDropdownOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  <AnimatePresence>
+                    {paymentDropdownOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        className="absolute left-0 top-full mt-1.5 z-20 w-44 rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden"
+                      >
+                        {PAYMENT_OPTIONS.map((opt) => {
+                          const active = opt.value === booking.paymentMethod;
+                          return (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => handleSavePaymentMethod(opt.value)}
+                              className={`w-full text-left px-3 py-2 text-[12px] font-bold flex items-center justify-between hover:bg-slate-50 transition ${active ? "text-blue-600 bg-blue-50/60" : "text-slate-700"}`}
+                            >
+                              {opt.label}
+                              {active && <Check className="w-3.5 h-3.5" />}
+                            </button>
+                          );
+                        })}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
             </div>

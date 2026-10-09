@@ -304,6 +304,7 @@ export default function NewBookingClient() {
                 <select className={inputClass} value={form.paymentMethod} onChange={(e) => update("paymentMethod", e.target.value)}>
                   <option value="bank">Átutalás</option>
                   <option value="card">Bankkártya</option>
+                  <option value="cash">Készpénz</option>
                 </select>
               </div>
               <div className="sm:col-span-2 lg:col-span-3">

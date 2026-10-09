@@ -141,6 +141,7 @@ export async function PATCH(
       status: "Foglalás állapota",
       price: "Ár",
       companyName: "Cégnév",
+      paymentMethod: "Fizetési mód",
     };
     const changes = Object.keys(patch)
       .filter((field) => {

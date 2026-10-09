@@ -2,9 +2,14 @@ import { ObjectId, Filter } from "mongodb";
 import { getMongoDb } from "./mongodb";
 import type { Currency } from "./currency";
 
-export type BookingStatus = 'pending' | 'modified' | 'confirmed' | 'in-progress' | 'completed' | 'cancelled';
+// BookingStatus display logic lives in ./booking-status (no server-only
+// deps) so it stays importable from client components. Re-exported here
+// (type-only, so it's erased at build time and doesn't pull mongodb into
+// client bundles) for files that already import BookingStatus from here.
+export type { BookingStatus } from "./booking-status";
+import type { BookingStatus } from "./booking-status";
 export type BookingCategory = 'airport' | 'city' | 'long-distance' | 'vip' | 'partner';
-export type PaymentMethod = 'card' | 'bank';
+export type PaymentMethod = 'card' | 'bank' | 'cash';
 export type TransferType = 'standard' | 'executive';
 
 export interface BookingAuditEntry {

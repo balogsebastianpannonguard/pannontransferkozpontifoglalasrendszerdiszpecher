@@ -10,7 +10,7 @@ export function buildCustomerConfirmationEmail(params: {
   travelers: number;
   luggage: number;
   transferType: 'standard' | 'executive';
-  paymentMethod: 'card' | 'bank';
+  paymentMethod: 'card' | 'bank' | 'cash';
   comment?: string;
   price?: number;
 }): string {
@@ -33,7 +33,7 @@ export function buildCustomerConfirmationEmail(params: {
   const transferTypeBg = transferType === 'executive' ? '#FAF6EE' : '#F0ECE6';
   const transferTypeBorder = transferType === 'executive' ? '#E6D9B8' : '#E8E3DA';
   const transferTypeColor = transferType === 'executive' ? '#C9A962' : '#4A4A4A';
-  const paymentMethodLabel = paymentMethod === 'card' ? 'Bankkártya' : 'Banki átutalás';
+  const paymentMethodLabel = paymentMethod === 'card' ? 'Bankkártya' : paymentMethod === 'cash' ? 'Készpénz' : 'Banki átutalás';
   const priceDisplay = price !== undefined ? `${price.toLocaleString('hu-HU')} Ft` : 'Egyeztetés alatt';
 
   return `<!DOCTYPE html>
@@ -354,7 +354,7 @@ export function buildTravelerFinalizedEmail(params: {
   travelers: number;
   luggage: number;
   transferType: "standard" | "executive";
-  paymentMethod: "card" | "bank";
+  paymentMethod: "card" | "bank" | "cash";
   companyName?: string;
   assignedDriverName?: string;
   assignedDriverPhone?: string;
@@ -391,7 +391,7 @@ export function buildTravelerFinalizedEmail(params: {
 
   const en = language === "en";
   const transferTypeLabel = transferType === "executive" ? "EXECUTIVE" : "STANDARD";
-  const paymentMethodLabel = paymentMethod === "card" ? "Bankkártya" : "Banki átutalás";
+  const paymentMethodLabel = paymentMethod === "card" ? "Bankkártya" : paymentMethod === "cash" ? "Készpénz" : "Banki átutalás";
   const priceDisplay =
     typeof price === "number" && price > 0 ? formatPrice(price, priceCurrency) : "Egyeztetés alatt";
   const driverNameDisplay = assignedDriverName || "Kijelölés alatt";
@@ -626,7 +626,7 @@ Kérdés esetén válaszoljon erre az e-mailre, vagy keressen minket a megadott 
 </html>`;
   }
 
-  const paymentMethodLabelEn = paymentMethod === "card" ? "Bank card" : "Bank transfer";
+  const paymentMethodLabelEn = paymentMethod === "card" ? "Bank card" : paymentMethod === "cash" ? "Cash" : "Bank transfer";
   const priceDisplayEn =
     typeof price === "number" && price > 0 ? formatPrice(price, priceCurrency) : "To be confirmed";
   const driverNameDisplayEn = assignedDriverName || "To be assigned";

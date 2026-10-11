@@ -285,27 +285,6 @@ function statusColor(status: BookingStatus) {
   return { dot: d.dot, chip: d.chip, bar: `bg-gradient-to-r ${d.gradient}`, label: d.label };
 }
 
-function categoryGradient(
-  cat: BookingCategory,
-  isNewOrModified: boolean = false,
-  partnerMeta?: PartnerMeta | null
-) {
-  if (partnerMeta) return partnerMeta.gradient;
-  if (isNewOrModified) return "from-blue-500 to-indigo-600 shadow-blue-500/25";
-  switch (cat) {
-    case "airport":
-      return "from-sky-500 to-indigo-600 shadow-sky-500/25";
-    case "city":
-      return "from-violet-500 to-fuchsia-600 shadow-violet-500/25";
-    case "long-distance":
-      return "from-orange-500 to-rose-600 shadow-orange-500/25";
-    case "vip":
-      return "from-amber-400 to-amber-600 shadow-amber-500/30";
-    case "partner":
-      return "from-emerald-500 to-teal-600 shadow-emerald-500/25";
-  }
-}
-
 function categoryLabel(cat: BookingCategory, partnerMeta?: PartnerMeta | null) {
   if (partnerMeta) return partnerMeta.short;
   return {
@@ -322,12 +301,16 @@ function isUnconfiguredCompany(b: { partnerMeta?: PartnerMeta | null; companyNam
   return !b.partnerMeta && !!(b.companyName || "").trim();
 }
 
-function tileGradient(
-  b: { category: BookingCategory; partnerMeta?: PartnerMeta | null; companyName?: string },
-  isNewOrModified: boolean = false
-) {
-  if (isUnconfiguredCompany(b)) return "from-slate-400 to-slate-500 shadow-slate-400/25";
-  return categoryGradient(b.category, isNewOrModified, b.partnerMeta);
+/**
+ * A naptárban (hónap-rács, napi popover, kiválasztott nap panel) a csempék
+ * színe a foglalás STÁTUSZÁT követi - ugyanazt az 5 színt használva, mint a
+ * státusz-badge-ek máshol (lásd lib/booking-status.ts) -, nem a kategóriát/
+ * partnert. A kategória/partner szín és címke (categoryGradient/tileLabel)
+ * máshol (pl. a foglalás-részletezőn) változatlanul megmarad.
+ */
+function tileGradient(b: { status: BookingStatus }) {
+  const d = getStatusDisplay(b.status);
+  return `${d.gradient} ${d.shadow}`;
 }
 
 function tileLabel(b: { category: BookingCategory; partnerMeta?: PartnerMeta | null; companyName?: string }) {
@@ -1793,7 +1776,6 @@ export default function DispatcherDashboardClient({
                           {/* Bookings list */}
                           <div className="flex-1 space-y-1.5 overflow-hidden">
                             {bookings.slice(0, 4).map((b) => {
-                              const isNewOrMod = b.status === "pending" || b.status === "modified";
                               const isNewBadge = isNewBooking(b);
                               return (
                                 <div
@@ -1804,7 +1786,7 @@ export default function DispatcherDashboardClient({
                                     router.push(`/bookings/${b.id}`);
                                   }}
                                   title={b.advance && b.addedBy ? `${b.client} – Felvette: ${prettyActor(b.addedBy)}` : undefined}
-                                  className={`relative pl-2 pr-1.5 py-1 rounded-lg text-[10px] leading-tight font-semibold bg-gradient-to-r ${tileGradient(b, isNewOrMod)} text-white shadow-sm cursor-pointer transition-[translate,scale,filter,box-shadow] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:brightness-110 hover:-translate-y-px hover:shadow-md active:translate-y-0 active:scale-[0.97]`}
+                                  className={`relative pl-2 pr-1.5 py-1 rounded-lg text-[10px] leading-tight font-semibold bg-gradient-to-r ${tileGradient(b)} text-white shadow-sm cursor-pointer transition-[translate,scale,filter,box-shadow] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:brightness-110 hover:-translate-y-px hover:shadow-md active:translate-y-0 active:scale-[0.97]`}
                                 >
                                   {isNewBadge && (
                                     <span className="absolute -top-0.5 -left-0.5 px-1 py-[1px] rounded bg-white text-blue-700 text-[7px] font-black shadow-sm border border-blue-200">
@@ -1862,7 +1844,6 @@ export default function DispatcherDashboardClient({
                                     .sort((a, b) => a.time.localeCompare(b.time))
                                     .map((b) => {
                                       const s = statusColor(b.status);
-                                      const isNewOrMod = b.status === "pending" || b.status === "modified";
                                       const isNewBadge = isNewBooking(b);
                                       return (
                                         <div
@@ -1874,9 +1855,9 @@ export default function DispatcherDashboardClient({
                                           }}
                                           className="group relative flex items-center gap-3 rounded-xl border border-slate-200/80 bg-white p-3 cursor-pointer hover:shadow-md hover:border-slate-300 hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.99] transition-all duration-200 ease-out overflow-hidden"
                                         >
-                                          <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${tileGradient(b, isNewOrMod)}`} />
+                                          <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${tileGradient(b)}`} />
 
-                                          <div className={`shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${tileGradient(b, isNewOrMod)} shadow-md flex flex-col items-center justify-center text-white relative`}>
+                                          <div className={`shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${tileGradient(b)} shadow-md flex flex-col items-center justify-center text-white relative`}>
                                             {isNewBadge && (
                                               <span className="absolute -top-1 -right-1 px-1 py-[1px] rounded bg-white text-blue-700 text-[7px] font-black shadow-sm border border-blue-200">
                                                 ÚJ
@@ -1893,7 +1874,7 @@ export default function DispatcherDashboardClient({
                                                 <span className={`w-1 h-1 rounded-full ${s.dot} ${b.status === "in-progress" ? "animate-pulse" : ""}`} />
                                                 {s.label}
                                               </span>
-                                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md bg-gradient-to-r ${tileGradient(b, isNewOrMod)} text-white text-[8.5px] font-black tracking-wider uppercase shadow-sm`}>
+                                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md bg-gradient-to-r ${tileGradient(b)} text-white text-[8.5px] font-black tracking-wider uppercase shadow-sm`}>
                                                 {tileLabel(b)}
                                               </span>
                                               <AddedByChip b={b} />
@@ -2114,7 +2095,6 @@ export default function DispatcherDashboardClient({
                           {/* Bookings list */}
                           <div className="space-y-1.5 overflow-hidden">
                               {bookings.slice(0, 3).map((b) => {
-                              const isNewOrMod = b.status === "pending" || b.status === "modified";
                               const isNewBadge = isNewBooking(b);
                               return (
                                 <div
@@ -2125,7 +2105,7 @@ export default function DispatcherDashboardClient({
                                     router.push(`/bookings/${b.id}`);
                                   }}
                                   title={b.advance && b.addedBy ? `${b.client} – Felvette: ${prettyActor(b.addedBy)}` : undefined}
-                                  className={`relative pl-2 pr-1.5 py-1 rounded-lg text-[10px] leading-tight font-semibold bg-gradient-to-r ${tileGradient(b, isNewOrMod)} text-white shadow-sm cursor-pointer transition-[translate,scale,filter,box-shadow] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:brightness-110 hover:-translate-y-px hover:shadow-md active:translate-y-0 active:scale-[0.97]`}
+                                  className={`relative pl-2 pr-1.5 py-1 rounded-lg text-[10px] leading-tight font-semibold bg-gradient-to-r ${tileGradient(b)} text-white shadow-sm cursor-pointer transition-[translate,scale,filter,box-shadow] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:brightness-110 hover:-translate-y-px hover:shadow-md active:translate-y-0 active:scale-[0.97]`}
                                 >
                                   {isNewBadge && (
                                     <span className="absolute -top-0.5 -left-0.5 px-1 py-[1px] rounded bg-white text-blue-700 text-[7px] font-black shadow-sm border border-blue-200">
@@ -2183,7 +2163,6 @@ export default function DispatcherDashboardClient({
                                     .sort((a, b) => a.time.localeCompare(b.time))
                                     .map((b) => {
                                       const s = statusColor(b.status);
-                                      const isNewOrMod = b.status === "pending" || b.status === "modified";
                                       const isNewBadge = isNewBooking(b);
                                       return (
                                         <div
@@ -2195,9 +2174,9 @@ export default function DispatcherDashboardClient({
                                           }}
                                           className="group relative flex items-center gap-3 rounded-xl border border-slate-200/80 bg-white p-3 cursor-pointer hover:shadow-md hover:border-slate-300 hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.99] transition-all duration-200 ease-out overflow-hidden"
                                         >
-                                          <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${tileGradient(b, isNewOrMod)}`} />
+                                          <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${tileGradient(b)}`} />
 
-                                          <div className={`shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${tileGradient(b, isNewOrMod)} shadow-md flex flex-col items-center justify-center text-white relative`}>
+                                          <div className={`shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${tileGradient(b)} shadow-md flex flex-col items-center justify-center text-white relative`}>
                                             {isNewBadge && (
                                               <span className="absolute -top-1 -right-1 px-1 py-[1px] rounded bg-white text-blue-700 text-[7px] font-black shadow-sm border border-blue-200">
                                                 ÚJ
@@ -2214,7 +2193,7 @@ export default function DispatcherDashboardClient({
                                                 <span className={`w-1 h-1 rounded-full ${s.dot} ${b.status === "in-progress" ? "animate-pulse" : ""}`} />
                                                 {s.label}
                                               </span>
-                                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md bg-gradient-to-r ${tileGradient(b, isNewOrMod)} text-white text-[8.5px] font-black tracking-wider uppercase shadow-sm`}>
+                                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md bg-gradient-to-r ${tileGradient(b)} text-white text-[8.5px] font-black tracking-wider uppercase shadow-sm`}>
                                                 {tileLabel(b)}
                                               </span>
                                               <AddedByChip b={b} />
@@ -2320,16 +2299,15 @@ export default function DispatcherDashboardClient({
                         <ul className="p-4 space-y-3">
                           {selectedBookings.map((b) => {
                             const s = statusColor(b.status);
-                            const isNewOrMod = b.status === "pending" || b.status === "modified";
                             const isNewBadge = isNewBooking(b);
                             return (
                               <li
                                 key={b.id}
                                 className="group relative rounded-2xl border border-slate-200 bg-white hover:shadow-lg hover:border-slate-300 transition-all p-4 overflow-hidden"
                               >
-                                <div className={`absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b ${tileGradient(b, isNewOrMod)}`} />
+                                <div className={`absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b ${tileGradient(b)}`} />
                                 <div className="flex items-start gap-4 pl-2">
-                                  <div className={`shrink-0 w-16 h-16 rounded-2xl bg-gradient-to-br ${tileGradient(b, isNewOrMod)} shadow-lg flex flex-col items-center justify-center text-white relative`}>
+                                  <div className={`shrink-0 w-16 h-16 rounded-2xl bg-gradient-to-br ${tileGradient(b)} shadow-lg flex flex-col items-center justify-center text-white relative`}>
                                     {isNewBadge && (
                                       <span className="absolute -top-1 -right-1 px-1 py-[1px] rounded bg-white text-blue-700 text-[8px] font-black shadow-sm border border-blue-200">
                                         ÚJ
@@ -2345,7 +2323,7 @@ export default function DispatcherDashboardClient({
                                         <span className={`w-1.5 h-1.5 rounded-full ${s.dot} ${b.status === "in-progress" ? "animate-pulse" : ""}`} />
                                         {s.label}
                                       </span>
-                                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md bg-gradient-to-r ${tileGradient(b, isNewOrMod)} text-white text-[9.5px] font-black tracking-wider uppercase shadow-sm`}>
+                                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md bg-gradient-to-r ${tileGradient(b)} text-white text-[9.5px] font-black tracking-wider uppercase shadow-sm`}>
                                         {tileLabel(b)}
                                       </span>
                                       <AddedByChip b={b} />

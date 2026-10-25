@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { ObjectId } from "mongodb";
 import { getMongoDb } from "./mongodb";
 import { syncDriversFromAttendance, excludeAttendanceDriver, ATTENDANCE_SOURCE } from "./attendance-sync";
@@ -31,7 +32,12 @@ export async function getDriversCollection() {
 export async function getDrivers(): Promise<Driver[]> {
   // Jelenléti ív sofőrjeinek behúzása (percenként legfeljebb egyszer, hibánál csendben kihagyja)
   // A szinkron a háttérben fut (percenként legfeljebb egyszer), a lekérést nem lassítja
-  void syncDriversFromAttendance().catch(() => {});
+  const runSync = () => syncDriversFromAttendance().catch(() => {});
+  try {
+    after(runSync); // a válasz után fut le, a szerver biztosan megvárja
+  } catch {
+    void runSync(); // kérésen kívüli hívásnál (pl. szkript) simán a háttérben
+  }
   const col = await getDriversCollection();
   // Csak a sofőröket kérjük le
   const docs = await col.find({ role: "driver" }).sort({ name: 1 }).toArray();

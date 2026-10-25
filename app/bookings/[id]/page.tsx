@@ -11,8 +11,19 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 
 export const dynamic = "force-dynamic";
+
+function withCurrentViewer(booking: Booking, user: DispatcherUser): Booking {
+  const now = Date.now();
+  const otherViewers = (booking.viewedBy || []).filter((v) => v.email !== user.email);
+  return {
+    ...booking,
+    viewedBy: [...otherViewers, { email: user.email, name: user.name, viewedAt: now }],
+    notificationsSeenAt: now,
+  };
+}
 
 export default async function BookingDetailPage({
   params,
@@ -26,10 +37,11 @@ export default async function BookingDetailPage({
 
   const { id } = await params;
 
-  const [booking, drivers, vehicles] = await Promise.all([
+  const [booking, drivers, vehicles, auditLogs] = await Promise.all([
     getBookingById(id),
     getDrivers(),
     listVehicles(),
+    listAuditLogsForTarget("booking", id, 20),
   ]);
 
   if (!booking) {
@@ -74,16 +86,14 @@ export default async function BookingDetailPage({
     );
   }
 
-  const auditLogs = await listAuditLogsForTarget("booking", id, 20);
-
-  // Megnyitáskor feljegyezzük, hogy ez a diszpécser látta a foglalást - ettől
-  // tűnnek el az erről szóló értesítések mindenkinél, és ez jelenik meg a
-  // "Megtekintették" listában a foglalás részletező oldalán.
-  const viewedBooking = await markBookingViewed(id, { email: user.email, name: user.name });
+  // A megtekintést a válasz elküldése után rögzítjük (nem lassítja a megnyitást), a kijelzéshez
+  // pedig azonnal a saját megtekintésünkkel együtt számolt listát adjuk át.
+  after(() => markBookingViewed(id, { email: user.email, name: user.name }).catch(() => {}));
+  const viewedBooking = withCurrentViewer(booking, user);
 
   return (
     <BookingDetailClient
-      booking={(viewedBooking || booking) as Booking}
+      booking={viewedBooking}
       drivers={drivers as Driver[]}
       vehicles={vehicles as Vehicle[]}
       auditLogs={auditLogs as AuditLog[]}

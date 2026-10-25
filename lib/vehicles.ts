@@ -1,3 +1,4 @@
+import { once } from "./once";
 import { ObjectId } from "mongodb";
 import { getMongoDb } from "./mongodb";
 
@@ -36,14 +37,18 @@ export async function getVehicleCollection() {
   return db.collection<Vehicle>(COLLECTION_NAME);
 }
 
-export async function initVehicleIndexes() {
-  const col = await getVehicleCollection();
-  try {
-    await col.createIndex({ plates: 1 }, { unique: true, sparse: true });
-    await col.createIndex({ status: 1 });
-    await col.createIndex({ condition: 1 });
-    await col.createIndex({ type: 1 });
-  } catch {}
+export function initVehicleIndexes() {
+  return once("vehicle-indexes", async () => {
+    const col = await getVehicleCollection();
+    try {
+      await Promise.all([
+        col.createIndex({ plates: 1 }, { unique: true, sparse: true }),
+        col.createIndex({ status: 1 }),
+        col.createIndex({ condition: 1 }),
+        col.createIndex({ type: 1 }),
+      ]);
+    } catch {}
+  });
 }
 
 export async function listVehicles(): Promise<Vehicle[]> {

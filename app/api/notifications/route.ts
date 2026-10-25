@@ -10,7 +10,17 @@ function generateRandomToken(length: number = 64): string {
   return crypto.randomBytes(Math.ceil(length / 2)).toString("hex").slice(0, length);
 }
 
+const dispatcherCache = globalThis as unknown as { __dispatcherEmails?: { at: number; value: string[] } };
+
 async function getDispatcherEmails(): Promise<string[]> {
+  const cached = dispatcherCache.__dispatcherEmails;
+  if (cached && Date.now() - cached.at < 60_000) return cached.value;
+  const value = await loadDispatcherEmails();
+  dispatcherCache.__dispatcherEmails = { at: Date.now(), value };
+  return value;
+}
+
+async function loadDispatcherEmails(): Promise<string[]> {
   try {
     const db = await getMongoDb();
     const staffUsers = await db
@@ -62,13 +72,10 @@ export async function GET(request: Request) {
       : Date.now() - 60_000;
     const includeHistory = searchParams.get("history") === "1";
 
-    const pendingBookingCount = await col.countDocuments({ status: "pending" });
-
-    const recentDocs = await col
-      .find()
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .toArray();
+    const [pendingBookingCount, recentDocs] = await Promise.all([
+      col.countDocuments({ status: "pending" }),
+      col.find({}, { projection: { auditTrail: 0 } }).sort({ createdAt: -1 }).limit(5).toArray(),
+    ]);
 
     const recentBookings = recentDocs.map((doc: any) => ({
       _id: doc._id.toString(),
@@ -85,7 +92,7 @@ export async function GET(request: Request) {
       createdAt: doc.createdAt || Date.now(),
     }));
 
-    const eventDocs = await col
+    const eventDocsPromise = col
       .find(includeHistory
         ? { auditTrail: { $exists: true, $ne: [] } }
         : {
@@ -98,7 +105,7 @@ export async function GET(request: Request) {
       .limit(includeHistory ? 120 : 50)
       .toArray();
 
-    const dispatchers = await getDispatcherEmails();
+    const [eventDocs, dispatchers] = await Promise.all([eventDocsPromise, getDispatcherEmails()]);
     const dispatcherActors = new Set(
       dispatchers.map((email) => email.toLowerCase())
     );

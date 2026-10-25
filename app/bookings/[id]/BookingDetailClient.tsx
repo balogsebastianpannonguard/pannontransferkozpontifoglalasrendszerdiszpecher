@@ -720,6 +720,7 @@ export default function BookingDetailClient({
 
   useEffect(() => {
     const interval = setInterval(async () => {
+      if (document.hidden) return;
       try {
         setRefreshing(true);
         const [bRes, aRes] = await Promise.all([

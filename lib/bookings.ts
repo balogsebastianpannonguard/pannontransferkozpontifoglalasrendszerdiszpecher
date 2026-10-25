@@ -1,6 +1,7 @@
 import { ObjectId, Filter } from "mongodb";
 import { getMongoDb } from "./mongodb";
 import type { Currency } from "./currency";
+import { once } from "./once";
 
 // BookingStatus display logic lives in ./booking-status (no server-only
 // deps) so it stays importable from client components. Re-exported here
@@ -112,15 +113,20 @@ export async function getBookingsCollection() {
   return db.collection<Booking>(COLLECTION_NAME);
 }
 
-export async function initBookingIndexes() {
-  const col = await getBookingsCollection();
-  try {
-    await col.createIndex({ bookingCode: 1 }, { unique: true });
-    await col.createIndex({ userEmail: 1 });
-    await col.createIndex({ status: 1 });
-    await col.createIndex({ pickupDate: 1, pickupTime: 1 });
-    await col.createIndex({ createdAt: 1 });
-  } catch {}
+export function initBookingIndexes() {
+  return once("booking-indexes", async () => {
+    const col = await getBookingsCollection();
+    try {
+      await Promise.all([
+        col.createIndex({ bookingCode: 1 }, { unique: true }),
+        col.createIndex({ userEmail: 1 }),
+        col.createIndex({ status: 1 }),
+        col.createIndex({ pickupDate: 1, pickupTime: 1 }),
+        col.createIndex({ createdAt: 1 }),
+        col.createIndex({ assignedDriverId: 1 }),
+      ]);
+    } catch {}
+  });
 }
 
 export async function listAllBookings(filter?: { status?: BookingStatus; fromDate?: string; toDate?: string; priceApprovalStatus?: string }): Promise<Booking[]> {
@@ -139,7 +145,8 @@ export async function listAllBookings(filter?: { status?: BookingStatus; fromDat
   if (filter?.priceApprovalStatus) {
     query.priceApprovalStatus = filter.priceApprovalStatus;
   }
-  const docs = await col.find(query).sort({ createdAt: -1 }).toArray();
+  // A listázáshoz az auditTrail (esemény-napló) nem kell, de akár több száz foglalásnál is nagy; a részletező oldal külön kéri le.
+  const docs = await col.find(query, { projection: { auditTrail: 0 } }).sort({ createdAt: -1 }).toArray();
   return docs.map(convertId);
 }
 
@@ -174,28 +181,24 @@ export async function getBookingByCode(code: string): Promise<Booking | null> {
 export async function markBookingViewed(
   id: ObjectId | string,
   viewer: { email: string; name: string }
-): Promise<Booking | null> {
+): Promise<void> {
   const col = await getBookingsCollection();
   const oid: ObjectId = typeof id === "string" ? new ObjectId(id) : id;
-  const existing = await col.findOne({ _id: oid } as any);
-  if (!existing) return null;
-
   const now = Date.now();
-  const viewedBy: BookingViewer[] = Array.isArray(existing.viewedBy) ? existing.viewedBy.slice() : [];
-  const idx = viewedBy.findIndex((v) => v.email === viewer.email);
-  if (idx >= 0) {
-    viewedBy[idx] = { ...viewedBy[idx], name: viewer.name, viewedAt: now };
-  } else {
-    viewedBy.push({ email: viewer.email, name: viewer.name, viewedAt: now });
-  }
 
-  const res = await col.findOneAndUpdate(
-    { _id: oid } as any,
-    { $set: { viewedBy, notificationsSeenAt: now } },
-    { returnDocument: 'after' }
+  const updated = await col.updateOne(
+    { _id: oid, "viewedBy.email": viewer.email } as any,
+    { $set: { "viewedBy.$.viewedAt": now, "viewedBy.$.name": viewer.name, notificationsSeenAt: now } } as any
   );
-  if (!res) return null;
-  return convertId(res);
+  if (updated.matchedCount === 0) {
+    await col.updateOne(
+      { _id: oid } as any,
+      {
+        $push: { viewedBy: { email: viewer.email, name: viewer.name, viewedAt: now } },
+        $set: { notificationsSeenAt: now },
+      } as any
+    );
+  }
 }
 
 export async function assignBooking(

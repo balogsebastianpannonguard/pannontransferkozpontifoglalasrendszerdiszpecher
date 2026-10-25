@@ -1,3 +1,4 @@
+import { once } from "./once";
 import { Binary, ObjectId } from "mongodb";
 import { getMongoDb } from "./mongodb";
 
@@ -27,10 +28,14 @@ export async function getErrorReportsCollection() {
   return db.collection<ErrorReport>(COLLECTION_NAME);
 }
 
-export async function initErrorReportIndexes() {
-  const collection = await getErrorReportsCollection();
-  await collection.createIndex({ reporterEmail: 1, createdAt: -1 });
-  await collection.createIndex({ createdAt: -1 });
+export function initErrorReportIndexes() {
+  return once("error-report-indexes", async () => {
+    const collection = await getErrorReportsCollection();
+    await Promise.all([
+      collection.createIndex({ reporterEmail: 1, createdAt: -1 }),
+      collection.createIndex({ createdAt: -1 }),
+    ]);
+  });
 }
 
 export async function listErrorReportsForReporter(reporterEmail: string) {

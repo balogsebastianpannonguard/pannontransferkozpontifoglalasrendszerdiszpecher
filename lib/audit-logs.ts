@@ -1,3 +1,4 @@
+import { once } from "./once";
 import { ObjectId } from "mongodb";
 import { getMongoDb } from "./mongodb";
 
@@ -42,14 +43,18 @@ export async function getAuditLogsCollection() {
   return db.collection<AuditLog>(COLLECTION_NAME);
 }
 
-export async function initAuditIndexes() {
-  const col = await getAuditLogsCollection();
-  try {
-    await col.createIndex({ timestamp: -1 });
-    await col.createIndex({ action: 1 });
-    await col.createIndex({ actor: 1 });
-    await col.createIndex({ targetType: 1, targetId: 1 });
-  } catch {}
+export function initAuditIndexes() {
+  return once("audit-indexes", async () => {
+    const col = await getAuditLogsCollection();
+    try {
+      await Promise.all([
+        col.createIndex({ timestamp: -1 }),
+        col.createIndex({ action: 1 }),
+        col.createIndex({ actor: 1 }),
+        col.createIndex({ targetType: 1, targetId: 1, timestamp: -1 }),
+      ]);
+    } catch {}
+  });
 }
 
 export async function createAuditLog(data: Omit<AuditLog, "_id">): Promise<AuditLog> {

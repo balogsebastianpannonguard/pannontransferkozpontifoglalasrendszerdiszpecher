@@ -1,3 +1,4 @@
+import { once } from "./once";
 import { getCollection } from "./db";
 import type { ObjectId } from "mongodb";
 
@@ -133,13 +134,15 @@ export async function getPricingCollection() {
   return getCollection<PartnerPricing>(COLLECTION_NAME);
 }
 
-export async function initPricingIndexes() {
-  const collection = await getPricingCollection();
-  try {
-    await collection.createIndex({ partnerKey: 1 }, { unique: true });
-  } catch {
-    // ignore
-  }
+export function initPricingIndexes() {
+  return once("pricing-indexes", async () => {
+    const collection = await getPricingCollection();
+    try {
+      await collection.createIndex({ partnerKey: 1 }, { unique: true });
+    } catch {
+      // ignore
+    }
+  });
 }
 
 export async function getAllPartnerPricing(): Promise<PartnerPricing[]> {

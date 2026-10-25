@@ -719,10 +719,18 @@ export default function DispatcherDashboardClient({
     } catch {}
   }, []);
 
+  // Másodpercenkénti újrarajzolás csak akkor kell, ha látható értesítés-toast fut (folyamatsáv);
+  // egyébként percenként elég frissíteni ("ÚJ" jelzés), így a naptár nem rajzolódik újra feleslegesen.
+  const hasToasts = notificationToasts.length > 0;
   useEffect(() => {
-    const t = setInterval(() => setRenderNow(Date.now()), 1_000);
-    return () => clearInterval(t);
-  }, []);
+    const tick = () => setRenderNow(Date.now());
+    const kick = setTimeout(tick, 0);
+    const t = setInterval(tick, hasToasts ? 1_000 : 60_000);
+    return () => {
+      clearTimeout(kick);
+      clearInterval(t);
+    };
+  }, [hasToasts]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {

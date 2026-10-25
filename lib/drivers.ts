@@ -30,7 +30,8 @@ export async function getDriversCollection() {
 
 export async function getDrivers(): Promise<Driver[]> {
   // Jelenléti ív sofőrjeinek behúzása (percenként legfeljebb egyszer, hibánál csendben kihagyja)
-  await syncDriversFromAttendance();
+  // A szinkron a háttérben fut (percenként legfeljebb egyszer), a lekérést nem lassítja
+  void syncDriversFromAttendance().catch(() => {});
   const col = await getDriversCollection();
   // Csak a sofőröket kérjük le
   const docs = await col.find({ role: "driver" }).sort({ name: 1 }).toArray();

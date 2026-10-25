@@ -1151,8 +1151,8 @@ export default function BookingDetailClient({
     }
     const ok = window.confirm(
       withDriver
-        ? "Biztosan véglegesíted a foglalást és kiküldöd az értesítőt a sofőrnek és az utasnak is?"
-        : "Biztosan véglegesíted a foglalást? (Az utas kap értesítést)"
+        ? "Biztosan kiküldöd a fuvart a sofőrnek? (Csak a sofőr kap értesítést, az utas nem.)"
+        : "Biztosan véglegesíted a foglalást? (Csak az utas kap értesítést, a sofőr nem.)"
     );
     if (!ok) return;
 
@@ -1171,7 +1171,7 @@ export default function BookingDetailClient({
       
       setBooking(data.booking);
       setStatusValue(data.booking.status);
-      pushToast("success", "Sikeres véglegesítés", withDriver ? "Értesítések kiküldve." : "Foglalás megerősítve.");
+      pushToast("success", withDriver ? "Kiküldve a sofőrnek" : "Sikeres véglegesítés", withDriver ? "A sofőr megkapta a fuvart." : "Az utas megkapta a visszaigazolást.");
       if (data?.warning) {
         pushToast("info", "E-mail figyelmeztetés", data.warning);
       }
@@ -1200,7 +1200,7 @@ export default function BookingDetailClient({
       </div>
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20">
-        {statusValue === 'modified' && (
+        {statusValue === 'modified' && booking.auditTrail?.[booking.auditTrail.length - 1]?.action === 'partner_modified' && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}

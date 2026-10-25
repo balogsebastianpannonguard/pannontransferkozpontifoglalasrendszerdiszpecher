@@ -44,7 +44,14 @@ export async function POST(
       return NextResponse.json({ error: "Nincs sofőr hozzárendelve" }, { status: 400 });
     }
 
-    const newStatus = "confirmed";
+    // Kiküldés sofőrnek → "Módosított" (sárga), de ha az utas már értesítve van ("Értesítve", kék)
+    // vagy az út lezárult, a státusz nem lép vissza. Véglegesítés (utasnak) → "Értesítve" (kék).
+    const newStatus =
+      withDriver && ["confirmed", "in-progress", "completed", "cancelled"].includes(booking.status)
+        ? booking.status
+        : withDriver
+          ? "modified"
+          : "confirmed";
     const updateData: any = { status: newStatus };
 
     if (withDriver) {
@@ -53,7 +60,7 @@ export async function POST(
     }
 
     const actor = user.name || user.email;
-    await updateBooking(id, updateData, actor, withDriver ? "Véglegesítve és kiküldve a sofőrnek" : "Véglegesítve");
+    await updateBooking(id, updateData, actor, withDriver ? "Kiküldve a sofőrnek" : "Véglegesítve (utas értesítve)");
 
     const db = await getMongoDb();
     const assignedDriver =
@@ -96,7 +103,8 @@ export async function POST(
       }
     }
 
-    if (booking.travelerEmail) {
+    // A "Kiküldés Sofőrnek" csak a sofőrt értesíti, a "Véglegesítés" csak az utast (foglalót).
+    if (!withDriver && booking.travelerEmail) {
       const travelerEmailHtml = buildTravelerFinalizedEmail({
         bookingCode: booking.bookingCode,
         travelerName: booking.travelerName,
@@ -145,7 +153,7 @@ export async function POST(
       details: {
         from: booking.status,
         to: newStatus,
-        message: withDriver ? "Véglegesítve és kiküldve a sofőrnek." : "Véglegesítve (utas értesítve).",
+        message: withDriver ? "Kiküldve a sofőrnek (az utas nem kapott értesítést)." : "Véglegesítve (utas értesítve).",
       },
     });
 

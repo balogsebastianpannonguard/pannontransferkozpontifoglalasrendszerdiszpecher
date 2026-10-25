@@ -55,7 +55,8 @@ export async function POST(
       const bookings = await getBookingsCollection();
       const activeAssignments = await bookings.find({
         _id: { $ne: new ObjectId(id) },
-        status: { $in: ["confirmed", "in-progress"] },
+        // Hozzárendelés önmagában nem változtat státuszt, ezért minden nem lezárt, kiosztott út foglalja az erőforrást
+        status: { $nin: ["completed", "cancelled"] },
         $or: [
           { assignedDriverId: body.driverId },
           { assignedVehicleId: body.vehicleId },
@@ -173,13 +174,6 @@ export async function POST(
       );
     }
 
-    const updated = await updateBookingStatus(
-      id,
-      "confirmed",
-      user.email,
-      "Automatikus státuszváltoztatás hozzárendeléskor"
-    );
-
     await createAuditLog({
       timestamp: Date.now(),
       action: "booking.assigned",
@@ -190,8 +184,7 @@ export async function POST(
     });
 
     return NextResponse.json({
-      booking: updated || assigned,
-      confirmed: true,
+      booking: assigned,
     });
   } catch (err) {
     console.error("[booking assign error]", err);

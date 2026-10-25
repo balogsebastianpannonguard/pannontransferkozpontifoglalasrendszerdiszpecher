@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 
 import { ClientsView } from "./ClientsView";
+import GlobalSearch from "./GlobalSearch";
 import { DocumentationView } from "./DocumentationView";
 import { FeedbackView } from "./FeedbackView";
 import PriceApprovalWidget from "./PriceApprovalWidget";
@@ -1267,14 +1268,7 @@ export default function DispatcherDashboardClient({
 
           {/* Szűrés / quick search */}
           <div className="px-5 pt-5 pb-3">
-            <div className="relative group">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-600 transition" />
-              <input
-                type="text"
-                placeholder="Keresés (foglalás, ügyfél, jármű)…"
-                className="w-full pl-10 pr-3 py-2.5 rounded-xl bg-slate-50/80 border border-slate-200/80 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-100 transition"
-              />
-            </div>
+            <GlobalSearch bookings={realBookings} onRefresh={() => void fetchBookings()} />
           </div>
 
           {/* Nav */}

@@ -41,7 +41,7 @@ import {
 } from "lucide-react";
 
 import { ClientsView } from "./ClientsView";
-import GlobalSearch from "./GlobalSearch";
+import GlobalSearch, { type SearchPage } from "./GlobalSearch";
 import { DocumentationView } from "./DocumentationView";
 import { FeedbackView } from "./FeedbackView";
 import PriceApprovalWidget from "./PriceApprovalWidget";
@@ -1243,6 +1243,53 @@ export default function DispatcherDashboardClient({
 
   const unreadNotificationTotal = unreadBookingCount + unreadModificationCount;
 
+  function openNavItem(id: NavItemId) {
+    if (id === "vehicles") return router.push("/vehicles");
+    if (id === "drivers") return router.push("/drivers");
+    if (id === "bookings") return router.push("/bookings");
+    if (id === "advance-bookings") return router.push("/advance-bookings");
+    if (id === "notifications") return openNotificationsPage();
+    setActive(id);
+  }
+
+  const searchPages: SearchPage[] = useMemo(() => {
+    const extraKeywords: Partial<Record<NavItemId, string[]>> = {
+      dashboard: ["főoldal", "kezdőlap", "áttekintés", "home"],
+      calendar: ["naptár", "menetrend", "hónap", "naptar"],
+      bookings: ["foglalás", "lista", "rendelés", "utak"],
+      notifications: ["értesítés", "csengő", "esemény"],
+      feedback: ["visszajelzés", "vélemény", "értékelés", "feedback"],
+      "error-reports": ["hiba", "hibajegy", "bejelentés", "bug"],
+      vehicles: ["jármű", "flotta", "autó", "kocsi", "rendszám"],
+      drivers: ["sofőr", "munkatárs", "driver", "gépjárművezető"],
+      clients: ["ügyfél", "partner", "cég", "partnercég"],
+      "advance-bookings": ["előre", "felvett", "menetrend felvitele", "tömeges"],
+      documentation: ["dokumentáció", "súgó", "útmutató", "segítség", "help"],
+      settings: ["beállítás", "profil", "jelszó", "fiók"],
+    };
+    const items: SearchPage[] = navItems
+      .filter((n) => !n.locked)
+      .map((n) => ({
+        id: n.id,
+        label: n.label,
+        subtitle: n.subtitle,
+        keywords: extraKeywords[n.id],
+        icon: n.icon,
+        onSelect: () => openNavItem(n.id),
+      }));
+    items.unshift({
+      id: "new-booking",
+      label: "Új foglalás",
+      subtitle: "Foglalás rögzítése",
+      keywords: ["létrehozás", "új út", "felvétel", "hozzáadás"],
+      icon: <PlusCircle className="w-4 h-4" />,
+      onSelect: () => router.push("/bookings/new"),
+    });
+    return items;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navItems, router]);
+
+
   return (
     <div className="min-h-screen text-slate-900 antialiased _dbg-grad-bg bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40">
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
@@ -1268,7 +1315,7 @@ export default function DispatcherDashboardClient({
 
           {/* Szűrés / quick search */}
           <div className="px-5 pt-5 pb-3">
-            <GlobalSearch bookings={realBookings} onRefresh={() => void fetchBookings()} />
+            <GlobalSearch bookings={realBookings} pages={searchPages} onRefresh={() => void fetchBookings()} />
           </div>
 
           {/* Nav */}
@@ -1282,29 +1329,7 @@ export default function DispatcherDashboardClient({
                 return (
                   <li key={item.id}>
                     <button
-                      onClick={() => {
-                        if (item.id === "vehicles") {
-                          router.push("/vehicles");
-                          return;
-                        }
-                        if (item.id === "drivers") {
-                          router.push("/drivers");
-                          return;
-                        }
-                        if (item.id === "bookings") {
-                          router.push("/bookings");
-                          return;
-                        }
-                        if (item.id === "advance-bookings") {
-                          router.push("/advance-bookings");
-                          return;
-                        }
-                        if (item.id === "notifications") {
-                          openNotificationsPage();
-                          return;
-                        }
-                        setActive(item.id);
-                      }}
+                      onClick={() => openNavItem(item.id)}
                       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-[background-color,box-shadow,color,scale] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.98] group relative ${
                         isActive
                           ? "text-white"

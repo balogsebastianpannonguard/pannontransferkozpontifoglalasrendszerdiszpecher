@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { CalendarDays, CarFront, Loader2, Search, UserCircle2, X } from "lucide-react";
+import { ArrowUpRight, CalendarDays, CarFront, Loader2, Search, UserCircle2, X } from "lucide-react";
 import { getStatusDisplay, type BookingStatus } from "@/lib/booking-status";
 
 export interface SearchableBooking {
@@ -38,7 +38,17 @@ interface SearchableVehicle {
   type?: string;
 }
 
+export interface SearchPage {
+  id: string;
+  label: string;
+  subtitle: string;
+  keywords?: string[];
+  icon: React.ReactNode;
+  onSelect: () => void;
+}
+
 type ResultItem =
+  | { kind: "page"; key: string; score: number; page: SearchPage }
   | { kind: "booking"; key: string; score: number; booking: SearchableBooking }
   | { kind: "driver"; key: string; score: number; driver: SearchableDriver }
   | { kind: "vehicle"; key: string; score: number; vehicle: SearchableVehicle };
@@ -128,9 +138,11 @@ function formatDate(date: string) {
 
 export default function GlobalSearch({
   bookings,
+  pages = [],
   onRefresh,
 }: {
   bookings: SearchableBooking[];
+  pages?: SearchPage[];
   onRefresh?: () => void;
 }) {
   const router = useRouter();
@@ -170,6 +182,17 @@ export default function GlobalSearch({
   const results = useMemo<ResultItem[]>(() => {
     if (terms.length === 0) return [];
 
+    const pageHits: ResultItem[] = [];
+    for (const pg of pages) {
+      const score = scoreFields(terms, [
+        { text: pg.label, weight: 10 },
+        ...(pg.keywords || []).map((k) => ({ text: k, weight: 8 })),
+        { text: pg.subtitle, weight: 3 },
+      ]);
+      if (score > 0) pageHits.push({ kind: "page", key: `p-${pg.id}`, score, page: pg });
+    }
+    pageHits.sort((a, b) => b.score - a.score);
+
     const bookingHits: ResultItem[] = [];
     for (const b of bookings) {
       const score = scoreFields(terms, [
@@ -186,6 +209,7 @@ export default function GlobalSearch({
         { text: b.pickupDate, weight: 4 },
         { text: formatDate(b.pickupDate), weight: 4 },
         { text: b.comment || "", weight: 2 },
+        { text: getStatusDisplay(b.status).label, weight: 3 },
       ]);
       if (score > 0) bookingHits.push({ kind: "booking", key: `b-${b._id}`, score, booking: b });
     }
@@ -220,11 +244,12 @@ export default function GlobalSearch({
     vehicleHits.sort((a, b) => b.score - a.score);
 
     return [
+      ...pageHits.slice(0, 4),
       ...bookingHits.slice(0, MAX_PER_GROUP + 2),
       ...driverHits.slice(0, MAX_PER_GROUP),
       ...vehicleHits.slice(0, MAX_PER_GROUP),
     ];
-  }, [terms, bookings, drivers, vehicles]);
+  }, [terms, bookings, drivers, vehicles, pages]);
 
   const totalBookingHits = useMemo(() => {
     if (terms.length === 0) return 0;
@@ -278,7 +303,8 @@ export default function GlobalSearch({
     setOpen(false);
     setQuery("");
     (document.activeElement as HTMLElement | null)?.blur?.();
-    if (item.kind === "booking") router.push(`/bookings/${item.booking._id}`);
+    if (item.kind === "page") item.page.onSelect();
+    else if (item.kind === "booking") router.push(`/bookings/${item.booking._id}`);
     else if (item.kind === "driver") router.push("/drivers");
     else router.push("/vehicles");
   }
@@ -317,6 +343,7 @@ export default function GlobalSearch({
 
   const hasQuery = terms.length > 0;
   const groups: Array<{ kind: ResultItem["kind"]; label: string; icon: React.ReactNode }> = [
+    { kind: "page", label: "Oldalak és műveletek", icon: <ArrowUpRight className="w-3.5 h-3.5" /> },
     { kind: "booking", label: "Foglalások", icon: <CalendarDays className="w-3.5 h-3.5" /> },
     { kind: "driver", label: "Sofőrök", icon: <UserCircle2 className="w-3.5 h-3.5" /> },
     { kind: "vehicle", label: "Járművek", icon: <CarFront className="w-3.5 h-3.5" /> },
@@ -339,7 +366,7 @@ export default function GlobalSearch({
                 </div>
                 <div className="text-sm font-bold text-slate-700">Nincs találat</div>
                 <div className="text-xs text-slate-400 mt-1">
-                  Próbáld foglalási kóddal, névvel, telefonszámmal, járatszámmal, címmel vagy rendszámmal.
+                  Próbáld foglalási kóddal, névvel, telefonszámmal, járatszámmal, címmel, rendszámmal, vagy egy oldal nevével (pl. „járművek”).
                 </div>
               </div>
             ) : (
@@ -372,6 +399,15 @@ export default function GlobalSearch({
                             active ? "bg-blue-50 ring-1 ring-blue-200" : "hover:bg-slate-50"
                           }`}
                         >
+                          {r.kind === "page" && (
+                            <SimpleRow
+                              icon={r.page.icon}
+                              iconClass="bg-slate-900 text-white"
+                              title={r.page.label}
+                              subtitle={r.page.subtitle}
+                              terms={terms}
+                            />
+                          )}
                           {r.kind === "booking" && (
                             <BookingRow booking={r.booking} terms={terms} />
                           )}

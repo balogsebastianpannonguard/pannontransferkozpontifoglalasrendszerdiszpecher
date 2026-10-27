@@ -2440,20 +2440,20 @@ export default function DispatcherDashboardClient({
                       {deleteAllModal === "done" ? "Törlés kész" : "Visszafordíthatatlan művelet"}
                     </div>
                     <h3 className="font-serif text-[28px] font-bold tracking-tight text-slate-900">
-                      {deleteAllModal === "confirm1" && "Teljes foglalás törlése"}
+                      {deleteAllModal === "confirm1" && "Csak a foglalások törlése"}
                       {deleteAllModal === "confirm2" && "Utolsó megerősítés"}
                       {deleteAllModal === "deleting" && "Foglalások törlése folyamatban"}
                       {deleteAllModal === "done" && "Minden foglalás törölve"}
                     </h3>
                     <p className="text-sm text-slate-600 mt-1">
                       {deleteAllModal === "confirm1" &&
-                        "Ez minden foglalást eltávolít a rendszerből. A partnercégek foglalási oldalain és a diszpécseri nézetben is azonnal üres lesz a lista."}
+                        "Ez minden foglalást eltávolít a rendszerből: a partnercégek foglalási oldalain és a diszpécseri nézetben is azonnal üres lesz a lista. A diszpécserek, partnerek, sofőrök, járművek, árak és a napló érintetlenek maradnak."}
                       {deleteAllModal === "confirm2" &&
-                        "Biztonsági okból még egy megerősítést kérünk. Csak akkor menj tovább, ha tényleg tiszta lappal akarsz indulni."}
+                        "Biztonsági okból még egy megerősítést kérünk. Csak a foglalások törlődnek, a felhasználók és a beállítások megmaradnak."}
                       {deleteAllModal === "deleting" &&
                         "Dolgozom rajta. Ez pár másodperc lehet, közben ne zárd be ezt az ablakot."}
                       {deleteAllModal === "done" &&
-                        "A foglalási adatbázis kiürült. A dashboard és a partnerportálok is nulláról indulnak tovább."}
+                        "A foglalási adatbázis kiürült. A diszpécserek, partnerek és minden beállítás változatlan maradt."}
                     </p>
                   </div>
                   {deleteAllModal !== "deleting" && (
@@ -2976,7 +2976,7 @@ function SettingsView({
               <div className="text-[10px] font-black tracking-[0.2em] uppercase text-rose-600 mb-0.5">Veszélyes zóna</div>
               <h3 className="font-bold text-slate-900 text-[17px]">Rendszer visszaállítás</h3>
               <p className="text-sm text-slate-600 mt-1">
-                Ezek a műveletek <span className="font-black text-rose-600">visszafordíthatatlanok</span>. Csak akkor használd, ha teljesen tiszta lappal szeretnél indulni.
+                Ezek a műveletek <span className="font-black text-rose-600">visszafordíthatatlanok</span>. Csak akkor használd, ha tiszta foglalási lappal szeretnél indulni.
               </p>
             </div>
           </div>
@@ -2988,9 +2988,9 @@ function SettingsView({
                   <Trash2 className="w-5 h-5 text-rose-600" />
                 </div>
                 <div>
-                  <div className="font-bold text-slate-900 text-[14px]">Teljes foglalás törlése</div>
+                  <div className="font-bold text-slate-900 text-[14px]">Csak a foglalások törlése</div>
                   <div className="text-[12px] text-slate-500 mt-0.5 max-w-sm">
-                    Véglegesen törli az összes foglalást az adatbázisból — a partnercégek portáljain is eltűnnek. Jelenlegi foglalások: <span className="font-black text-slate-900">{totalBookings} db</span>
+                    Véglegesen törli az összes foglalást — a diszpécserek és a partnercégek portáljain is eltűnnek. A diszpécserek, partnerek, sofőrök, járművek, árak és a napló <span className="font-black text-emerald-700">megmaradnak</span>. Jelenlegi foglalások: <span className="font-black text-slate-900">{totalBookings} db</span>
                   </div>
                 </div>
               </div>

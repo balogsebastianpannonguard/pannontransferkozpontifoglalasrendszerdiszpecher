@@ -1389,6 +1389,13 @@ export default function DispatcherDashboardClient({
             </ul>
           </nav>
 
+          {/* Ár jóváhagyás - csak adminoknak, bal oldalt (nem ugrál fel a naptár fölött) */}
+          {user.role === "admin" && (
+            <div className="px-4 pb-3">
+              <PriceApprovalWidget userRole={user.role} />
+            </div>
+          )}
+
           {/* User block */}
           <div className="px-4 py-3 border-t border-slate-200/80 bg-gradient-to-br from-slate-50/90 to-white/90 backdrop-blur-xl">
             {user.requireTwoFactor && !user.twoFactorEnabled && (
@@ -2011,10 +2018,6 @@ export default function DispatcherDashboardClient({
 
               {/* === RIGHT: CALENDAR + SIDE PANEL === */}
               <div className="flex-1 min-w-0 space-y-6" data-calendar-section="true">
-                {/* Ár jóváhagyás widget - csak adminoknak */}
-                {user.role === "admin" && (
-                  <PriceApprovalWidget userRole={user.role} />
-                )}
                 {/* Calendar card */}
                 <section className="rounded-[28px] bg-white shadow-xl shadow-slate-900/[0.04] border border-slate-200/80 overflow-hidden w-full">
                   {/* Calendar toolbar */}

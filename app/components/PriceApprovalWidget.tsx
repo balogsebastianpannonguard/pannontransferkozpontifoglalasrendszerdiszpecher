@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AlertCircle, Check, Clock, Loader2, Lock, RefreshCw, X } from "lucide-react";
 import { formatPrice } from "@/lib/currency";
 
@@ -33,13 +34,12 @@ export default function PriceApprovalWidget({ userRole }: PriceApprovalWidgetPro
   const [pendingBookings, setPendingBookings] = useState<PendingApprovalBooking[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [open, setOpen] = useState(false);
   const [decisionComments, setDecisionComments] = useState<Record<string, string>>({});
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
   const [toasts, setToasts] = useState<{ id: number; type: "success" | "error"; text: string }[]>([]);
   const toastIdRef = useRef(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  if (userRole !== "admin") return null;
 
   function pushToast(type: "success" | "error", text: string) {
     toastIdRef.current += 1;
@@ -69,6 +69,7 @@ export default function PriceApprovalWidget({ userRole }: PriceApprovalWidgetPro
   }
 
   useEffect(() => {
+    if (userRole !== "admin") return;
     fetchPending();
     pollRef.current = setInterval(fetchPending, 30_000);
     return () => {
@@ -76,6 +77,15 @@ export default function PriceApprovalWidget({ userRole }: PriceApprovalWidgetPro
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
 
   async function handleDecision(bookingId: string, decision: "approved" | "rejected") {
     const comment = decisionComments[bookingId] || "";
@@ -110,12 +120,13 @@ export default function PriceApprovalWidget({ userRole }: PriceApprovalWidgetPro
     }
   }
 
-  // Ne jelenjen meg az üres állapot az első lekérés előtt: ez okozta a villogást.
-  if (!hasLoaded || (pendingBookings.length === 0 && !loading)) return null;
+  if (userRole !== "admin") return null;
 
-  return (
-    <>
-      <div className="rounded-3xl bg-white border border-amber-200 shadow-lg shadow-amber-500/[0.06] overflow-hidden mb-6">
+  const count = pendingBookings.length;
+  const hasPending = hasLoaded && count > 0;
+
+  const panel = (
+    <div className="rounded-3xl bg-white border border-amber-200 shadow-2xl shadow-amber-500/[0.1] overflow-hidden">
         <div className="px-6 py-4 border-b border-amber-100 bg-gradient-to-br from-amber-50 to-orange-50/50 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-md shadow-amber-500/30 flex items-center justify-center text-white">
@@ -141,6 +152,14 @@ export default function PriceApprovalWidget({ userRole }: PriceApprovalWidgetPro
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
           </button>
+          <button
+            onClick={() => setOpen(false)}
+            className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition ml-2"
+            title="Bezárás"
+            aria-label="Bezárás"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
 
         {loading && pendingBookings.length === 0 ? (
@@ -148,6 +167,8 @@ export default function PriceApprovalWidget({ userRole }: PriceApprovalWidgetPro
             <Loader2 className="w-4 h-4 animate-spin" />
             <span className="text-sm font-medium">Betöltés…</span>
           </div>
+        ) : pendingBookings.length === 0 ? (
+          <div className="px-6 py-10 text-center text-sm font-medium text-slate-400">Nincs jóváhagyásra váró ár.</div>
         ) : (
           <ul className="divide-y divide-amber-100">
             {pendingBookings.map((booking) => {
@@ -242,7 +263,52 @@ export default function PriceApprovalWidget({ userRole }: PriceApprovalWidgetPro
             })}
           </ul>
         )}
-      </div>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Bal oldali sáv: kompakt gomb - nem ugrál fel és nem tolja el a naptárat */}
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition ${
+          hasPending
+            ? "bg-gradient-to-br from-amber-50 to-orange-50 border-amber-300 shadow-sm hover:shadow-md"
+            : "bg-white/70 border-slate-200 hover:bg-white hover:border-slate-300"
+        }`}
+      >
+        <span
+          className={`shrink-0 w-9 h-9 rounded-xl flex items-center justify-center ${
+            hasPending ? "bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-md shadow-amber-500/30" : "bg-slate-100 text-slate-400"
+          }`}
+        >
+          <Lock className="w-4 h-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13px] font-bold text-slate-800 leading-tight">Ár jóváhagyások</span>
+          <span className="block text-[10.5px] font-medium text-slate-500 truncate">
+            {!hasLoaded ? "Betöltés…" : hasPending ? "Jóváhagyásra vár" : "Nincs függő kérés"}
+          </span>
+        </span>
+        {hasPending && (
+          <span className="shrink-0 min-w-6 h-6 px-1.5 rounded-full bg-amber-500 text-white text-[11px] font-black flex items-center justify-center">
+            {count}
+          </span>
+        )}
+      </button>
+
+      {open &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 sm:p-8 overflow-y-auto" onClick={() => setOpen(false)}>
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm" />
+            <div className="relative w-full max-w-2xl my-4" onClick={(e) => e.stopPropagation()}>
+              {panel}
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* Toast értesítések */}
       <div className="fixed bottom-5 left-5 z-[60] space-y-2 max-w-xs pointer-events-none">

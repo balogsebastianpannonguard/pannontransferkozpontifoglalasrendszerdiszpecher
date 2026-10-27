@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Booking, BookingStatus, PaymentMethod } from "@/lib/bookings";
 import { getStatusDisplay } from "@/lib/booking-status";
+import { looksLikeAirport } from "@/lib/airport-detect";
 import { CURRENCIES, currencySymbol, formatPrice, normalizeCurrency, type Currency } from "@/lib/currency";
 import { getPartnerColorClasses, resolvePartnerMeta } from "@/lib/partner-meta";
 import type { Driver } from "@/lib/drivers";
@@ -54,6 +55,7 @@ import {
   Banknote,
   Eye,
   EyeOff,
+  PencilLine,
 } from "lucide-react";
 
 const HUN_MONTHS = [
@@ -669,8 +671,15 @@ export default function BookingDetailClient({
   const paymentMenuRef = useRef<HTMLDivElement>(null);
   const [pickupDateDraft, setPickupDateDraft] = useState(initialBooking.pickupDate || "");
   const [pickupDateSaving, setPickupDateSaving] = useState(false);
+  const [editingDest, setEditingDest] = useState(false);
+  const [destDraft, setDestDraft] = useState(initialBooking.toAddress || "");
+  const [destSaving, setDestSaving] = useState(false);
+  useEffect(() => {
+    editingDestRef.current = editingDest;
+  }, [editingDest]);
   const [pickupDateAutosaved, setPickupDateAutosaved] = useState(false);
   const pickupDateDirtyRef = useRef(false);
+  const editingDestRef = useRef(false);
   const pickupDateAutosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [assigning, setAssigning] = useState(false);
   const [savingPrice, setSavingPrice] = useState(false);
@@ -756,6 +765,7 @@ export default function BookingDetailClient({
         setPriceCurrency(normalizeCurrency(bRes.booking.priceCurrency));
         setStatusValue(bRes.booking.status);
         if (!pickupDateDirtyRef.current) setPickupDateDraft(bRes.booking.pickupDate || "");
+        if (!editingDestRef.current) setDestDraft(bRes.booking.toAddress || "");
       }
       if (Array.isArray(aRes?.logs)) setAuditLogs(aRes.logs.slice(0, 20));
       pushToast("success", "Frissítve", "A foglalás adatai frissítve.");
@@ -951,6 +961,36 @@ export default function BookingDetailClient({
       pushToast("error", "Fizetési mód mentése sikertelen", msg);
     } finally {
       setPaymentSaving(false);
+    }
+  }
+
+  async function handleSaveDestination() {
+    const next = destDraft.trim();
+    if (!next) {
+      pushToast("error", "Hiányzó úti cél", "Az úti cél nem lehet üres.");
+      return;
+    }
+    if (next === (booking.toAddress || "")) {
+      setEditingDest(false);
+      return;
+    }
+    try {
+      setDestSaving(true);
+      const res = await fetch(`/api/bookings/${bookingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ toAddress: next, toType: looksLikeAirport(next) ? "airport" : "other" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.booking) throw new Error(data?.error || "Hiba");
+      setBooking(data.booking);
+      setDestDraft(data.booking.toAddress || "");
+      setEditingDest(false);
+      pushToast("success", "Úti cél módosítva", data.booking.toAddress);
+    } catch (err) {
+      pushToast("error", "Úti cél mentése sikertelen", err instanceof Error ? err.message : undefined);
+    } finally {
+      setDestSaving(false);
     }
   }
 
@@ -1555,9 +1595,65 @@ export default function BookingDetailClient({
                   <div className="text-[10px] font-black tracking-wider uppercase text-rose-600 mb-1">
                     Hova
                   </div>
-                  <div className="font-bold text-slate-900 text-[14px] leading-snug">
-                    {booking.toAddress}
-                  </div>
+                  {editingDest ? (
+                    <div className="space-y-2">
+                      <textarea
+                        value={destDraft}
+                        onChange={(e) => setDestDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            void handleSaveDestination();
+                          } else if (e.key === "Escape") {
+                            setDestDraft(booking.toAddress || "");
+                            setEditingDest(false);
+                          }
+                        }}
+                        rows={2}
+                        autoFocus
+                        aria-label="Úti cél"
+                        className="w-full rounded-xl border border-rose-300 bg-white px-3 py-2 text-[14px] font-bold text-slate-900 focus:border-rose-500 focus:outline-none focus:ring-4 focus:ring-rose-100 resize-none"
+                      />
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void handleSaveDestination()}
+                          disabled={destSaving}
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-slate-800 px-3.5 py-2 text-[10px] font-black tracking-[0.14em] uppercase text-white transition hover:bg-slate-900 disabled:opacity-60"
+                        >
+                          {destSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                          Mentés
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDestDraft(booking.toAddress || "");
+                            setEditingDest(false);
+                          }}
+                          disabled={destSaving}
+                          className="rounded-xl border border-slate-200 px-3.5 py-2 text-[10px] font-black tracking-[0.14em] uppercase text-slate-500 transition hover:bg-slate-50"
+                        >
+                          Mégse
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="group flex items-start gap-2">
+                      <div className="font-bold text-slate-900 text-[14px] leading-snug">{booking.toAddress}</div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDestDraft(booking.toAddress || "");
+                          setEditingDest(true);
+                        }}
+                        title="Úti cél módosítása"
+                        aria-label="Úti cél módosítása"
+                        className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-rose-600 hover:border-rose-300 transition"
+                      >
+                        <PencilLine className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                   {(booking.toType === "airport" || (booking.fromType !== "airport" && booking.flightNumber)) && booking.flightNumber && (
                     <div className="mt-3">
                       <div className="text-[10px] font-black tracking-wider uppercase text-sky-600 mb-1">

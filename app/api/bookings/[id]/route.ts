@@ -90,6 +90,22 @@ export async function PATCH(
       }
     }
 
+    if ("luggage" in patch) {
+      const n = Number(patch.luggage);
+      if (!Number.isInteger(n) || n < 0 || n > 99) {
+        return NextResponse.json({ error: "A csomagok száma 0 és 99 közötti egész szám legyen." }, { status: 400 });
+      }
+      patch.luggage = n;
+    }
+
+    if ("travelerPhone" in patch) {
+      const phone = typeof patch.travelerPhone === "string" ? patch.travelerPhone.trim() : "";
+      if (!/^\+?[0-9][0-9\s()\-/.]{4,24}$/.test(phone)) {
+        return NextResponse.json({ error: "Érvénytelen telefonszám." }, { status: 400 });
+      }
+      patch.travelerPhone = phone;
+    }
+
     if ("pickupTime" in patch) {
       const pickupTime = typeof patch.pickupTime === "string" ? patch.pickupTime.trim() : "";
       const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(pickupTime);

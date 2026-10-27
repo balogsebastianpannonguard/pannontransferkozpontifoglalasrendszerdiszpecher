@@ -674,12 +674,22 @@ export default function BookingDetailClient({
   const [editingDest, setEditingDest] = useState(false);
   const [destDraft, setDestDraft] = useState(initialBooking.toAddress || "");
   const [destSaving, setDestSaving] = useState(false);
+  const [editingLuggage, setEditingLuggage] = useState(false);
+  const [luggageDraft, setLuggageDraft] = useState(String(initialBooking.luggage ?? 0));
+  const [luggageSaving, setLuggageSaving] = useState(false);
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [phoneDraft, setPhoneDraft] = useState(initialBooking.travelerPhone || "");
+  const [phoneSaving, setPhoneSaving] = useState(false);
   useEffect(() => {
     editingDestRef.current = editingDest;
-  }, [editingDest]);
+    editingLuggageRef.current = editingLuggage;
+    editingPhoneRef.current = editingPhone;
+  }, [editingDest, editingLuggage, editingPhone]);
   const [pickupDateAutosaved, setPickupDateAutosaved] = useState(false);
   const pickupDateDirtyRef = useRef(false);
   const editingDestRef = useRef(false);
+  const editingLuggageRef = useRef(false);
+  const editingPhoneRef = useRef(false);
   const pickupDateAutosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [assigning, setAssigning] = useState(false);
   const [savingPrice, setSavingPrice] = useState(false);
@@ -766,6 +776,8 @@ export default function BookingDetailClient({
         setStatusValue(bRes.booking.status);
         if (!pickupDateDirtyRef.current) setPickupDateDraft(bRes.booking.pickupDate || "");
         if (!editingDestRef.current) setDestDraft(bRes.booking.toAddress || "");
+        if (!editingLuggageRef.current) setLuggageDraft(String(bRes.booking.luggage ?? 0));
+        if (!editingPhoneRef.current) setPhoneDraft(bRes.booking.travelerPhone || "");
       }
       if (Array.isArray(aRes?.logs)) setAuditLogs(aRes.logs.slice(0, 20));
       pushToast("success", "Frissítve", "A foglalás adatai frissítve.");
@@ -961,6 +973,66 @@ export default function BookingDetailClient({
       pushToast("error", "Fizetési mód mentése sikertelen", msg);
     } finally {
       setPaymentSaving(false);
+    }
+  }
+
+  async function handleSaveLuggage() {
+    const n = Number(luggageDraft);
+    if (luggageDraft.trim() === "" || !Number.isInteger(n) || n < 0 || n > 99) {
+      pushToast("error", "Érvénytelen csomagszám", "Adj meg egy 0 és 99 közötti egész számot.");
+      return;
+    }
+    if (n === booking.luggage) {
+      setEditingLuggage(false);
+      return;
+    }
+    try {
+      setLuggageSaving(true);
+      const res = await fetch(`/api/bookings/${bookingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ luggage: n }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.booking) throw new Error(data?.error || "Hiba");
+      setBooking(data.booking);
+      setLuggageDraft(String(data.booking.luggage ?? 0));
+      setEditingLuggage(false);
+      pushToast("success", "Csomagok száma módosítva", `${data.booking.luggage} db`);
+    } catch (err) {
+      pushToast("error", "Csomagszám mentése sikertelen", err instanceof Error ? err.message : undefined);
+    } finally {
+      setLuggageSaving(false);
+    }
+  }
+
+  async function handleSavePhone() {
+    const next = phoneDraft.trim();
+    if (!/^\+?[0-9][0-9\s()\-/.]{4,24}$/.test(next)) {
+      pushToast("error", "Érvénytelen telefonszám", "Pl. +36 30 123 4567");
+      return;
+    }
+    if (next === (booking.travelerPhone || "")) {
+      setEditingPhone(false);
+      return;
+    }
+    try {
+      setPhoneSaving(true);
+      const res = await fetch(`/api/bookings/${bookingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ travelerPhone: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.booking) throw new Error(data?.error || "Hiba");
+      setBooking(data.booking);
+      setPhoneDraft(data.booking.travelerPhone || "");
+      setEditingPhone(false);
+      pushToast("success", "Telefonszám módosítva", data.booking.travelerPhone);
+    } catch (err) {
+      pushToast("error", "Telefonszám mentése sikertelen", err instanceof Error ? err.message : undefined);
+    } finally {
+      setPhoneSaving(false);
     }
   }
 
@@ -1794,10 +1866,73 @@ export default function BookingDetailClient({
                   <div className="text-[10px] font-black tracking-wider uppercase text-slate-400">
                     Csomagok
                   </div>
-                  <div className="font-black text-slate-900 text-2xl tabular-nums mt-0.5">
-                    {booking.luggage}
-                    <span className="text-sm font-bold text-slate-400 ml-0.5">db</span>
-                  </div>
+                  {editingLuggage ? (
+                    <div className="mt-1 flex items-center justify-center gap-1.5">
+                      <input
+                        type="number"
+                        min={0}
+                        max={99}
+                        step={1}
+                        inputMode="numeric"
+                        value={luggageDraft}
+                        onChange={(e) => setLuggageDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            void handleSaveLuggage();
+                          } else if (e.key === "Escape") {
+                            setLuggageDraft(String(booking.luggage ?? 0));
+                            setEditingLuggage(false);
+                          }
+                        }}
+                        autoFocus
+                        aria-label="Csomagok száma"
+                        className="w-16 rounded-xl border border-slate-300 bg-white px-2 py-1.5 text-center text-xl font-black text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void handleSaveLuggage()}
+                        disabled={luggageSaving}
+                        title="Mentés"
+                        aria-label="Csomagszám mentése"
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-800 text-white hover:bg-slate-900 disabled:opacity-60"
+                      >
+                        {luggageSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLuggageDraft(String(booking.luggage ?? 0));
+                          setEditingLuggage(false);
+                        }}
+                        disabled={luggageSaving}
+                        title="Mégse"
+                        aria-label="Mégse"
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-50"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-0.5 flex items-center justify-center gap-2">
+                      <div className="font-black text-slate-900 text-2xl tabular-nums">
+                        {booking.luggage}
+                        <span className="text-sm font-bold text-slate-400 ml-0.5">db</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLuggageDraft(String(booking.luggage ?? 0));
+                          setEditingLuggage(true);
+                        }}
+                        title="Csomagok számának módosítása"
+                        aria-label="Csomagok számának módosítása"
+                        className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-blue-600 hover:border-blue-300 transition"
+                      >
+                        <PencilLine className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1928,18 +2063,85 @@ export default function BookingDetailClient({
                       </div>
                     </a>
                     <div className="h-px bg-gradient-to-r from-slate-200/0 via-slate-200/60 to-slate-200/0" />
-                    <a
-                      href={`tel:${booking.travelerPhone}`}
-                      className="flex items-center gap-3 text-[13px] font-bold text-slate-700 hover:text-slate-900 transition group"
-                    >
-                      <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 shrink-0 group-hover:scale-[1.03] transition">
-                        <Phone className="w-4 h-4" />
-                      </span>
-                      <div className="min-w-0">
-                        <div className="text-[9.5px] font-black tracking-[0.18em] uppercase text-slate-400 mb-0.5">Telefonszám</div>
-                        <span className="truncate block">{booking.travelerPhone}</span>
+                    {editingPhone ? (
+                      <div className="flex items-center gap-3">
+                        <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 shrink-0">
+                          <Phone className="w-4 h-4" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[9.5px] font-black tracking-[0.18em] uppercase text-slate-400 mb-1">Telefonszám</div>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="tel"
+                              value={phoneDraft}
+                              onChange={(e) => setPhoneDraft(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  void handleSavePhone();
+                                } else if (e.key === "Escape") {
+                                  setPhoneDraft(booking.travelerPhone || "");
+                                  setEditingPhone(false);
+                                }
+                              }}
+                              autoFocus
+                              aria-label="Telefonszám"
+                              className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-[13px] font-bold text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void handleSavePhone()}
+                              disabled={phoneSaving}
+                              title="Mentés"
+                              aria-label="Telefonszám mentése"
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-800 text-white hover:bg-slate-900 disabled:opacity-60 shrink-0"
+                            >
+                              {phoneSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPhoneDraft(booking.travelerPhone || "");
+                                setEditingPhone(false);
+                              }}
+                              disabled={phoneSaving}
+                              title="Mégse"
+                              aria-label="Mégse"
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-50 shrink-0"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    </a>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={`tel:${booking.travelerPhone}`}
+                          className="min-w-0 flex-1 flex items-center gap-3 text-[13px] font-bold text-slate-700 hover:text-slate-900 transition group"
+                        >
+                          <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 shrink-0 group-hover:scale-[1.03] transition">
+                            <Phone className="w-4 h-4" />
+                          </span>
+                          <div className="min-w-0">
+                            <div className="text-[9.5px] font-black tracking-[0.18em] uppercase text-slate-400 mb-0.5">Telefonszám</div>
+                            <span className="truncate block">{booking.travelerPhone}</span>
+                          </div>
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPhoneDraft(booking.travelerPhone || "");
+                            setEditingPhone(true);
+                          }}
+                          title="Telefonszám módosítása"
+                          aria-label="Telefonszám módosítása"
+                          className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-blue-600 hover:border-blue-300 transition"
+                        >
+                          <PencilLine className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 

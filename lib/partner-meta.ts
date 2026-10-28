@@ -1,12 +1,11 @@
 export type PartnerId =
   | "catl"
-  | "ecopro"
-  | "eccoino"
-  | "vitesco"
-  | "schaeffler"
-  | "krones"
-  | "enterair"
+  | "ecoproinnovation"
+  | "ecoprobm"
+  | "schaefflermotion"
+  | "schaefflerdebrecen"
   | "tama"
+  | "ibusz"
   | "ni";
 
 type PartnerAccent =
@@ -15,6 +14,7 @@ type PartnerAccent =
   | "sky"
   | "rose"
   | "green"
+  | "teal"
   | "indigo"
   | "lime"
   | "emerald";
@@ -31,67 +31,59 @@ export interface PartnerMeta {
 const PARTNER_META: Record<PartnerId, PartnerMeta> = {
   catl: {
     id: "catl",
-    name: "CATL Hungary Kft.",
+    name: "CATL",
     short: "CATL",
     accent: "blue",
     gradient: "from-blue-500 to-indigo-600 shadow-blue-500/25",
     portalPath: "/catl",
   },
-  ecopro: {
-    id: "ecopro",
-    name: "EcoPro BM Hungary",
-    short: "EcoPro",
+  ecoproinnovation: {
+    id: "ecoproinnovation",
+    name: "Ecopro Innovation",
+    short: "Ecopro Innovation",
     accent: "cyan",
     gradient: "from-cyan-500 to-sky-600 shadow-cyan-500/25",
-    portalPath: "/ecopro",
+    portalPath: "/ecoproinnovation",
   },
-  eccoino: {
-    id: "eccoino",
-    name: "Eccoino",
-    short: "Eccoino",
+  ecoprobm: {
+    id: "ecoprobm",
+    name: "Ecopro BM",
+    short: "Ecopro BM",
     accent: "sky",
     gradient: "from-sky-500 to-blue-600 shadow-sky-500/25",
-    portalPath: "/eccoino",
+    portalPath: "/ecoprobm",
   },
-  vitesco: {
-    id: "vitesco",
-    name: "Vitesco Technologies",
-    short: "Vitesco",
-    accent: "rose",
-    gradient: "from-rose-500 to-red-600 shadow-rose-500/25",
-    portalPath: "/vitesco",
-  },
-  schaeffler: {
-    id: "schaeffler",
-    name: "Schaeffler",
-    short: "Schaeffler",
+  schaefflermotion: {
+    id: "schaefflermotion",
+    name: "Schaeffler Motion",
+    short: "Schaeffler Motion",
     accent: "green",
     gradient: "from-green-500 to-emerald-600 shadow-green-500/25",
-    portalPath: "/schaeffler",
+    portalPath: "/schaefflermotion",
   },
-  krones: {
-    id: "krones",
-    name: "Krones AG",
-    short: "Krones",
-    accent: "indigo",
-    gradient: "from-indigo-500 to-blue-700 shadow-indigo-500/25",
-    portalPath: "/krones",
-  },
-  enterair: {
-    id: "enterair",
-    name: "Enter Air",
-    short: "Enter Air",
-    accent: "sky",
-    gradient: "from-sky-500 to-cyan-600 shadow-sky-500/25",
-    portalPath: "/enterair",
+  schaefflerdebrecen: {
+    id: "schaefflerdebrecen",
+    name: "Schaeffler Debrecen",
+    short: "Schaeffler Debrecen",
+    accent: "teal",
+    gradient: "from-teal-500 to-cyan-600 shadow-teal-500/25",
+    portalPath: "/schaefflerdebrecen",
   },
   tama: {
     id: "tama",
-    name: "Tama",
-    short: "Tama",
+    name: "TAMA Hungary Kft.",
+    short: "TAMA",
     accent: "lime",
     gradient: "from-lime-500 to-green-600 shadow-lime-500/25",
     portalPath: "/tama",
+  },
+  ibusz: {
+    id: "ibusz",
+    name: "IBUSZ Hungary Kft.",
+    short: "IBUSZ",
+    accent: "rose",
+    gradient: "from-rose-500 to-red-600 shadow-rose-500/25",
+    portalPath: "/ibusz",
   },
   ni: {
     id: "ni",
@@ -103,13 +95,20 @@ const PARTNER_META: Record<PartnerId, PartnerMeta> = {
   },
 };
 
+/** Régi (egy portálos) azonosítók - a korábbi foglalások továbbra is egy céghez tartozzanak. */
+const LEGACY_PORTAL_IDS: Record<string, PartnerId> = {
+  ecopro: "ecoprobm",
+  schaeffler: "schaefflerdebrecen",
+};
+
 export function getAllPartnerMeta(): PartnerMeta[] {
   return Object.values(PARTNER_META);
 }
 
 export function getPartnerMetaById(id?: string | null): PartnerMeta | null {
   if (!id) return null;
-  return PARTNER_META[id as PartnerId] || null;
+  const key = String(id).toLowerCase();
+  return PARTNER_META[key as PartnerId] || PARTNER_META[LEGACY_PORTAL_IDS[key]] || null;
 }
 
 export function resolvePartnerMeta(input: {
@@ -118,25 +117,33 @@ export function resolvePartnerMeta(input: {
   travelerEmail?: string | null;
   userEmail?: string | null;
 }): PartnerMeta | null {
-  const direct = getPartnerMetaById(input.portal);
-  if (direct) return direct;
-
   const companyName = String(input.companyName || "").toUpperCase();
   const travelerEmail = String(input.travelerEmail || "").toUpperCase();
   const userEmail = String(input.userEmail || "").toUpperCase();
+  const portal = String(input.portal || "").toLowerCase();
 
   const inAny = (keyword: string) =>
     companyName.includes(keyword) ||
     travelerEmail.includes(keyword) ||
     userEmail.includes(keyword);
 
+  const refine = (id: PartnerId | null): PartnerMeta | null => {
+    if (id === "ecoprobm" || id === "ecoproinnovation") {
+      return PARTNER_META[inAny("INNOVATION") ? "ecoproinnovation" : "ecoprobm"];
+    }
+    if (id === "schaefflerdebrecen" || id === "schaefflermotion") {
+      return PARTNER_META[inAny("MOTION") ? "schaefflermotion" : "schaefflerdebrecen"];
+    }
+    return id ? PARTNER_META[id] : null;
+  };
+
+  const direct = getPartnerMetaById(portal);
+  if (direct) return refine(direct.id);
+
   if (inAny("CATL") || companyName.includes("宁德时代")) return PARTNER_META.catl;
-  if (inAny("ECOPRO") || inAny("ECO PRO")) return PARTNER_META.ecopro;
-  if (inAny("ECCOINO")) return PARTNER_META.eccoino;
-  if (inAny("VITESCO")) return PARTNER_META.vitesco;
-  if (inAny("SCHAEFFLER")) return PARTNER_META.schaeffler;
-  if (inAny("KRONES")) return PARTNER_META.krones;
-  if (inAny("ENTER AIR") || inAny("ENTERAIR")) return PARTNER_META.enterair;
+  if (inAny("ECOPRO") || inAny("ECO PRO")) return refine("ecoprobm");
+  if (inAny("SCHAEFFLER")) return refine("schaefflerdebrecen");
+  if (inAny("IBUSZ")) return PARTNER_META.ibusz;
   if (inAny("TAMA")) return PARTNER_META.tama;
   if (
     companyName.includes("NATIONAL INSTRUMENTS") ||
@@ -196,6 +203,15 @@ export function getPartnerColorClasses(accent: PartnerAccent) {
         ring: "ring-green-200",
         dot: "bg-green-600",
         soft: "bg-green-50",
+      };
+    case "teal":
+      return {
+        bg: "bg-teal-100",
+        text: "text-teal-700",
+        border: "border-teal-300",
+        ring: "ring-teal-200",
+        dot: "bg-teal-600",
+        soft: "bg-teal-50",
       };
     case "indigo":
       return {

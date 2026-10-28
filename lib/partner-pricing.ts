@@ -44,7 +44,7 @@ const COLLECTION_NAME = "partner_pricing";
 
 export const DEFAULT_CATL_PRICING: Omit<PartnerPricing, "_id" | "createdAt" | "updatedAt"> = {
   partnerKey: "catl",
-  partnerName: "CATL Hungary Kft.",
+  partnerName: "CATL",
   isActive: true,
   vehicles: [
     {

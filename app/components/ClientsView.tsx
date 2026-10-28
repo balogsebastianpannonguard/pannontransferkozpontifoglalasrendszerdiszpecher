@@ -19,13 +19,12 @@ interface ClientViewBooking {
 
 const partnerDescriptions: Record<string, string> = {
   catl: "Hivatalos delegációs és dolgozói transzferek. Speciális árazás és feltételek.",
-  ecopro: "Debrecen-Budapest és repülőtéri transzferek vállalati kezelőfelülete.",
-  eccoino: "Nemzetközi partnerfoglalások elkülönített követéssel és saját booking folyamattal.",
-  vitesco: "Autóipari partnerfoglalások külön vállalati igényekkel és leválasztott nyomon követéssel.",
-  schaeffler: "Schaeffler munkatársi és delegációs foglalások saját partneres folyamattal.",
-  krones: "Gyártási és üzleti utak partnerenként elkülönítve, diszpécseri kezeléssel.",
-  enterair: "Repüléshez kapcsolódó transzferek saját partnerlogikával és teljes követhetőséggel.",
+  ecoproinnovation: "Ecopro Innovation munkatársi és vállalati transzferek saját partneres folyamattal.",
+  ecoprobm: "Debrecen-Budapest és repülőtéri transzferek vállalati kezelőfelülete.",
+  schaefflermotion: "Schaeffler Motion munkatársi és delegációs foglalások saját partneres folyamattal.",
+  schaefflerdebrecen: "Schaeffler Debrecen munkatársi és delegációs foglalások saját partneres folyamattal.",
   tama: "Dedikált partneroldal saját feltételrendszerrel és elkülönített foglalási nézettel.",
+  ibusz: "IBUSZ Hungary Kft. partnerfoglalások saját partneroldallal és elkülönített követéssel.",
   ni: "National Instruments partnerfoglalások központi diszpécseri integrációval.",
 };
 

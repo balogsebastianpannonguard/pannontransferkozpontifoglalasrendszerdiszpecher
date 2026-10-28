@@ -1,4 +1,5 @@
 import nodemailer, { Transporter, SendMailOptions } from "nodemailer";
+import { logEmail } from "./email-log";
 
 let transporter: Transporter | null = null;
 
@@ -39,6 +40,7 @@ export interface EmailOptions {
   cc?: string | string[];
   bcc?: string | string[];
   replyTo?: string;
+  kind?: string;
   attachments?: Array<{
     filename: string;
     path?: string;
@@ -56,6 +58,7 @@ export async function sendEmail(options: EmailOptions): Promise<{
 
   if (!emailUser || !process.env.EMAIL_PASS) {
     console.warn("[EMAIL HIBA] Nincs beállítva az EMAIL_USER vagy EMAIL_PASS környezeti változó!");
+    logEmail({ ...options, status: "failed", error: "Hiányzó e-mail konfiguráció" });
     return {
       success: false,
       error: "Hiányzó e-mail konfiguráció",
@@ -89,6 +92,8 @@ export async function sendEmail(options: EmailOptions): Promise<{
       console.log(`[EMAIL] Előzetes URL: ${testUrl}`);
     }
 
+    logEmail({ ...options, from: String(mailOptions.from), status: "sent", messageId: info.messageId });
+
     return {
       success: true,
       messageId: info.messageId,
@@ -97,6 +102,7 @@ export async function sendEmail(options: EmailOptions): Promise<{
     const errorMessage =
       error instanceof Error ? error.message : "Ismeretlen hiba történt";
     console.error(`[EMAIL HIBA] E-mail küldés sikertelen: ${errorMessage}`);
+    logEmail({ ...options, status: "failed", error: errorMessage });
 
     return {
       success: false,

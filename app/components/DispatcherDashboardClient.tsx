@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -320,6 +321,70 @@ function tileLabel(b: { category: BookingCategory; partnerMeta?: PartnerMeta | n
 }
 
 /** "szucs.eva@pannonguard.hu" / "szucs.eva" → "Szucs Eva" */
+type DayPopoverAnchor = { top: number; bottom: number; left: number; right: number };
+
+/**
+ * A naptár napi popoverje. A document.body-ba renderelődik fix pozícióval, így a naptár
+ * (overflow-hidden) kerete nem vágja le. A cella fölé nyílik; ha ott kevés a hely, alá.
+ * Mindig a képernyőn belül marad, a magassága a rendelkezésre álló helyhez igazodik.
+ */
+function DayPopover({
+  anchor,
+  colIndex,
+  onMouseLeave,
+  children,
+}: {
+  anchor: DayPopoverAnchor;
+  colIndex: number;
+  onMouseLeave: () => void;
+  children: React.ReactNode;
+}) {
+  const margin = 8;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const width = Math.min(380, vw - margin * 2);
+  const cellCenter = (anchor.left + anchor.right) / 2;
+  const preferredLeft = colIndex < 2 ? anchor.left : colIndex > 4 ? anchor.right - width : cellCenter - width / 2;
+  const left = Math.max(margin, Math.min(preferredLeft, vw - width - margin));
+  const spaceAbove = anchor.top - margin;
+  const spaceBelow = vh - anchor.bottom - margin;
+  const placeAbove = spaceAbove >= 360 || spaceAbove >= spaceBelow;
+  const maxHeight = Math.max(180, placeAbove ? spaceAbove : spaceBelow);
+  const arrowLeft = Math.max(18, Math.min(cellCenter - left, width - 18)) - 6;
+
+  return createPortal(
+    <motion.div
+      data-day-popover
+      onMouseLeave={onMouseLeave}
+      initial={{ opacity: 0, y: placeAbove ? 6 : -6, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+      className="fixed z-[200]"
+      style={{
+        left,
+        width,
+        ...(placeAbove ? { bottom: vh - anchor.top } : { top: anchor.bottom }),
+        transformOrigin: placeAbove ? "bottom center" : "top center",
+      }}
+    >
+      <div
+        className="relative flex flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/[0.12] overflow-hidden"
+        style={{ maxHeight }}
+      >
+        {children}
+      </div>
+      {/* Nyíl: a kattintott nap közepére mutat */}
+      <div
+        className={`absolute w-3 h-3 rotate-45 bg-white border-slate-200 ${
+          placeAbove ? "-bottom-1.5 border-r border-b" : "-top-1.5 border-l border-t"
+        }`}
+        style={{ left: arrowLeft }}
+      />
+    </motion.div>,
+    document.body
+  );
+}
+
 function prettyActor(value?: string) {
   const source = value && value.includes("@") ? value.split("@")[0] : value || "";
   return source
@@ -706,6 +771,23 @@ export default function DispatcherDashboardClient({
 
   const notificationsRef = useRef<HTMLDivElement>(null);
   const [popoverKey, setPopoverKey] = useState<string | null>(null);
+  // A kattintott naptárcella helye: a napi popover ehhez igazodik (portálban, hogy a naptár kerete ne vágja le).
+  const [popoverAnchor, setPopoverAnchor] = useState<DayPopoverAnchor | null>(null);
+
+  // Görgetésre / átméretezésre a popover bezárul (a helye már nem lenne pontos) — a saját listájának görgetése kivétel.
+  useEffect(() => {
+    if (!popoverKey) return;
+    const close = (e: Event) => {
+      if (e.target instanceof Element && e.target.closest("[data-day-popover]")) return;
+      setPopoverKey(null);
+    };
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [popoverKey]);
 
   useEffect(() => {
     const t = setInterval(() => setHour(new Date().getHours()), 60_000);
@@ -1764,12 +1846,14 @@ export default function DispatcherDashboardClient({
                       return (
                         <div
                           key={cell.key}
-                          onClick={() => {
+                          onClick={(e) => {
                             if (!cell.inMonth) {
                               changeCursorMonth(new Date(cell.year, cell.month, 1));
                             }
                             setSelectedDateKey(cell.key);
                             if (bookings.length > 0) {
+                              const r = e.currentTarget.getBoundingClientRect();
+                              setPopoverAnchor({ top: r.top, bottom: r.bottom, left: r.left, right: r.right });
                               setPopoverKey(popoverKey === cell.key ? null : cell.key);
                             }
                           }}
@@ -1843,22 +1927,16 @@ export default function DispatcherDashboardClient({
                               <div className="text-[10px] font-bold text-slate-500 px-1">+{bookings.length - 4} további…</div>
                             )}
                           </div>
-                          {/* CLICK POPOVER - FELETTÉRE */}
-                          {bookings.length > 0 && (
-                            <div
+                          {/* CLICK POPOVER — portálban, a cella fölé (vagy ha ott nincs hely, alá) */}
+                          {bookings.length > 0 && popoverKey === cell.key && popoverAnchor && (
+                            <DayPopover
+                              anchor={popoverAnchor}
+                              colIndex={colIndex}
                               onMouseLeave={() => {
                                 setPopoverKey(null);
                               }}
-                              className={`absolute z-[80] bottom-full w-[380px] max-w-[90vw] transition-[opacity,translate,scale] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[opacity,translate,scale] ${
-                                colIndex < 2 ? "left-0 origin-bottom-left" : colIndex > 4 ? "right-0 origin-bottom-right" : "left-1/2 -translate-x-1/2 origin-bottom"
-                              } ${
-                                popoverKey === cell.key
-                                  ? "opacity-100 translate-y-0 scale-100 pointer-events-auto"
-                                  : "opacity-0 translate-y-1.5 scale-[0.97] pointer-events-none"
-                              }`}
                             >
-                              <div className="relative rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/[0.08] overflow-hidden">
-                                <div className="px-4 py-3 border-b border-slate-200/80 bg-gradient-to-r from-slate-50/80 via-white to-blue-50/40 flex items-center justify-between">
+                                <div className="shrink-0 px-4 py-3 border-b border-slate-200/80 bg-gradient-to-r from-slate-50/80 via-white to-blue-50/40 flex items-center justify-between">
                                   <div>
                                     <div className="text-[9px] font-black tracking-[0.22em] uppercase text-slate-400 mb-0.5">
                                       {HUN_WEEKDAYS_LONG[new Date(cell.year, cell.month, cell.day).getDay()]}
@@ -1873,7 +1951,7 @@ export default function DispatcherDashboardClient({
                                   </div>
                                 </div>
 
-                                <div className="max-h-[380px] overflow-y-auto p-2 space-y-1.5">
+                                <div className="min-h-0 max-h-[380px] overflow-y-auto overscroll-contain p-2 space-y-1.5">
                                   {[...bookings]
                                     .sort((a, b) => a.time.localeCompare(b.time))
                                     .map((b) => {
@@ -1932,7 +2010,7 @@ export default function DispatcherDashboardClient({
                                     })}
                                 </div>
 
-                                <div className="px-4 py-2.5 border-t border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
+                                <div className="shrink-0 px-4 py-2.5 border-t border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
                                   <span className="text-[10px] font-bold tracking-[0.18em] uppercase text-slate-400">Kattints a részletekért</span>
                                   <span
                                     role="button"
@@ -1954,12 +2032,7 @@ export default function DispatcherDashboardClient({
                                     <ChevronRight className="w-3 h-3" />
                                   </span>
                                 </div>
-                              </div>
-                              {/* Nyíl: a popover alján, a cella közepére mutat (lefelé, mivel a popup FELETTÉRE van) */}
-                              <div className={`absolute -bottom-1.5 w-3 h-3 rotate-45 bg-white border-r border-b border-slate-200 ${
-                                colIndex < 2 ? "left-[15%]" : colIndex > 4 ? "right-[15%]" : "left-1/2 -translate-x-1/2"
-                              }`} />
-                            </div>
+                            </DayPopover>
                           )}
                           {/* END POPOVER */}
                         </div>
@@ -2079,12 +2152,14 @@ export default function DispatcherDashboardClient({
                       return (
                         <div
                           key={cell.key}
-                          onClick={() => {
+                          onClick={(e) => {
                             if (!cell.inMonth) {
                               changeCursorMonth(new Date(cell.year, cell.month, 1));
                             }
                             setSelectedDateKey(cell.key);
                             if (bookings.length > 0) {
+                              const r = e.currentTarget.getBoundingClientRect();
+                              setPopoverAnchor({ top: r.top, bottom: r.bottom, left: r.left, right: r.right });
                               setPopoverKey(popoverKey === cell.key ? null : cell.key);
                             }
                           }}
@@ -2158,22 +2233,16 @@ export default function DispatcherDashboardClient({
                               <div className="text-[10px] font-bold text-slate-500 px-1">+{bookings.length - 3} további…</div>
                             )}
                           </div>
-                          {/* CLICK POPOVER - FELETTÉRE */}
-                          {bookings.length > 0 && (
-                            <div
+                          {/* CLICK POPOVER — portálban, a cella fölé (vagy ha ott nincs hely, alá) */}
+                          {bookings.length > 0 && popoverKey === cell.key && popoverAnchor && (
+                            <DayPopover
+                              anchor={popoverAnchor}
+                              colIndex={colIndex}
                               onMouseLeave={() => {
                                 setPopoverKey(null);
                               }}
-                              className={`absolute z-[80] bottom-full w-[380px] max-w-[90vw] transition-[opacity,translate,scale] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[opacity,translate,scale] ${
-                                colIndex < 2 ? "left-0 origin-bottom-left" : colIndex > 4 ? "right-0 origin-bottom-right" : "left-1/2 -translate-x-1/2 origin-bottom"
-                              } ${
-                                popoverKey === cell.key
-                                  ? "opacity-100 translate-y-0 scale-100 pointer-events-auto"
-                                  : "opacity-0 translate-y-1.5 scale-[0.97] pointer-events-none"
-                              }`}
                             >
-                              <div className="relative rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/[0.08] overflow-hidden">
-                                <div className="px-4 py-3 border-b border-slate-200/80 bg-gradient-to-r from-slate-50/80 via-white to-blue-50/40 flex items-center justify-between">
+                                <div className="shrink-0 px-4 py-3 border-b border-slate-200/80 bg-gradient-to-r from-slate-50/80 via-white to-blue-50/40 flex items-center justify-between">
                                   <div>
                                     <div className="text-[9px] font-black tracking-[0.22em] uppercase text-slate-400 mb-0.5">
                                       {HUN_WEEKDAYS_LONG[new Date(cell.year, cell.month, cell.day).getDay()]}
@@ -2188,7 +2257,7 @@ export default function DispatcherDashboardClient({
                                   </div>
                                 </div>
 
-                                <div className="max-h-[380px] overflow-y-auto p-2 space-y-1.5">
+                                <div className="min-h-0 max-h-[380px] overflow-y-auto overscroll-contain p-2 space-y-1.5">
                                   {[...bookings]
                                     .sort((a, b) => a.time.localeCompare(b.time))
                                     .map((b) => {
@@ -2247,7 +2316,7 @@ export default function DispatcherDashboardClient({
                                     })}
                                 </div>
 
-                                <div className="px-4 py-2.5 border-t border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
+                                <div className="shrink-0 px-4 py-2.5 border-t border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
                                   <span className="text-[10px] font-bold tracking-[0.18em] uppercase text-slate-400">Kattints a részletekért</span>
                                   <span
                                     role="button"
@@ -2269,12 +2338,7 @@ export default function DispatcherDashboardClient({
                                     <ChevronRight className="w-3 h-3" />
                                   </span>
                                 </div>
-                              </div>
-                              {/* Nyíl: a popover alján, a cella közepére mutat (lefelé, mivel a popup FELETTÉRE van) */}
-                              <div className={`absolute -bottom-1.5 w-3 h-3 rotate-45 bg-white border-r border-b border-slate-200 ${
-                                colIndex < 2 ? "left-[15%]" : colIndex > 4 ? "right-[15%]" : "left-1/2 -translate-x-1/2"
-                              }`} />
-                            </div>
+                            </DayPopover>
                           )}
                           {/* END POPOVER */}
                         </div>

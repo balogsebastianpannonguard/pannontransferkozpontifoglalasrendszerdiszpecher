@@ -1969,14 +1969,14 @@ export default function DispatcherDashboardClient({
                                         >
                                           <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${tileGradient(b)}`} />
 
-                                          <div className={`shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${tileGradient(b)} shadow-md flex flex-col items-center justify-center text-white relative`}>
+                                          {/* Időpont: sima fekete szöveg, színes négyzet nélkül — így mindig jól olvasható */}
+                                          <div className="shrink-0 w-14 flex flex-col items-center justify-center gap-1">
+                                            <span className="font-mono font-black text-[15px] leading-none tracking-tight tabular-nums text-slate-900">{b.time}</span>
                                             {isNewBadge && (
-                                              <span className="absolute -top-1 -right-1 px-1 py-[1px] rounded bg-white text-blue-700 text-[7px] font-black shadow-sm border border-blue-200">
+                                              <span className="px-1 py-[1px] rounded bg-white text-blue-700 text-[7px] font-black shadow-sm border border-blue-200">
                                                 ÚJ
                                               </span>
                                             )}
-                                            <span className="font-mono font-black text-[12px] leading-none tracking-tight">{b.time.split(":")[0]}</span>
-                                            <span className="font-mono font-bold text-[10px] leading-none opacity-85 mt-0.5">:{b.time.split(":")[1]}</span>
                                           </div>
 
                                           <div className="flex-1 min-w-0 pl-1">
@@ -2275,14 +2275,14 @@ export default function DispatcherDashboardClient({
                                         >
                                           <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${tileGradient(b)}`} />
 
-                                          <div className={`shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${tileGradient(b)} shadow-md flex flex-col items-center justify-center text-white relative`}>
+                                          {/* Időpont: sima fekete szöveg, színes négyzet nélkül — így mindig jól olvasható */}
+                                          <div className="shrink-0 w-14 flex flex-col items-center justify-center gap-1">
+                                            <span className="font-mono font-black text-[15px] leading-none tracking-tight tabular-nums text-slate-900">{b.time}</span>
                                             {isNewBadge && (
-                                              <span className="absolute -top-1 -right-1 px-1 py-[1px] rounded bg-white text-blue-700 text-[7px] font-black shadow-sm border border-blue-200">
+                                              <span className="px-1 py-[1px] rounded bg-white text-blue-700 text-[7px] font-black shadow-sm border border-blue-200">
                                                 ÚJ
                                               </span>
                                             )}
-                                            <span className="font-mono font-black text-[12px] leading-none tracking-tight">{b.time.split(":")[0]}</span>
-                                            <span className="font-mono font-bold text-[10px] leading-none opacity-85 mt-0.5">:{b.time.split(":")[1]}</span>
                                           </div>
 
                                           <div className="flex-1 min-w-0 pl-1">
@@ -2401,14 +2401,14 @@ export default function DispatcherDashboardClient({
                               >
                                 <div className={`absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b ${tileGradient(b)}`} />
                                 <div className="flex items-start gap-4 pl-2">
-                                  <div className={`shrink-0 w-16 h-16 rounded-2xl bg-gradient-to-br ${tileGradient(b)} shadow-lg flex flex-col items-center justify-center text-white relative`}>
+                                  {/* Időpont: sima fekete szöveg, színes négyzet nélkül — így mindig jól olvasható */}
+                                  <div className="shrink-0 w-16 pt-0.5 flex flex-col items-center gap-1">
+                                    <span className="font-mono font-black text-[18px] leading-none tracking-tight tabular-nums text-slate-900">{b.time}</span>
                                     {isNewBadge && (
-                                      <span className="absolute -top-1 -right-1 px-1 py-[1px] rounded bg-white text-blue-700 text-[8px] font-black shadow-sm border border-blue-200">
+                                      <span className="px-1 py-[1px] rounded bg-white text-blue-700 text-[8px] font-black shadow-sm border border-blue-200">
                                         ÚJ
                                       </span>
                                     )}
-                                    <span className="font-mono font-black text-[13px] leading-none tracking-tight">{b.time.split(":")[0]}</span>
-                                    <span className="font-mono font-bold text-[11px] leading-none opacity-80 mt-0.5">:{b.time.split(":")[1]}</span>
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <div className="flex flex-wrap items-center gap-2 mb-1.5">

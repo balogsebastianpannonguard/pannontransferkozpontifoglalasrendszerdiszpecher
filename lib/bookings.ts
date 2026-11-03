@@ -57,6 +57,12 @@ export interface Booking {
   assignedDriverName?: string;
   assignedVehicleId?: string;
   assignedVehicleName?: string;
+  // A diszpécser által kiválasztott, de még ki nem osztott sofőr/jármű (pl. "SZS" a VIP útra) — hogy
+  // visszalépve is megmaradjon. Nem foglal erőforrást; hozzárendeléskor az assigned* mezőkkel egyezik.
+  plannedDriverId?: string;
+  plannedDriverName?: string;
+  plannedVehicleId?: string;
+  plannedVehicleName?: string;
   driverNotified?: boolean;
   driverAcknowledged?: boolean;
   price?: number;
@@ -218,6 +224,11 @@ export async function assignBooking(
         assignedDriverName: assignment.driverName,
         assignedVehicleId: assignment.vehicleId,
         assignedVehicleName: assignment.vehicleName,
+        // A kiválasztás követi a hozzárendelést (visszavonáskor üres lesz).
+        plannedDriverId: assignment.driverId,
+        plannedDriverName: assignment.driverName,
+        plannedVehicleId: assignment.vehicleId,
+        plannedVehicleName: assignment.vehicleName,
         updatedAt: now,
       },
       $push: {

@@ -84,6 +84,10 @@ export async function PATCH(
       "assignedDriverName",
       "assignedVehicleId",
       "assignedVehicleName",
+      "plannedDriverId",
+      "plannedDriverName",
+      "plannedVehicleId",
+      "plannedVehicleName",
       "price",
       "priceCurrency",
       "createdBy",
@@ -101,6 +105,21 @@ export async function PATCH(
         return NextResponse.json({ error: "A csomagok száma 0 és 99 közötti egész szám legyen." }, { status: 400 });
       }
       patch.luggage = n;
+    }
+
+    if ("travelers" in patch) {
+      const n = Number(patch.travelers);
+      if (!Number.isInteger(n) || n < 1 || n > 99) {
+        return NextResponse.json({ error: "Az utasok száma 1 és 99 közötti egész szám legyen." }, { status: 400 });
+      }
+      patch.travelers = n;
+    }
+
+    for (const field of ["plannedDriverId", "plannedDriverName", "plannedVehicleId", "plannedVehicleName"] as const) {
+      if (field in patch) {
+        const v = patch[field];
+        patch[field] = typeof v === "string" ? v.trim().slice(0, 200) : "";
+      }
     }
 
     if ("travelerPhone" in patch) {
@@ -159,6 +178,8 @@ export async function PATCH(
       comment: "Diszpécseri megjegyzés",
       assignedDriverName: "Sofőr",
       assignedVehicleName: "Jármű",
+      plannedDriverName: "Kiválasztott sofőr",
+      plannedVehicleName: "Kiválasztott jármű",
       status: "Foglalás állapota",
       price: "Ár",
       companyName: "Cégnév",
@@ -166,6 +187,8 @@ export async function PATCH(
     };
     const changes = Object.keys(patch)
       .filter((field) => {
+        // A kiválasztás belső azonosítói zajt okoznának a naplóban — a név elég.
+        if (field === "plannedDriverId" || field === "plannedVehicleId") return false;
         const patchField = field as keyof typeof patch;
         return JSON.stringify(existing[field as keyof Booking]) !== JSON.stringify(patch[patchField]);
       })

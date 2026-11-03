@@ -191,6 +191,8 @@ const AUDIT_FIELD_LABELS: Record<string, string> = {
   assignedVehicleName: "Jármű",
   assignedDriverId: "Sofőr azonosító",
   assignedVehicleId: "Jármű azonosító",
+  plannedDriverName: "Kiválasztott sofőr",
+  plannedVehicleName: "Kiválasztott jármű",
   status: "Foglalás állapota",
   price: "Ár",
   companyName: "Cégnév",
@@ -208,6 +210,9 @@ const AUDIT_FIELD_LABELS: Record<string, string> = {
   createdBy: "Létrehozta",
   bookingCode: "Foglalási kód",
 };
+
+// Belső azonosítók, amelyeket a naplóban nem mutatunk (a mellettük lévő név elég).
+const AUDIT_HIDDEN_FIELDS = new Set(["plannedDriverId", "plannedVehicleId"]);
 
 function formatAuditDetails(log: AuditLog): string {
   let parsed: unknown = log.details;
@@ -259,7 +264,7 @@ function formatAuditDetails(log: AuditLog): string {
         .join("; ");
       return changeLines ? `${obj.message} (${changeLines})` : obj.message;
     }
-    const entries = Object.entries(obj).filter(([, v]) => v !== undefined && v !== null && v !== "");
+    const entries = Object.entries(obj).filter(([k, v]) => !AUDIT_HIDDEN_FIELDS.has(k) && v !== undefined && v !== null && v !== "");
     if (entries.length === 0) return "";
     return entries.map(([key, value]) => `${AUDIT_FIELD_LABELS[key] || key}: ${value}`).join("; ");
   }
@@ -271,7 +276,7 @@ function formatAuditDetails(log: AuditLog): string {
     return parts.join(" · ");
   }
 
-  const entries = Object.entries(obj).filter(([, v]) => v !== undefined && v !== null && v !== "");
+  const entries = Object.entries(obj).filter(([k, v]) => !AUDIT_HIDDEN_FIELDS.has(k) && v !== undefined && v !== null && v !== "");
   return entries.map(([key, value]) => `${AUDIT_FIELD_LABELS[key] || key}: ${value}`).join("; ");
 }
 
@@ -311,6 +316,21 @@ function formatHuDate(dateStr: string): string {
   const dt = new Date(y, (m || 1) - 1, d || 1);
   const weekday = HUN_WEEKDAYS_LONG[dt.getDay()];
   return `${weekday}, ${y}. ${HUN_MONTHS[(m || 1) - 1]} ${d}.`;
+}
+
+/**
+ * Kézzel beírt felvételi időpont egységesítése "ÓÓ:PP" alakra. Elfogadja pl.: "9:30", "09.30", "930",
+ * "0930", "21", "21:5" nem (a perc két számjegy). Érvénytelen bevitelnél null.
+ */
+function normalizeTimeInput(raw: string): string | null {
+  const t = raw.trim().replace(/\s+/g, "");
+  if (!t) return null;
+  const withMinutes = /^(\d{1,2})[:.,]?(\d{2})$/.exec(t);
+  const hourOnly = /^(\d{1,2})[:.,]?$/.exec(t);
+  const h = Number(withMinutes ? withMinutes[1] : hourOnly ? hourOnly[1] : NaN);
+  const m = withMinutes ? Number(withMinutes[2]) : 0;
+  if (!Number.isInteger(h) || h > 23 || m > 59) return null;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
 function AssignmentSelect({
@@ -653,11 +673,12 @@ export default function BookingDetailClient({
   const [booking, setBooking] = useState<Booking>(initialBooking);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(initialAuditLogs);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  // A kiválasztás (planned*) akkor is megmarad, ha még nincs hozzárendelés; régi foglalásnál a hozzárendelés a kiinduló.
   const [selectedDriverId, setSelectedDriverId] = useState<string>(
-    booking.assignedDriverId || ""
+    booking.plannedDriverId ?? booking.assignedDriverId ?? ""
   );
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>(
-    booking.assignedVehicleId || ""
+    booking.plannedVehicleId ?? booking.assignedVehicleId ?? ""
   );
   // Szöveges állapot (nem number!): így törölhető a mező elejéről a felesleges "0" beírás közben.
   const [priceValue, setPriceValue] = useState<string>(booking.price ? String(booking.price) : "");
@@ -680,6 +701,9 @@ export default function BookingDetailClient({
   const [editingDest, setEditingDest] = useState(false);
   const [destDraft, setDestDraft] = useState(initialBooking.toAddress || "");
   const [destSaving, setDestSaving] = useState(false);
+  const [editingTravelers, setEditingTravelers] = useState(false);
+  const [travelersDraft, setTravelersDraft] = useState(String(initialBooking.travelers ?? 1));
+  const [travelersSaving, setTravelersSaving] = useState(false);
   const [editingLuggage, setEditingLuggage] = useState(false);
   const [luggageDraft, setLuggageDraft] = useState(String(initialBooking.luggage ?? 0));
   const [luggageSaving, setLuggageSaving] = useState(false);
@@ -690,11 +714,13 @@ export default function BookingDetailClient({
     editingDestRef.current = editingDest;
     editingLuggageRef.current = editingLuggage;
     editingPhoneRef.current = editingPhone;
-  }, [editingDest, editingLuggage, editingPhone]);
+    editingTravelersRef.current = editingTravelers;
+  }, [editingDest, editingLuggage, editingPhone, editingTravelers]);
   const [pickupDateAutosaved, setPickupDateAutosaved] = useState(false);
   const pickupDateDirtyRef = useRef(false);
   const editingDestRef = useRef(false);
   const editingLuggageRef = useRef(false);
+  const editingTravelersRef = useRef(false);
   const editingPhoneRef = useRef(false);
   const pickupDateAutosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [assigning, setAssigning] = useState(false);
@@ -775,14 +801,15 @@ export default function BookingDetailClient({
       ]);
       if (bRes?.booking) {
         setBooking(bRes.booking);
-        setSelectedDriverId(bRes.booking.assignedDriverId || "");
-        setSelectedVehicleId(bRes.booking.assignedVehicleId || "");
+        setSelectedDriverId(bRes.booking.plannedDriverId ?? bRes.booking.assignedDriverId ?? "");
+        setSelectedVehicleId(bRes.booking.plannedVehicleId ?? bRes.booking.assignedVehicleId ?? "");
         setPriceValue(bRes.booking.price ? String(bRes.booking.price) : "");
         setPriceCurrency(normalizeCurrency(bRes.booking.priceCurrency));
         setStatusValue(bRes.booking.status);
         if (!pickupDateDirtyRef.current) setPickupDateDraft(bRes.booking.pickupDate || "");
         if (!editingDestRef.current) setDestDraft(bRes.booking.toAddress || "");
         if (!editingLuggageRef.current) setLuggageDraft(String(bRes.booking.luggage ?? 0));
+        if (!editingTravelersRef.current) setTravelersDraft(String(bRes.booking.travelers ?? 1));
         if (!editingPhoneRef.current) setPhoneDraft(bRes.booking.travelerPhone || "");
       }
       if (Array.isArray(aRes?.logs)) setAuditLogs(aRes.logs.slice(0, 20));
@@ -981,6 +1008,84 @@ export default function BookingDetailClient({
       setPaymentSaving(false);
     }
   }
+
+  async function handleSaveTravelers() {
+    const n = Number(travelersDraft);
+    if (travelersDraft.trim() === "" || !Number.isInteger(n) || n < 1 || n > 99) {
+      pushToast("error", "Érvénytelen utasszám", "Adj meg egy 1 és 99 közötti egész számot.");
+      return;
+    }
+    if (n === booking.travelers) {
+      setEditingTravelers(false);
+      return;
+    }
+    try {
+      setTravelersSaving(true);
+      const res = await fetch(`/api/bookings/${bookingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ travelers: n }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.booking) throw new Error(data?.error || "Hiba");
+      setBooking(data.booking);
+      setTravelersDraft(String(data.booking.travelers ?? 1));
+      setEditingTravelers(false);
+      pushToast("success", "Utasok száma módosítva", `${data.booking.travelers} fő`);
+    } catch (err) {
+      pushToast("error", "Utasszám mentése sikertelen", err instanceof Error ? err.message : undefined);
+    } finally {
+      setTravelersSaving(false);
+    }
+  }
+
+  // A sofőr/jármű kiválasztását azonnal elmentjük (hozzárendelés nélkül is), hogy visszalépve is megmaradjon.
+  async function savePlannedSelection(
+    patch: Pick<Booking, "plannedDriverId" | "plannedDriverName"> | Pick<Booking, "plannedVehicleId" | "plannedVehicleName">,
+    revert: () => void
+  ) {
+    try {
+      const res = await fetch(`/api/bookings/${bookingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.booking) throw new Error(data?.error || "Hiba");
+      setBooking(data.booking);
+    } catch (err) {
+      revert();
+      pushToast("error", "A kiválasztás mentése nem sikerült", err instanceof Error ? err.message : undefined);
+    }
+  }
+
+  function handleSelectDriver(id: string) {
+    const previous = selectedDriverId;
+    if (id === previous) return;
+    setSelectedDriverId(id);
+    const driver = drivers.find((d) => String(d._id) === id);
+    void savePlannedSelection(
+      { plannedDriverId: id, plannedDriverName: driver?.name || "" },
+      () => setSelectedDriverId(previous)
+    );
+  }
+
+  function handleSelectVehicle(id: string) {
+    const previous = selectedVehicleId;
+    if (id === previous) return;
+    setSelectedVehicleId(id);
+    const vehicle = vehicles.find((v) => String(v._id) === id);
+    void savePlannedSelection(
+      { plannedVehicleId: id, plannedVehicleName: vehicle?.name || "" },
+      () => setSelectedVehicleId(previous)
+    );
+  }
+
+  // A kiválasztható járművek ABC-sorrendben (név szerint, a számokat is helyesen rendezve).
+  const sortedVehicles = useMemo(
+    () => [...vehicles].sort((a, b) => (a.name || "").localeCompare(b.name || "", "hu", { numeric: true, sensitivity: "base" })),
+    [vehicles]
+  );
 
   async function handleSaveLuggage() {
     const n = Number(luggageDraft);
@@ -1559,13 +1664,40 @@ export default function BookingDetailClient({
                     Felvételi idő
                   </span>
                 </div>
+                {/* Kézzel beírható (pl. 0930, 9:30, 21) — a teljes ÓÓ:PP időpont automatikusan mentődik. */}
                 <input
-                  type="time"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  maxLength={5}
+                  placeholder="ÓÓ:PP"
                   value={pickupTimeDraft}
-                  onChange={(e) => setPickupTimeDraft(e.target.value)}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/[^0-9:.,]/g, "");
+                    // Négy számjegy elválasztó nélkül ("0930") → azonnal "09:30".
+                    setPickupTimeDraft(/^\d{4}$/.test(raw) ? `${raw.slice(0, 2)}:${raw.slice(2)}` : raw);
+                  }}
+                  onBlur={() => {
+                    if (pickupTimeDraft.trim() === (booking.pickupTime || "")) return;
+                    const normalized = normalizeTimeInput(pickupTimeDraft);
+                    if (normalized) {
+                      setPickupTimeDraft(normalized);
+                    } else {
+                      pushToast("error", "Érvénytelen időpont", "Írd be így: 09:30 (vagy 0930, 9:30).");
+                      setPickupTimeDraft(booking.pickupTime || "");
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      e.currentTarget.blur();
+                    } else if (e.key === "Escape") {
+                      setPickupTimeDraft(booking.pickupTime || "");
+                    }
+                  }}
                   required
                   aria-label="Diszpécseri felvételi időpont"
-                  className="w-full sm:w-auto rounded-xl border border-blue-300 bg-white px-4 py-2 text-xl font-black text-blue-800 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                  className="w-full sm:w-32 rounded-xl border border-blue-300 bg-white px-4 py-2 text-center text-xl font-black tabular-nums text-blue-800 placeholder:text-blue-300 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
                 />
                 <div className="sm:ml-auto flex items-center gap-2">
                   {pickupTimeSaving ? (
@@ -1860,10 +1992,73 @@ export default function BookingDetailClient({
                   <div className="text-[10px] font-black tracking-wider uppercase text-slate-400">
                     Utasok
                   </div>
-                  <div className="font-black text-slate-900 text-2xl tabular-nums mt-0.5">
-                    {booking.travelers}
-                    <span className="text-sm font-bold text-slate-400 ml-0.5">fő</span>
-                  </div>
+                  {editingTravelers ? (
+                    <div className="mt-1 flex items-center justify-center gap-1.5">
+                      <input
+                        type="number"
+                        min={1}
+                        max={99}
+                        step={1}
+                        inputMode="numeric"
+                        value={travelersDraft}
+                        onChange={(e) => setTravelersDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            void handleSaveTravelers();
+                          } else if (e.key === "Escape") {
+                            setTravelersDraft(String(booking.travelers ?? 1));
+                            setEditingTravelers(false);
+                          }
+                        }}
+                        autoFocus
+                        aria-label="Utasok száma"
+                        className="w-16 rounded-xl border border-slate-300 bg-white px-2 py-1.5 text-center text-xl font-black text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void handleSaveTravelers()}
+                        disabled={travelersSaving}
+                        title="Mentés"
+                        aria-label="Utasszám mentése"
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-800 text-white hover:bg-slate-900 disabled:opacity-60"
+                      >
+                        {travelersSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTravelersDraft(String(booking.travelers ?? 1));
+                          setEditingTravelers(false);
+                        }}
+                        disabled={travelersSaving}
+                        title="Mégse"
+                        aria-label="Mégse"
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-50"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-0.5 flex items-center justify-center gap-2">
+                      <div className="font-black text-slate-900 text-2xl tabular-nums">
+                        {booking.travelers}
+                        <span className="text-sm font-bold text-slate-400 ml-0.5">fő</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTravelersDraft(String(booking.travelers ?? 1));
+                          setEditingTravelers(true);
+                        }}
+                        title="Utasok számának módosítása"
+                        aria-label="Utasok számának módosítása"
+                        className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-blue-600 hover:border-blue-300 transition"
+                      >
+                        <PencilLine className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div className="rounded-2xl bg-gradient-to-br from-slate-50 to-white border border-slate-200 p-3.5 text-center">
                   <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center mx-auto mb-2">
@@ -2519,7 +2714,7 @@ export default function BookingDetailClient({
                     label="Sofőr"
                     icon={UserCircle2}
                     value={selectedDriverId}
-                    onChange={setSelectedDriverId}
+                    onChange={handleSelectDriver}
                     placeholder="Válassz sofőrt"
                     options={drivers.map((d) => {
                       const unavailable = d.status === "on_route" || d.status === "inactive" || d.status === "on_leave";
@@ -2539,9 +2734,9 @@ export default function BookingDetailClient({
                         icon={CarFront}
                         variant="vehicle"
                         value={selectedVehicleId}
-                        onChange={setSelectedVehicleId}
+                        onChange={handleSelectVehicle}
                         placeholder="Válassz járművet"
-                        options={vehicles.map((v) => {
+                        options={sortedVehicles.map((v) => {
                           const unavailable = v.status === "on_route" || v.condition === "not_working";
                           return {
                             id: String(v._id),

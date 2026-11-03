@@ -209,7 +209,35 @@ const AUDIT_FIELD_LABELS: Record<string, string> = {
   category: "Kategória",
   createdBy: "Létrehozta",
   bookingCode: "Foglalási kód",
+  priceCurrency: "Pénznem",
 };
+
+type TravelerInfoDraft = {
+  travelerName: string;
+  travelerEmail: string;
+  travelerPhone: string;
+  secondTravelerEmail: string;
+  secondTravelerPhone: string;
+};
+
+function travelerInfoFromBooking(b: Booking): TravelerInfoDraft {
+  return {
+    travelerName: b.travelerName || "",
+    travelerEmail: b.travelerEmail || "",
+    travelerPhone: b.travelerPhone || "",
+    secondTravelerEmail: b.secondTravelerEmail || "",
+    secondTravelerPhone: b.secondTravelerPhone || "",
+  };
+}
+
+const TRAVELER_EMAIL_RE = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
+const TRAVELER_PHONE_RE = /^\+?[0-9][0-9\s()\-/.]{4,24}$/;
+
+function formatAuditValue(value: unknown): string {
+  if (value === undefined || value === null || value === "") return "—";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value).replace(/\s+/g, " ").trim();
+}
 
 // Belső azonosítók, amelyeket a naplóban nem mutatunk (a mellettük lévő név elég).
 const AUDIT_HIDDEN_FIELDS = new Set(["plannedDriverId", "plannedVehicleId"]);
@@ -231,6 +259,22 @@ function formatAuditDetails(log: AuditLog): string {
 
   if (!parsed || typeof parsed !== "object") return "";
   const obj = parsed as Record<string, unknown>;
+
+  // Változáslista (diszpécseri és partneri módosítás is): csak a ténylegesen megváltozott mezők, magyar címkével.
+  if (typeof obj.message === "string" && Array.isArray(obj.changes)) {
+    const isPartner = log.action.startsWith("booking.partner_modified");
+    const changeLines = (obj.changes as Array<{ field?: string; oldValue?: unknown; newValue?: unknown }>)
+      .filter((c) => !AUDIT_HIDDEN_FIELDS.has(c.field || "") && formatAuditValue(c.oldValue) !== formatAuditValue(c.newValue))
+      .map((c) => {
+        const key = c.field || "";
+        const label = isPartner && key === "comment" ? "Megjegyzés" : AUDIT_FIELD_LABELS[key] || key || "Adat";
+        const isPick = label === "Kiválasztott sofőr" || label === "Kiválasztott jármű";
+        const show = (v: unknown) => (isPick && (v === "" || v == null) ? "Egyik sem" : formatAuditValue(v));
+        return `${label}: ${show(c.oldValue)} → ${show(c.newValue)}`;
+      })
+      .join("; ");
+    return changeLines ? `${obj.message} (${changeLines})` : obj.message;
+  }
 
   if (log.action === "booking.status_changed") {
     const from = (obj.from || obj.oldStatus) as BookingStatus | undefined;
@@ -257,12 +301,6 @@ function formatAuditDetails(log: AuditLog): string {
       const parts = [`Árjóváhagyás elutasítva: ${Number(obj.requestedPrice || 0).toLocaleString("hu-HU")} Ft`];
       if (obj.comment) parts.push(String(obj.comment));
       return parts.join(" · ");
-    }
-    if (typeof obj.message === "string" && Array.isArray(obj.changes)) {
-      const changeLines = (obj.changes as Array<{ field?: string; oldValue?: unknown; newValue?: unknown }>)
-        .map((c) => `${c.field || "Adat"}: ${c.oldValue ?? "—"} → ${c.newValue ?? "—"}`)
-        .join("; ");
-      return changeLines ? `${obj.message} (${changeLines})` : obj.message;
     }
     // A kiválasztás törlése ("Egyik sem") üres névként érkezik — azt is megmutatjuk.
     const isClearedPick = (k: string, v: unknown) => v === "" && (k === "plannedDriverName" || k === "plannedVehicleName");
@@ -741,6 +779,9 @@ export default function BookingDetailClient({
   const [editingPhone, setEditingPhone] = useState(false);
   const [phoneDraft, setPhoneDraft] = useState(initialBooking.travelerPhone || "");
   const [phoneSaving, setPhoneSaving] = useState(false);
+  const [editingTravelerInfo, setEditingTravelerInfo] = useState(false);
+  const [travelerInfoDraft, setTravelerInfoDraft] = useState<TravelerInfoDraft>(() => travelerInfoFromBooking(initialBooking));
+  const [travelerInfoSaving, setTravelerInfoSaving] = useState(false);
   useEffect(() => {
     editingDestRef.current = editingDest;
     editingLuggageRef.current = editingLuggage;
@@ -1175,6 +1216,82 @@ export default function BookingDetailClient({
       pushToast("error", "Telefonszám mentése sikertelen", err instanceof Error ? err.message : undefined);
     } finally {
       setPhoneSaving(false);
+    }
+  }
+
+  function startEditingTravelerInfo() {
+    setTravelerInfoDraft(travelerInfoFromBooking(booking));
+    setEditingPhone(false);
+    setEditingTravelerInfo(true);
+  }
+
+  async function handleSaveTravelerInfo() {
+    const d = travelerInfoDraft;
+    const next: TravelerInfoDraft = {
+      travelerName: d.travelerName.replace(/\s+/g, " ").trim(),
+      travelerEmail: d.travelerEmail.trim(),
+      travelerPhone: d.travelerPhone.trim(),
+      secondTravelerEmail: d.secondTravelerEmail.split(/[\s,;]+/).filter(Boolean).join(", "),
+      secondTravelerPhone: d.secondTravelerPhone.split(/[,;]+/).map((p) => p.trim()).filter(Boolean).join(", "),
+    };
+    const current = travelerInfoFromBooking(booking);
+    const patch: Partial<TravelerInfoDraft> = {};
+    for (const key of Object.keys(next) as (keyof TravelerInfoDraft)[]) {
+      if (next[key] !== current[key]) patch[key] = next[key];
+    }
+    if (Object.keys(patch).length === 0) {
+      setEditingTravelerInfo(false);
+      return;
+    }
+    if ("travelerName" in patch && !next.travelerName) {
+      pushToast("error", "Hiányzó utasnév", "Az utas neve nem lehet üres.");
+      return;
+    }
+    if ("travelerEmail" in patch && !TRAVELER_EMAIL_RE.test(next.travelerEmail)) {
+      pushToast("error", "Érvénytelen e-mail cím", "Pl. nev@ceg.com");
+      return;
+    }
+    if ("travelerPhone" in patch && !TRAVELER_PHONE_RE.test(next.travelerPhone)) {
+      pushToast("error", "Érvénytelen telefonszám", "Pl. +36 30 123 4567");
+      return;
+    }
+    if (
+      "secondTravelerEmail" in patch &&
+      next.secondTravelerEmail.split(", ").filter(Boolean).some((e) => !TRAVELER_EMAIL_RE.test(e))
+    ) {
+      pushToast("error", "Érvénytelen e-mail cím", "A második utas e-mail címét ellenőrizd (több cím vesszővel elválasztva).");
+      return;
+    }
+    if (
+      "secondTravelerPhone" in patch &&
+      next.secondTravelerPhone.split(", ").filter(Boolean).some((p) => !TRAVELER_PHONE_RE.test(p))
+    ) {
+      pushToast("error", "Érvénytelen telefonszám", "A második utas telefonszámát ellenőrizd (több szám vesszővel elválasztva).");
+      return;
+    }
+    try {
+      setTravelerInfoSaving(true);
+      const res = await fetch(`/api/bookings/${bookingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.booking) throw new Error(data?.error || "Hiba");
+      setBooking(data.booking);
+      setPhoneDraft(data.booking.travelerPhone || "");
+      setEditingTravelerInfo(false);
+      pushToast("success", "Utas adatai módosítva", data.booking.travelerName);
+      fetch(`/api/bookings/${bookingId}/audit`)
+        .then((r) => r.json())
+        .then((a) => {
+          if (Array.isArray(a?.logs)) setAuditLogs(a.logs.slice(0, 20));
+        })
+        .catch(() => {});
+    } catch (err) {
+      pushToast("error", "Utas adatainak mentése sikertelen", err instanceof Error ? err.message : undefined);
+    } finally {
+      setTravelerInfoSaving(false);
     }
   }
 
@@ -2248,10 +2365,10 @@ export default function BookingDetailClient({
             >
               <div className="px-7 py-5 border-b border-slate-200/80">
                 <div className="flex items-center gap-3.5">
-                  <div className={`w-11 h-11 rounded-2xl ${partnerMeta ? `bg-gradient-to-br ${partnerMeta.gradient}` : "bg-gradient-to-br from-slate-700 to-slate-900"} text-white shadow-sm flex items-center justify-center`}>
+                  <div className={`w-11 h-11 shrink-0 rounded-2xl ${partnerMeta ? `bg-gradient-to-br ${partnerMeta.gradient}` : "bg-gradient-to-br from-slate-700 to-slate-900"} text-white shadow-sm flex items-center justify-center`}>
                     <Building2 className="w-5 h-5" />
                   </div>
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <div className="text-[10px] font-black tracking-[0.24em] uppercase text-slate-400 mb-0.5">
                       Utas adatai
                     </div>
@@ -2259,10 +2376,121 @@ export default function BookingDetailClient({
                       {booking.travelerName}
                     </h2>
                   </div>
+                  {!editingTravelerInfo && (
+                    <button
+                      type="button"
+                      onClick={startEditingTravelerInfo}
+                      title="Utasok nevének és elérhetőségeinek módosítása"
+                      className="shrink-0 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-[10px] font-black tracking-[0.16em] uppercase text-slate-600 transition hover:border-slate-300 hover:bg-slate-100"
+                    >
+                      <PencilLine className="w-3.5 h-3.5" />
+                      Utasok szerkesztése
+                    </button>
+                  )}
                 </div>
               </div>
 
               <div className="p-7 space-y-6">
+                {editingTravelerInfo ? (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void handleSaveTravelerInfo();
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape" && !travelerInfoSaving) setEditingTravelerInfo(false);
+                    }}
+                    className="rounded-2xl border border-blue-200 bg-blue-50/30 p-5 space-y-4"
+                  >
+                    <div className="text-[12px] font-semibold text-slate-500 leading-snug">
+                      Ha egy utast ki kell venni, töröld a nevét és az elérhetőségeit. Ha a fő utas esik ki, a másik
+                      utas adatait írd át a fő utas mezőibe. Az utasok számát fent, külön tudod módosítani.
+                    </div>
+                    <label className="block">
+                      <span className="block text-[9.5px] font-black tracking-[0.18em] uppercase text-slate-500 mb-1">
+                        Utas neve (több utas esetén mindegyiké)
+                      </span>
+                      <input
+                        type="text"
+                        value={travelerInfoDraft.travelerName}
+                        onChange={(e) => setTravelerInfoDraft((d) => ({ ...d, travelerName: e.target.value }))}
+                        autoFocus
+                        maxLength={200}
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-[14px] font-bold text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                      />
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <label className="block">
+                        <span className="block text-[9.5px] font-black tracking-[0.18em] uppercase text-slate-500 mb-1">
+                          Fő utas e-mail
+                        </span>
+                        <input
+                          type="email"
+                          value={travelerInfoDraft.travelerEmail}
+                          onChange={(e) => setTravelerInfoDraft((d) => ({ ...d, travelerEmail: e.target.value }))}
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-[13px] font-bold text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="block text-[9.5px] font-black tracking-[0.18em] uppercase text-slate-500 mb-1">
+                          Fő utas telefonszáma
+                        </span>
+                        <input
+                          type="tel"
+                          value={travelerInfoDraft.travelerPhone}
+                          onChange={(e) => setTravelerInfoDraft((d) => ({ ...d, travelerPhone: e.target.value }))}
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-[13px] font-bold text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="block text-[9.5px] font-black tracking-[0.18em] uppercase text-slate-500 mb-1">
+                          Második utas e-mail (több: vesszővel)
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="email"
+                          value={travelerInfoDraft.secondTravelerEmail}
+                          onChange={(e) => setTravelerInfoDraft((d) => ({ ...d, secondTravelerEmail: e.target.value }))}
+                          placeholder="Üresen hagyható"
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-[13px] font-bold text-slate-900 placeholder:font-semibold placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="block text-[9.5px] font-black tracking-[0.18em] uppercase text-slate-500 mb-1">
+                          Második utas telefonszáma (több: vesszővel)
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="tel"
+                          value={travelerInfoDraft.secondTravelerPhone}
+                          onChange={(e) => setTravelerInfoDraft((d) => ({ ...d, secondTravelerPhone: e.target.value }))}
+                          placeholder="Üresen hagyható"
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-[13px] font-bold text-slate-900 placeholder:font-semibold placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                        />
+                      </label>
+                    </div>
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setEditingTravelerInfo(false)}
+                        disabled={travelerInfoSaving}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-[12px] font-black text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        Mégse
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={travelerInfoSaving}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-slate-800 px-4 py-2 text-[12px] font-black text-white hover:bg-slate-900 disabled:opacity-60"
+                      >
+                        {travelerInfoSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                        Mentés
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="text-[10px] font-black tracking-[0.2em] uppercase text-slate-400 mb-2">
@@ -2386,26 +2614,30 @@ export default function BookingDetailClient({
                       </span>
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
-                      {booking.secondTravelerEmail && (
+                      {(booking.secondTravelerEmail || "").split(/[\s,;]+/).filter(Boolean).map((email) => (
                         <a
-                          href={`mailto:${booking.secondTravelerEmail}`}
+                          key={`m-${email}`}
+                          href={`mailto:${email}`}
                           className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200 text-[12px] font-bold text-slate-700 hover:text-blue-600 hover:border-blue-200 transition shadow-sm"
                         >
                           <Mail className="w-3.5 h-3.5 text-slate-500" />
-                          <span className="truncate">{booking.secondTravelerEmail}</span>
+                          <span className="truncate">{email}</span>
                         </a>
-                      )}
-                      {booking.secondTravelerPhone && (
+                      ))}
+                      {(booking.secondTravelerPhone || "").split(/[,;]+/).map((p) => p.trim()).filter(Boolean).map((phone) => (
                         <a
-                          href={`tel:${booking.secondTravelerPhone}`}
+                          key={`p-${phone}`}
+                          href={`tel:${phone.replace(/[^\d+]/g, "")}`}
                           className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200 text-[12px] font-bold text-slate-700 hover:text-slate-900 hover:border-slate-300 transition shadow-sm"
                         >
                           <Phone className="w-3.5 h-3.5 text-slate-500" />
-                          <span className="truncate">{booking.secondTravelerPhone}</span>
+                          <span className="truncate">{phone}</span>
                         </a>
-                      )}
+                      ))}
                     </div>
                   </div>
+                )}
+                </>
                 )}
 
                 <div>

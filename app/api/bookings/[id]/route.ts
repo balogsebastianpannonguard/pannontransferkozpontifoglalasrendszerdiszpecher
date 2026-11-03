@@ -11,6 +11,17 @@ import { getPartnerPricingByKey } from "@/lib/partner-pricing";
 
 export const dynamic = "force-dynamic";
 
+const EMAIL_RE = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
+const PHONE_RE = /^\+?[0-9][0-9\s()\-/.]{4,24}$/;
+
+function splitList(value: unknown, separator: RegExp = /[\s,;]+/): string[] {
+  if (typeof value !== "string") return [];
+  return value
+    .split(separator)
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -124,10 +135,43 @@ export async function PATCH(
 
     if ("travelerPhone" in patch) {
       const phone = typeof patch.travelerPhone === "string" ? patch.travelerPhone.trim() : "";
-      if (!/^\+?[0-9][0-9\s()\-/.]{4,24}$/.test(phone)) {
+      if (!PHONE_RE.test(phone)) {
         return NextResponse.json({ error: "Érvénytelen telefonszám." }, { status: 400 });
       }
       patch.travelerPhone = phone;
+    }
+
+    if ("travelerName" in patch) {
+      const name = typeof patch.travelerName === "string" ? patch.travelerName.replace(/\s+/g, " ").trim() : "";
+      if (!name || name.length > 200) {
+        return NextResponse.json({ error: "Az utas neve nem lehet üres (legfeljebb 200 karakter)." }, { status: 400 });
+      }
+      patch.travelerName = name;
+    }
+
+    if ("travelerEmail" in patch) {
+      const email = typeof patch.travelerEmail === "string" ? patch.travelerEmail.trim() : "";
+      if (!EMAIL_RE.test(email)) {
+        return NextResponse.json({ error: "Érvénytelen e-mail cím." }, { status: 400 });
+      }
+      patch.travelerEmail = email;
+    }
+
+    // A második utas mezői több értéket is tartalmazhatnak (vesszővel elválasztva), és üresek is lehetnek.
+    if ("secondTravelerEmail" in patch) {
+      const list = splitList(patch.secondTravelerEmail);
+      if (list.some((e) => !EMAIL_RE.test(e))) {
+        return NextResponse.json({ error: "A második utas e-mail címe érvénytelen." }, { status: 400 });
+      }
+      patch.secondTravelerEmail = list.join(", ");
+    }
+
+    if ("secondTravelerPhone" in patch) {
+      const list = splitList(patch.secondTravelerPhone, /[,;]+/);
+      if (list.some((p) => !PHONE_RE.test(p))) {
+        return NextResponse.json({ error: "A második utas telefonszáma érvénytelen." }, { status: 400 });
+      }
+      patch.secondTravelerPhone = list.join(", ");
     }
 
     if ("pickupTime" in patch) {
@@ -184,6 +228,12 @@ export async function PATCH(
       price: "Ár",
       companyName: "Cégnév",
       paymentMethod: "Fizetési mód",
+      travelerName: "Utas neve",
+      travelerEmail: "Utas e-mail címe",
+      travelerPhone: "Utas telefonszáma",
+      secondTravelerEmail: "Második utas e-mail címe",
+      secondTravelerPhone: "Második utas telefonszáma",
+      priceCurrency: "Pénznem",
     };
     const changes = Object.keys(patch)
       .filter((field) => {

@@ -663,6 +663,12 @@ export default function BookingDetailClient({
   const [priceValue, setPriceValue] = useState<string>(booking.price ? String(booking.price) : "");
   const [priceCurrency, setPriceCurrency] = useState<Currency>(normalizeCurrency(booking.priceCurrency));
   const [statusValue, setStatusValue] = useState<BookingStatus>(booking.status);
+  // Mentés után a szerver "Módosított"-ra válthatja a státuszt (pl. beírt ár) — a kijelzés kövesse azonnal.
+  const [syncedStatus, setSyncedStatus] = useState<BookingStatus>(booking.status);
+  if (booking.status !== syncedStatus) {
+    setSyncedStatus(booking.status);
+    setStatusValue(booking.status);
+  }
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
   const [paymentDropdownOpen, setPaymentDropdownOpen] = useState(false);
   const [paymentSaving, setPaymentSaving] = useState(false);

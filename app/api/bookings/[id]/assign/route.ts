@@ -3,6 +3,7 @@ import { getCurrentSession } from "@/lib/auth";
 import {
   getBookingById,
   assignBooking,
+  markBookingTouchedByDispatcher,
   updateBookingStatus,
   getBookingsCollection,
 } from "@/lib/bookings";
@@ -134,9 +135,10 @@ export async function POST(
         if (remainingDriverTrips === 0) await updateDriver(previousDriverId, { status: "active" });
       }
 
+      // A visszavonás is diszpécseri beavatkozás, ezért "Módosított" (sárga) lesz, nem "Beérkezett".
       const updated = await updateBookingStatus(
         id,
-        "pending",
+        "modified",
         user.email,
         "Hozzárendelés visszavonva a diszpécser által"
       );
@@ -183,8 +185,10 @@ export async function POST(
       details: `${body.driverName} - ${body.vehicleName}${body.forceOverride ? " (manuális felülbírálással)" : ""}`,
     });
 
+    const touched = await markBookingTouchedByDispatcher(id);
+
     return NextResponse.json({
-      booking: assigned,
+      booking: touched ?? assigned,
     });
   } catch (err) {
     console.error("[booking assign error]", err);

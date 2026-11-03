@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth";
-import { getBookingById, getBookingsCollection } from "@/lib/bookings";
+import { getBookingById, getBookingsCollection, markBookingTouchedByDispatcher } from "@/lib/bookings";
 import { createAuditLog } from "@/lib/audit-logs";
 import { sendEmail } from "@/lib/nodemailer";
 import { getStaffCollection } from "@/lib/staff-auth";
@@ -68,6 +68,9 @@ export async function POST(
         },
       }
     );
+
+    // Az ár beírása (jóváhagyásra küldve is) diszpécseri módosítás → "Módosított" (sárga).
+    await markBookingTouchedByDispatcher(id);
 
     await createAuditLog({
       timestamp: now,
@@ -229,6 +232,10 @@ export async function PATCH(
         },
       }
     );
+
+    if (body.decision === "approved") {
+      await markBookingTouchedByDispatcher(id);
+    }
 
     await createAuditLog({
       timestamp: now,

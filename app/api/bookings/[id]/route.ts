@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth";
-import { getBookingById, updateBooking, type Booking } from "@/lib/bookings";
+import {
+  getBookingById,
+  markBookingTouchedByDispatcher,
+  updateBooking,
+  type Booking,
+} from "@/lib/bookings";
 import { createAuditLog } from "@/lib/audit-logs";
 import { getPartnerPricingByKey } from "@/lib/partner-pricing";
 
@@ -183,6 +188,11 @@ export async function PATCH(
       return NextResponse.json({ error: "Módosítás sikertelen" }, { status: 400 });
     }
 
+    // Valódi diszpécseri változtatás után (pl. beírt ár) a "Beérkezett" foglalás "Módosított" (sárga) lesz,
+    // kivéve ha a kérés maga állít státuszt.
+    const touched =
+      changes.length > 0 && !("status" in patch) ? await markBookingTouchedByDispatcher(id) : null;
+
     await createAuditLog({
       timestamp: Date.now(),
       action: "booking.modified",
@@ -195,7 +205,7 @@ export async function PATCH(
     // A diszpécseri módosításokról (pl. felvételi időpont, sofőr/jármű, egyéb adatok)
     // nem küldünk e-mailt az utasnak/NI-nak — csak a véglegesítésről vagy a lemondásról.
 
-    return NextResponse.json({ booking: updated });
+    return NextResponse.json({ booking: touched ?? updated });
   } catch (err) {
     console.error("[booking PATCH error]", err);
     return NextResponse.json({ error: "Szerver hiba" }, { status: 500 });

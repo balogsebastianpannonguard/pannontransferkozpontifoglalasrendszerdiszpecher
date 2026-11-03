@@ -307,6 +307,25 @@ export async function updateBooking(
   return convertId(res);
 }
 
+/**
+ * Ha a diszpécser bármit módosít egy még érintetlen ("Beérkezett", piros) foglaláson — árat ír be,
+ * időpontot/címet/sofőrt állít stb. —, a foglalás "Módosított" (sárga) lesz. Csak a "pending"
+ * állapotot váltja (atomikusan), így az "Értesítve" vagy lezárt utak státusza nem lép vissza.
+ * A státuszt a "Kiküldés sofőrnek"-hez hasonlóan állítja, lastStatusChange nélkül (nem értesít partnert).
+ * Visszaadja a frissített foglalást, vagy null-t, ha nem kellett váltani.
+ */
+export async function markBookingTouchedByDispatcher(id: ObjectId | string): Promise<Booking | null> {
+  const col = await getBookingsCollection();
+  const oid: ObjectId = typeof id === "string" ? new ObjectId(id) : id;
+  const res = await col.findOneAndUpdate(
+    { _id: oid, status: "pending" } as any,
+    { $set: { status: "modified" } },
+    { returnDocument: 'after' }
+  );
+  if (!res) return null;
+  return convertId(res);
+}
+
 export async function getBookingsForMonth(year: number, month: number): Promise<Booking[]> {
   await initBookingIndexes();
   const col = await getBookingsCollection();

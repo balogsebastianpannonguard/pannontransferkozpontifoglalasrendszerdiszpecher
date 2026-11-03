@@ -264,9 +264,15 @@ function formatAuditDetails(log: AuditLog): string {
         .join("; ");
       return changeLines ? `${obj.message} (${changeLines})` : obj.message;
     }
-    const entries = Object.entries(obj).filter(([k, v]) => !AUDIT_HIDDEN_FIELDS.has(k) && v !== undefined && v !== null && v !== "");
+    // A kiválasztás törlése ("Egyik sem") üres névként érkezik — azt is megmutatjuk.
+    const isClearedPick = (k: string, v: unknown) => v === "" && (k === "plannedDriverName" || k === "plannedVehicleName");
+    const entries = Object.entries(obj).filter(
+      ([k, v]) => !AUDIT_HIDDEN_FIELDS.has(k) && v !== undefined && v !== null && (v !== "" || isClearedPick(k, v))
+    );
     if (entries.length === 0) return "";
-    return entries.map(([key, value]) => `${AUDIT_FIELD_LABELS[key] || key}: ${value}`).join("; ");
+    return entries
+      .map(([key, value]) => `${AUDIT_FIELD_LABELS[key] || key}: ${isClearedPick(key, value) ? "Egyik sem" : value}`)
+      .join("; ");
   }
 
   if (log.action === "booking.created") {
@@ -341,6 +347,7 @@ function AssignmentSelect({
   options,
   onChange,
   variant = "default",
+  noneLabel,
 }: {
   label: string;
   icon: typeof UserCircle2;
@@ -356,6 +363,8 @@ function AssignmentSelect({
   }>;
   onChange: (value: string) => void;
   variant?: "default" | "vehicle";
+  /** Ha meg van adva, a lista tetején egy "Egyik sem" sor törli a kiválasztást. */
+  noneLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -550,6 +559,28 @@ function AssignmentSelect({
         Választható {label.toLowerCase()}
       </div>
       <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-0.5 [-webkit-overflow-scrolling:touch] [scrollbar-width:thin]">
+        {noneLabel && !searchTerm.trim() && (
+          <button
+            type="button"
+            onClick={() => {
+              onChange("");
+              closeMenu();
+            }}
+            className={`mb-1 flex w-full items-center gap-3 rounded-xl border border-dashed px-3 py-2.5 text-left transition-colors duration-100 active:bg-blue-50 ${
+              value === "" ? "border-blue-200 bg-blue-50 text-blue-900" : "border-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+              value === "" ? "bg-blue-600 text-white shadow-sm shadow-blue-600/20" : "bg-slate-100 text-slate-500"
+            }`}>
+              <X className="h-4 w-4" strokeWidth={2.4} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-black text-slate-800">{noneLabel}</span>
+              <span className="mt-0.5 block truncate text-[11px] font-medium text-slate-400">Nincs kiválasztva</span>
+            </span>
+          </button>
+        )}
         {filteredOptions.map((option, index) => (
           <button
             key={option.id}
@@ -2716,6 +2747,7 @@ export default function BookingDetailClient({
                     value={selectedDriverId}
                     onChange={handleSelectDriver}
                     placeholder="Válassz sofőrt"
+                    noneLabel="Egyik sem"
                     options={drivers.map((d) => {
                       const unavailable = d.status === "on_route" || d.status === "inactive" || d.status === "on_leave";
                       return {
@@ -2736,6 +2768,7 @@ export default function BookingDetailClient({
                         value={selectedVehicleId}
                         onChange={handleSelectVehicle}
                         placeholder="Válassz járművet"
+                        noneLabel="Egyik sem"
                         options={sortedVehicles.map((v) => {
                           const unavailable = v.status === "on_route" || v.condition === "not_working";
                           return {

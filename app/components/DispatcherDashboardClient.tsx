@@ -39,6 +39,7 @@ import {
   MessageSquareText,
   CalendarPlus,
   ImagePlus,
+  XCircle,
 } from "lucide-react";
 
 import { ClientsView } from "./ClientsView";
@@ -212,7 +213,7 @@ interface PartnerModificationNotif {
 
 interface NotificationEvent {
   id: string;
-  type: "new_booking" | "booking_modified" | "driver_acknowledged" | "booking_event";
+  type: "new_booking" | "booking_modified" | "booking_cancelled" | "driver_acknowledged" | "booking_event";
   title: string;
   message: string;
   bookingId: string;
@@ -235,36 +236,6 @@ interface NotificationToast {
   bookingId?: string;
   notificationId?: string;
   timestamp: number;
-}
-
-type AudioWindow = Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext };
-
-function playNotificationSound() {
-  try {
-    const AudioCtx = window.AudioContext || (window as AudioWindow).webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.value = 880;
-    osc.type = 'sine';
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.5);
-    const osc2 = ctx.createOscillator();
-    const gain2 = ctx.createGain();
-    osc2.connect(gain2);
-    gain2.connect(ctx.destination);
-    osc2.frequency.value = 1320;
-    osc2.type = 'sine';
-    gain2.gain.setValueAtTime(0.2, ctx.currentTime + 0.15);
-    gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.65);
-    osc2.start(ctx.currentTime + 0.15);
-    osc2.stop(ctx.currentTime + 0.65);
-  } catch {}
 }
 
 function monogramOf(name: string) {
@@ -1128,7 +1099,6 @@ export default function DispatcherDashboardClient({
               createdAt: event.timestamp,
             }));
           if (newBookings.length > 0) {
-            playNotificationSound();
 
             const newToasts: NotificationToast[] = newBookings.map(b => ({
               id: `toast-${b._id}-${Date.now()}`,
@@ -1154,7 +1124,6 @@ export default function DispatcherDashboardClient({
         if (firstLoad || history) {
           lastSeenModificationIds.current = new Set(modifications.map((item) => item.id));
         } else if (newModifications.length > 0) {
-          playNotificationSound();
           setUnreadModificationCount((count) => count + newModifications.filter(
             (item) => !readNotificationIds.current.has(item.id)
           ).length);
@@ -1634,11 +1603,13 @@ export default function DispatcherDashboardClient({
                                       ? "bg-gradient-to-br from-blue-500 to-indigo-600"
                                       : event.type === "booking_modified"
                                         ? "bg-gradient-to-br from-amber-500 to-orange-600"
+                                        : event.type === "booking_cancelled"
+                                          ? "bg-gradient-to-br from-rose-500 to-red-600"
                                         : event.type === "driver_acknowledged"
                                           ? "bg-gradient-to-br from-emerald-500 to-teal-600"
                                           : "bg-gradient-to-br from-slate-600 to-slate-800"
                                   }`}>
-                                    {event.type === "new_booking" ? <PlusCircle className="w-4 h-4" /> : event.type === "booking_modified" ? <RefreshCw className="w-4 h-4" /> : event.type === "driver_acknowledged" ? <CheckCircle2 className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
+                                    {event.type === "new_booking" ? <PlusCircle className="w-4 h-4" /> : event.type === "booking_modified" ? <RefreshCw className="w-4 h-4" /> : event.type === "booking_cancelled" ? <XCircle className="w-4 h-4" /> : event.type === "driver_acknowledged" ? <CheckCircle2 className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 flex-wrap mb-0.5">
@@ -2773,6 +2744,14 @@ function NotificationsView({
         iconClass: "bg-amber-500 text-white shadow-amber-500/25",
         badgeClass: "bg-amber-50 text-amber-700 border-amber-200",
         label: "Foglalás módosítva",
+      };
+    }
+    if (type === "booking_cancelled") {
+      return {
+        icon: <XCircle className="w-5 h-5" />,
+        iconClass: "bg-rose-600 text-white shadow-rose-500/25",
+        badgeClass: "bg-rose-50 text-rose-700 border-rose-200",
+        label: "Lemondva",
       };
     }
     if (type === "driver_acknowledged") {

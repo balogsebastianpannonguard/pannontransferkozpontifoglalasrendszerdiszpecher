@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
+import NotificationAlerter from "./components/NotificationAlerter";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -40,6 +41,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} ${playfair.variable} antialiased min-h-screen`}
       >
         {children}
+        <NotificationAlerter />
       </body>
     </html>
   );

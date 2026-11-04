@@ -57,6 +57,17 @@ async function loadDispatcherEmails(): Promise<string[]> {
 }
 
 
+// A partnerportál a lemondást "status-change" bejegyzésként, sima szöveggel naplózza
+// (pl. "Felhasználó törölte a foglalást").
+function isCancellationText(details: unknown): boolean {
+  const text = typeof details === "string"
+    ? details
+    : details && typeof details === "object" && typeof (details as { message?: unknown }).message === "string"
+      ? String((details as { message: string }).message)
+      : "";
+  return /töröl|lemond|cancel/i.test(text);
+}
+
 export async function GET(request: Request) {
   const user = await getCurrentSession();
   if (!user) {
@@ -163,6 +174,14 @@ export async function GET(request: Request) {
                         ? details
                         : details.message || `${entry.actor || "A sofőr"} visszaigazolta, hogy látta az utat.`,
                     }
+                  : action === "status-change" && isCancellationText(details)
+                    ? {
+                        type: "booking_cancelled",
+                        title: "A partner lemondta a foglalást",
+                        message: typeof details === "string"
+                          ? details
+                          : details.message || "A foglalást a partner lemondta.",
+                      }
                   : {
                       type: "booking_event",
                       title: "Foglalási esemény",
@@ -203,6 +222,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       pendingBookingCount,
+      pendingCount: pendingBookingCount,
       dispatchers,
       pollToken,
       recentBookings,

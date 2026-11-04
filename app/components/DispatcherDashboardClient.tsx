@@ -1513,18 +1513,6 @@ export default function DispatcherDashboardClient({
               </div>
               <div className="flex items-center gap-3">
                 <div className="hidden md:flex items-center gap-2 px-4 py-2 rounded-2xl bg-white border border-slate-200 shadow-sm">
-                  {pendingCount > 0 ? (
-                    <>
-                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                      <span className="text-xs font-bold text-amber-700">Figyelem: {pendingCount} függő</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      <span className="text-xs font-bold text-slate-600">Rendszer OK</span>
-                    </>
-                  )}
-                  <span className="w-px h-4 bg-slate-200 mx-1" />
                   <Clock className="w-3.5 h-3.5 text-slate-400" />
                   <span className="text-xs font-mono font-bold text-slate-700 tabular-nums">
                     {today.toLocaleDateString("hu-HU", { year: "numeric", month: "2-digit", day: "2-digit" })}

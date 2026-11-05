@@ -171,6 +171,14 @@ export async function getBookingById(id: ObjectId | string): Promise<Booking | n
   return convertId(doc);
 }
 
+/** Egy foglalás végleges törlése (csak admin teszteléshez, az API-ban ellenőrizve). */
+export async function deleteBookingById(id: ObjectId | string): Promise<boolean> {
+  const col = await getBookingsCollection();
+  const oid: ObjectId = typeof id === "string" ? new ObjectId(id) : id;
+  const res = await col.deleteOne({ _id: oid } as any);
+  return res.deletedCount === 1;
+}
+
 export async function getBookingByCode(code: string): Promise<Booking | null> {
   const col = await getBookingsCollection();
   const doc = await col.findOne({ bookingCode: code });

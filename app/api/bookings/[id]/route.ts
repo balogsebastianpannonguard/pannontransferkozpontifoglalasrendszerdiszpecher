@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentSession } from "@/lib/auth";
+import { getCurrentSession, isVerifiedAdmin } from "@/lib/auth";
 import {
+  deleteBookingById,
   getBookingById,
   markBookingTouchedByDispatcher,
   updateBooking,
@@ -281,6 +282,64 @@ export async function PATCH(
     return NextResponse.json({ booking: touched ?? updated });
   } catch (err) {
     console.error("[booking PATCH error]", err);
+    return NextResponse.json({ error: "Szerver hiba" }, { status: 500 });
+  }
+}
+
+/**
+ * Foglalás végleges törlése – KIZÁRÓLAG adminnak (tesztelési célra). A diszpécserek ezt nem érik el:
+ * a gomb sem jelenik meg nekik, és a szerver is elutasítja. Megerősítésként a foglalási kódot kell elküldeni.
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const user = await getCurrentSession();
+  if (!user) {
+    return NextResponse.json({ error: "Nincs jogosultságod" }, { status: 401 });
+  }
+  if (!(await isVerifiedAdmin(user))) {
+    return NextResponse.json({ error: "Ehhez a művelethez admin jogosultság szükséges" }, { status: 403 });
+  }
+
+  try {
+    const { id } = await params;
+    const existing = await getBookingById(id);
+    if (!existing) {
+      return NextResponse.json({ error: "Foglalás nem található" }, { status: 404 });
+    }
+
+    const body = (await request.json().catch(() => ({}))) as { confirmCode?: string };
+    if (typeof body.confirmCode !== "string" || body.confirmCode.trim() !== existing.bookingCode) {
+      return NextResponse.json({ error: "Hiányzó vagy hibás megerősítés" }, { status: 400 });
+    }
+
+    const deleted = await deleteBookingById(id);
+    if (!deleted) {
+      return NextResponse.json({ error: "A törlés sikertelen" }, { status: 400 });
+    }
+
+    await createAuditLog({
+      timestamp: Date.now(),
+      action: "booking.deleted_by_admin",
+      actor: user.email,
+      targetType: "booking",
+      targetId: id,
+      details: JSON.stringify({
+        bookingCode: existing.bookingCode,
+        portal: existing.portal,
+        companyName: existing.companyName,
+        travelerName: existing.travelerName,
+        pickupDate: existing.pickupDate,
+        pickupTime: existing.pickupTime,
+        status: existing.status,
+        reason: "Admin törlés (tesztelés)",
+      }),
+    });
+
+    return NextResponse.json({ success: true, bookingCode: existing.bookingCode });
+  } catch (err) {
+    console.error("[booking DELETE error]", err);
     return NextResponse.json({ error: "Szerver hiba" }, { status: 500 });
   }
 }

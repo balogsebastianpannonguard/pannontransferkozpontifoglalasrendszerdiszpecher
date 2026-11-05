@@ -56,6 +56,7 @@ import {
   Eye,
   EyeOff,
   PencilLine,
+  Trash2,
 } from "lucide-react";
 
 const HUN_MONTHS = [
@@ -729,14 +730,19 @@ export default function BookingDetailClient({
   vehicles,
   auditLogs: initialAuditLogs,
   userEmail: _userEmail,
+  isAdmin = false,
 }: {
   booking: Booking;
   drivers: Driver[];
   vehicles: Vehicle[];
   auditLogs: AuditLog[];
   userEmail: string;
+  /** Csak admin fióknál igaz: ekkor jelenik meg a (tesztelési célú) út törlése gomb. */
+  isAdmin?: boolean;
 }) {
   const router = useRouter();
+  const [showAdminDelete, setShowAdminDelete] = useState(false);
+  const [adminDeleting, setAdminDeleting] = useState(false);
   const toastIdRef = useRef<number>(0);
 
   const [booking, setBooking] = useState<Booking>(initialBooking);
@@ -831,6 +837,31 @@ export default function BookingDetailClient({
     [booking.assignedDriverId, booking.assignedVehicleId]
   );
   const hasPrice = useMemo(() => booking.price !== undefined && booking.price !== null && booking.price > 0, [booking.price]);
+
+  async function handleAdminDelete() {
+    if (!isAdmin || adminDeleting) return;
+    setAdminDeleting(true);
+    try {
+      const res = await fetch(`/api/bookings/${booking._id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmCode: booking.bookingCode }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        pushToast("error", "Törlés sikertelen", data.error || "Ismeretlen hiba történt");
+        setAdminDeleting(false);
+        return;
+      }
+      setShowAdminDelete(false);
+      pushToast("success", "Út törölve", `#${booking.bookingCode} véglegesen törölve.`);
+      router.replace("/");
+      router.refresh();
+    } catch {
+      pushToast("error", "Törlés sikertelen", "Hálózati hiba, próbáld újra.");
+      setAdminDeleting(false);
+    }
+  }
 
   function pushToast(type: Toast["type"], title: string, message?: string) {
     toastIdRef.current += 1;
@@ -1721,6 +1752,25 @@ export default function BookingDetailClient({
               </div>
             </div>
           </div>
+
+          {/* Csak admin fióknak (tesztelés): a diszpécserek ezt nem látják, és a szerver is elutasítaná. */}
+          {isAdmin && (
+            <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border-2 border-dashed border-rose-200 bg-rose-50/60 px-5 py-3">
+              <div className="flex items-center gap-2.5 text-[12px] font-bold text-rose-700">
+                <ShieldCheck className="w-4 h-4 shrink-0" />
+                <span>
+                  <span className="font-black tracking-widest uppercase">Admin</span> · Csak az adminisztrációs fiók látja. Tesztútak végleges törléséhez.
+                </span>
+              </div>
+              <button
+                onClick={() => setShowAdminDelete(true)}
+                className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-white border-2 border-rose-300 text-rose-700 text-xs font-black tracking-wider uppercase hover:bg-rose-600 hover:border-rose-600 hover:text-white transition-all"
+              >
+                <Trash2 className="w-4 h-4" />
+                Adminisztrációs fiókkal törlöm az utat
+              </button>
+            </div>
+          )}
         </motion.header>
 
         <motion.div
@@ -3146,6 +3196,72 @@ export default function BookingDetailClient({
           </div>
         </div>
       </div>
+
+      {/* Admin: út végleges törlése (megerősítés) */}
+      <AnimatePresence>
+        {isAdmin && showAdminDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4"
+            onClick={() => { if (!adminDeleting) setShowAdminDelete(false); }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 12 }}
+              transition={{ duration: 0.2 }}
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Út törlése"
+              className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg p-7"
+            >
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-rose-500 to-red-600 shadow-md shadow-rose-500/30 flex items-center justify-center text-white">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-[10px] font-black tracking-[0.2em] uppercase text-slate-400">Admin művelet</div>
+                  <h3 className="font-sans font-black text-[18px] tracking-tight text-slate-900 leading-none">Út végleges törlése</h3>
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-rose-50 border border-rose-200 px-4 py-3 mb-5">
+                <div className="text-xl font-black tabular-nums text-rose-900">#{booking.bookingCode}</div>
+                <div className="text-sm font-bold text-rose-800 mt-0.5">
+                  {booking.travelerName} · {booking.pickupDate} {booking.pickupTime}
+                </div>
+                <div className="text-xs text-rose-700 mt-2 leading-relaxed">
+                  Az út véglegesen törlődik a rendszerből (naptár, listák, partner portál). Ez nem vonható vissza, és senki nem kap róla e-mailt.
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowAdminDelete(false)}
+                  disabled={adminDeleting}
+                  className="flex-1 px-4 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-black tracking-[0.1em] uppercase transition disabled:opacity-60"
+                >
+                  Mégsem
+                </button>
+                <button
+                  onClick={handleAdminDelete}
+                  disabled={adminDeleting}
+                  className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white text-sm font-black tracking-[0.1em] uppercase shadow-lg shadow-rose-500/25 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  {adminDeleting ? (
+                    <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Törlés…</span>
+                  ) : (
+                    <span className="flex items-center justify-center gap-2"><Trash2 className="w-4 h-4" /> Igen, törlöm</span>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Jóváhagyás kérés modal */}
       <AnimatePresence>

@@ -3,7 +3,7 @@ import { getBookingById, markBookingViewed, type Booking } from "@/lib/bookings"
 import { getDrivers, type Driver } from "@/lib/drivers";
 import { listVehicles, type Vehicle } from "@/lib/vehicles";
 import { listAuditLogsForTarget, type AuditLog } from "@/lib/audit-logs";
-import { requireAuthSession, getDispatcherProfile, type DispatcherUser } from "@/lib/auth";
+import { requireAuthSession, getDispatcherProfile, isVerifiedAdmin, type DispatcherUser } from "@/lib/auth";
 import {
   MapPinX,
   Home,
@@ -37,11 +37,12 @@ export default async function BookingDetailPage({
 
   const { id } = await params;
 
-  const [booking, drivers, vehicles, auditLogs] = await Promise.all([
+  const [booking, drivers, vehicles, auditLogs, isAdmin] = await Promise.all([
     getBookingById(id),
     getDrivers(),
     listVehicles(),
     listAuditLogsForTarget("booking", id, 20),
+    isVerifiedAdmin(user),
   ]);
 
   if (!booking) {
@@ -98,6 +99,7 @@ export default async function BookingDetailPage({
       vehicles={vehicles as Vehicle[]}
       auditLogs={auditLogs as AuditLog[]}
       userEmail={userEmail}
+      isAdmin={isAdmin}
     />
   );
 }

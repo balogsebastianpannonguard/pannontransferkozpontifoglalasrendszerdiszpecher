@@ -161,3 +161,24 @@ export async function getCurrentSession(): Promise<DispatcherUser | null> {
 export async function requireAuthSession(): Promise<DispatcherUser | null> {
   return getCurrentSession();
 }
+
+/**
+ * Valódi admin-e a bejelentkezett felhasználó: a munkamenet szerint admin, és (ha munkatársi fiók)
+ * az adatbázisban is admin – így egy közben visszaminősített fiók régi munkamenete sem elég.
+ * A környezeti változós alapfiók csak akkor admin, ha a DISPATCHER_ROLE is "admin".
+ */
+export async function isVerifiedAdmin(user: DispatcherUser | null): Promise<boolean> {
+  if (!user || user.role !== "admin") return false;
+  try {
+    const staff = await findStaffUserByEmail(user.email);
+    if (staff) return staff.role === "admin";
+  } catch (err) {
+    console.error("[isVerifiedAdmin] staff lookup failed", err);
+    return false;
+  }
+  const envEmail = process.env.DISPATCHER_EMAIL || "dispecer@pannon.hu";
+  return (
+    user.email.trim().toLowerCase() === envEmail.toLowerCase() &&
+    (process.env.DISPATCHER_ROLE || "dispatcher") === "admin"
+  );
+}

@@ -37,6 +37,7 @@ export async function POST(
       vehicleId: string;
       vehicleName: string;
       forceOverride?: boolean;
+      overrideAcceptedBy?: string;
     };
 
     const shouldRelease =
@@ -195,7 +196,10 @@ export async function POST(
       actor: user.email,
       targetType: "booking",
       targetId: id,
-      details: `${body.driverName} - ${body.vehicleName}${body.forceOverride ? " (manuális felülbírálással)" : ""}`,
+      // Felülbírálásnál a bejelentkezett diszpécser neve kerül a naplóba (a munkamenetből, nem a kérésből).
+      details: `${body.driverName} - ${body.vehicleName}${
+        body.forceOverride ? ` (manuális felülbírálással – vállalta: ${user.name || user.email})` : ""
+      }`,
     });
 
     const touched = await markBookingTouchedByDispatcher(id);

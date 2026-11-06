@@ -57,6 +57,7 @@ import {
   EyeOff,
   PencilLine,
   Trash2,
+  ShieldAlert,
 } from "lucide-react";
 
 const HUN_MONTHS = [
@@ -730,6 +731,7 @@ export default function BookingDetailClient({
   vehicles,
   auditLogs: initialAuditLogs,
   userEmail: _userEmail,
+  userName = "",
   isAdmin = false,
 }: {
   booking: Booking;
@@ -737,11 +739,17 @@ export default function BookingDetailClient({
   vehicles: Vehicle[];
   auditLogs: AuditLog[];
   userEmail: string;
+  /** A bejelentkezett diszpécser neve (a felülbírálás vállalásához). */
+  userName?: string;
   /** Csak admin fióknál igaz: ekkor jelenik meg a (tesztelési célú) út törlése gomb. */
   isAdmin?: boolean;
 }) {
   const router = useRouter();
   const [showAdminDelete, setShowAdminDelete] = useState(false);
+  // Felülbírálás: a diszpécser név szerint vállalja, hogy ütközés / foglalt erőforrás ellenére kiosztja.
+  const [overrideReason, setOverrideReason] = useState<string | null>(null);
+  const [overrideAccepted, setOverrideAccepted] = useState(false);
+  const overriderName = userName.trim() || _userEmail;
   const [adminDeleting, setAdminDeleting] = useState(false);
   const toastIdRef = useRef<number>(0);
 
@@ -1446,11 +1454,17 @@ export default function BookingDetailClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickupDateDraft]);
 
-  async function handleAssign() {
+  async function handleAssign(options: { force?: boolean } = {}) {
     const driver = drivers.find((d) => d._id === selectedDriverId);
     const vehicle = vehicles.find((v) => String(v._id) === selectedVehicleId);
     if (!driver || !vehicle) {
       pushToast("error", "Hiányzó kiválasztás", "Válaszd ki a sofőrt és a járművet.");
+      return;
+    }
+    // Manuális felülbírálást csak a felugró ablakban, név szerinti vállalással lehet indítani.
+    if (forceAssignment && !options.force) {
+      setOverrideAccepted(false);
+      setOverrideReason("Manuális felülbírálást kértél: a kiosztás akkor is megtörténik, ha a sofőr vagy a jármű foglalt, úton van vagy szervizben van.");
       return;
     }
     try {
@@ -1463,14 +1477,27 @@ export default function BookingDetailClient({
           driverName: driver.name,
           vehicleId: String(vehicle._id),
           vehicleName: vehicle.name,
-          forceOverride: forceAssignment,
+          forceOverride: options.force === true,
+          ...(options.force ? { overrideAcceptedBy: overriderName } : {}),
         }),
       });
       const data = await res.json().catch(() => ({}));
+      if (res.status === 409 && !options.force) {
+        // Ütközés: felugró ablak, ahol a diszpécser név szerint vállalhatja a felülbírálást.
+        setOverrideAccepted(false);
+        setOverrideReason(data?.error || "A sofőr vagy a jármű ebben az időben foglalt.");
+        return;
+      }
       if (!res.ok || !data?.booking) throw new Error(data?.error || "Hiba");
       setBooking(data.booking);
       setStatusValue(data.booking.status);
-      pushToast("success", "Sikeres hozzárendelés!", "Státusz automatikusan megerősítve.");
+      setOverrideReason(null);
+      setForceAssignment(false);
+      pushToast(
+        "success",
+        "Sikeres hozzárendelés!",
+        options.force ? `Felülbírálva – vállalta: ${overriderName}.` : "Státusz automatikusan megerősítve."
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : undefined;
       pushToast("error", "Hozzárendelés sikertelen", msg);
@@ -3169,7 +3196,7 @@ export default function BookingDetailClient({
                       <span>
                         <span className="block text-xs font-black uppercase tracking-wider text-amber-800">Manuális felülbírálás</span>
                         <span className="mt-1 block text-xs leading-relaxed text-amber-700">
-                          Csak indokolt esetben engedi úton lévő vagy szervizelt erőforrás kiosztását.
+                          Csak indokolt esetben engedi foglalt, úton lévő vagy szervizelt erőforrás kiosztását – név szerinti vállalással.
                         </span>
                       </span>
                     </label>
@@ -3177,7 +3204,7 @@ export default function BookingDetailClient({
 
                   <div className="flex flex-col sm:flex-row gap-3 pt-2">
                   <button
-                    onClick={handleAssign}
+                    onClick={() => handleAssign()}
                     disabled={assigning}
                     className={`flex-1 inline-flex items-center justify-center gap-3 px-6 py-4 rounded-xl text-white text-[12px] font-black tracking-[0.2em] uppercase shadow-lg hover:-translate-y-[1px] hover:shadow-xl transition-all disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${partnerMeta ? `bg-gradient-to-r ${partnerMeta.gradient}` : "bg-gradient-to-r from-slate-800 to-slate-950 shadow-slate-900/20 hover:from-slate-700 hover:to-slate-900"}`}
                   >
@@ -3349,6 +3376,81 @@ export default function BookingDetailClient({
                     <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Törlés…</span>
                   ) : (
                     <span className="flex items-center justify-center gap-2"><Trash2 className="w-4 h-4" /> Igen, törlöm</span>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {overrideReason && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4"
+            onClick={() => { if (!assigning) setOverrideReason(null); }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 12 }}
+              transition={{ duration: 0.2 }}
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Kiosztás felülbírálása"
+              className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg p-7"
+            >
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-md shadow-amber-500/30 flex items-center justify-center text-white">
+                  <ShieldAlert className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-[10px] font-black tracking-[0.2em] uppercase text-slate-400">Ütközés</div>
+                  <h3 className="font-sans font-black text-[18px] tracking-tight text-slate-900 leading-none">Kiosztás felülbírálása</h3>
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 mb-4">
+                <div className="text-sm font-bold text-amber-900">
+                  {drivers.find((d) => d._id === selectedDriverId)?.name || "Sofőr"} ·{" "}
+                  {vehicles.find((v) => String(v._id) === selectedVehicleId)?.name || "Jármű"}
+                </div>
+                <div className="text-xs text-amber-800 mt-1.5 leading-relaxed">{overrideReason}</div>
+              </div>
+
+              <label className="flex items-start gap-3 rounded-xl border-2 border-slate-200 px-4 py-3.5 mb-5 cursor-pointer has-[:checked]:border-amber-500 has-[:checked]:bg-amber-50/60 transition">
+                <input
+                  type="checkbox"
+                  checked={overrideAccepted}
+                  onChange={(e) => setOverrideAccepted(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-amber-600"
+                />
+                <span className="text-sm font-bold text-slate-800 leading-relaxed">
+                  Vállalom, hogy én, <span className="text-amber-700">„{overriderName}”</span>, ezt felülbírálom bármi áron.
+                </span>
+              </label>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setOverrideReason(null)}
+                  disabled={assigning}
+                  className="flex-1 px-4 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-black tracking-[0.1em] uppercase transition disabled:opacity-60"
+                >
+                  Mégsem
+                </button>
+                <button
+                  onClick={() => handleAssign({ force: true })}
+                  disabled={!overrideAccepted || assigning}
+                  className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white text-sm font-black tracking-[0.1em] uppercase shadow-lg shadow-amber-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {assigning ? (
+                    <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Kiosztás…</span>
+                  ) : (
+                    <span className="flex items-center justify-center gap-2"><ShieldAlert className="w-4 h-4" /> Felülbírálom</span>
                   )}
                 </button>
               </div>

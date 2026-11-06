@@ -99,6 +99,7 @@ export default async function BookingDetailPage({
       vehicles={vehicles as Vehicle[]}
       auditLogs={auditLogs as AuditLog[]}
       userEmail={userEmail}
+      userName={user.name || ""}
       isAdmin={isAdmin}
     />
   );

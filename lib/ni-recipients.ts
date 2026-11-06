@@ -28,9 +28,10 @@ export function isNiBooking(booking: {
   return resolvePartnerMeta(booking)?.id === "ni";
 }
 
-/** Az utason kívüli NI címzettek, ismétlés nélkül (az utas címe kimarad, ő a saját levelét kapja). */
+/** Az utason kívüli NI címzettek (második utas, admin, Location Support, felügyelő), ismétlés nélkül; az első utas címe kimarad, ő a saját levelét kapja. */
 export function niCopyRecipients(booking: {
   travelerEmail?: string | null;
+  secondTravelerEmail?: string | null;
   adminEmail?: string | null;
   userEmail?: string | null;
 }): string[] {
@@ -44,6 +45,7 @@ export function niCopyRecipients(booking: {
     out.push(email.trim());
   };
   add(booking.travelerEmail);
+  add(booking.secondTravelerEmail);
   add(booking.adminEmail || booking.userEmail);
   add(LOCATION_SUPPORT_EMAIL);
   for (const supervisor of NI_SUPERVISOR_EMAILS) add(supervisor);

@@ -654,6 +654,16 @@ function ErrorReportsView() {
   );
 }
 
+/** "9:05" / "09:05" → percek; hiányzó vagy hibás idő a nap végére kerül. */
+function pickupMinutes(time: string | undefined | null): number {
+  const m = /^\s*(\d{1,2})[:.](\d{2})/.exec(time || "");
+  return m ? Number(m[1]) * 60 + Number(m[2]) : 24 * 60 + 1;
+}
+
+function compareByPickupTime(a: { time: string }, b: { time: string }): number {
+  return pickupMinutes(a.time) - pickupMinutes(b.time);
+}
+
 export default function DispatcherDashboardClient({
   initialUser,
 }: {
@@ -989,6 +999,8 @@ export default function DispatcherDashboardClient({
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(b);
     }
+    // Egy napon belül időrendben (a naptár cellájában és a felugró listában is).
+    for (const list of map.values()) list.sort(compareByPickupTime);
     return map;
   }, [transformedBookings, cursorDate]);
 
@@ -1912,7 +1924,7 @@ export default function DispatcherDashboardClient({
 
                                 <div className="min-h-0 max-h-[380px] overflow-y-auto overscroll-contain p-2 space-y-1.5">
                                   {[...bookings]
-                                    .sort((a, b) => a.time.localeCompare(b.time))
+                                    .sort(compareByPickupTime)
                                     .map((b) => {
                                       const s = statusColor(b.status);
                                       const isNewBadge = isNewBooking(b);
@@ -2218,7 +2230,7 @@ export default function DispatcherDashboardClient({
 
                                 <div className="min-h-0 max-h-[380px] overflow-y-auto overscroll-contain p-2 space-y-1.5">
                                   {[...bookings]
-                                    .sort((a, b) => a.time.localeCompare(b.time))
+                                    .sort(compareByPickupTime)
                                     .map((b) => {
                                       const s = statusColor(b.status);
                                       const isNewBadge = isNewBooking(b);

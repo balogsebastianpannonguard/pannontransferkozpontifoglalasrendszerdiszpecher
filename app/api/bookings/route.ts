@@ -1,3 +1,4 @@
+import { isNiBooking } from "@/lib/ni-recipients";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth";
 import {
@@ -87,6 +88,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // NI cégnévvel rögzített foglalás az NI portálhoz tartozik (ott Zsuzsi és a foglaló is látja).
+    if (!body.portal && isNiBooking({ companyName: body.companyName })) {
+      body.portal = "ni";
+    }
     const booking = await createBooking(body as any, user.email);
 
     await createAuditLog({

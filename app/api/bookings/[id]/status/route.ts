@@ -9,6 +9,7 @@ import { createAuditLog } from "@/lib/audit-logs";
 import { updateDriver } from "@/lib/drivers";
 import { updateVehicle } from "@/lib/vehicles";
 import { sendEmail } from "@/lib/nodemailer";
+import { isNiBooking, niCopyRecipients } from "@/lib/ni-recipients";
 import { buildBookingModificationEmail } from "@/lib/email-templates";
 import { buildTrackUrl } from "@/lib/partner-portal-url";
 
@@ -93,8 +94,16 @@ export async function POST(
     // (pl. véglegesítés) a dedikált /finalize route küld értesítést, vagy
     // egyáltalán nem küldünk (pl. sima adminisztratív státuszváltás).
     if (emailTarget && oldStatus !== body.status && body.status === "cancelled") {
+      const cancelTargets = [emailTarget];
+      if (isNiBooking(existing)) {
+        // NI: az utas, az admin, a Location Support és az NI felügyelő is értesül.
+        if (existing.travelerEmail) cancelTargets.push(existing.travelerEmail);
+        cancelTargets.push(...niCopyRecipients(existing));
+      }
+      const uniqueCancelTargets = Array.from(new Map(cancelTargets.map((e) => [e.trim().toLowerCase(), e.trim()])).values());
+      for (const cancelTo of uniqueCancelTargets) {
       const emailResult = await sendEmail({
-        to: emailTarget,
+        to: cancelTo,
         subject:
           existing.language === "en"
             ? `Booking cancelled · #${existing.bookingCode}`
@@ -112,7 +121,8 @@ export async function POST(
         }),
       });
       if (!emailResult.success) {
-        console.warn("[booking status] lemondási e-mail nem küldhető:", emailResult.error);
+        console.warn("[booking status] lemondási e-mail nem küldhető:", cancelTo, emailResult.error);
+      }
       }
     }
 

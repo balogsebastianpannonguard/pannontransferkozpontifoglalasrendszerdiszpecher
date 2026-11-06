@@ -10,6 +10,7 @@ import {
 } from "@/lib/email-templates";
 import { buildTrackUrl } from "@/lib/partner-portal-url";
 import { getMongoDb } from "@/lib/mongodb";
+import { isNiBooking, niCopyRecipients } from "@/lib/ni-recipients";
 
 export const dynamic = "force-dynamic";
 
@@ -130,17 +131,31 @@ export async function POST(
         language: booking.language,
       });
 
+      const finalizedSubject =
+        booking.language === "en"
+          ? `Your trip is confirmed · #${booking.bookingCode} · Pannon Transfer`
+          : `Utazása véglegesítve · #${booking.bookingCode} · Pannon Transfer`;
       const travelerEmailResult = await sendEmail({
         to: booking.travelerEmail,
-        subject:
-          booking.language === "en"
-            ? `Your trip is confirmed · #${booking.bookingCode} · Pannon Transfer`
-            : `Utazása véglegesítve · #${booking.bookingCode} · Pannon Transfer`,
+        subject: finalizedSubject,
         html: travelerEmailHtml,
       });
 
       if (!travelerEmailResult.success) {
         emailWarnings.push("A foglalás véglegesítve lett, de az utas e-mail kiküldése nem sikerült.");
+      }
+
+      // NI: az admin, a Location Support és az NI felügyelő is megkapja a véglegesítést.
+      if (isNiBooking(booking)) {
+        for (const copyTo of niCopyRecipients(booking)) {
+          try {
+            const copyResult = await sendEmail({ to: copyTo, subject: finalizedSubject, html: travelerEmailHtml });
+            if (!copyResult.success) emailWarnings.push(`A másolat nem ment ki ide: ${copyTo}.`);
+          } catch (copyError) {
+            console.error("[finalize] NI copy failed", copyTo, copyError);
+            emailWarnings.push(`A másolat nem ment ki ide: ${copyTo}.`);
+          }
+        }
       }
     }
 

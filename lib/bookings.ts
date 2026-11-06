@@ -29,6 +29,8 @@ export interface BookingViewer {
 export interface Booking {
   _id?: string;
   portal?: string;
+  /** NI: a foglaláson megadott admin e-mail (a partnerportál tölti ki). */
+  adminEmail?: string;
   language?: 'hu' | 'en'; // Traveller UI language for traveller-facing emails
   bookingCode: string;
   userEmail: string;

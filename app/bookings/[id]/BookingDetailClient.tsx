@@ -776,6 +776,10 @@ export default function BookingDetailClient({
   const [editingDest, setEditingDest] = useState(false);
   const [destDraft, setDestDraft] = useState(initialBooking.toAddress || "");
   const [destSaving, setDestSaving] = useState(false);
+  const [editingFrom, setEditingFrom] = useState(false);
+  const [fromDraft, setFromDraft] = useState(initialBooking.fromAddress || "");
+  const [fromSaving, setFromSaving] = useState(false);
+  const editingFromRef = useRef(false);
   const [editingTravelers, setEditingTravelers] = useState(false);
   const [travelersDraft, setTravelersDraft] = useState(String(initialBooking.travelers ?? 1));
   const [travelersSaving, setTravelersSaving] = useState(false);
@@ -790,10 +794,11 @@ export default function BookingDetailClient({
   const [travelerInfoSaving, setTravelerInfoSaving] = useState(false);
   useEffect(() => {
     editingDestRef.current = editingDest;
+    editingFromRef.current = editingFrom;
     editingLuggageRef.current = editingLuggage;
     editingPhoneRef.current = editingPhone;
     editingTravelersRef.current = editingTravelers;
-  }, [editingDest, editingLuggage, editingPhone, editingTravelers]);
+  }, [editingDest, editingFrom, editingLuggage, editingPhone, editingTravelers]);
   const [pickupDateAutosaved, setPickupDateAutosaved] = useState(false);
   const pickupDateDirtyRef = useRef(false);
   const editingDestRef = useRef(false);
@@ -911,6 +916,7 @@ export default function BookingDetailClient({
         setStatusValue(bRes.booking.status);
         if (!pickupDateDirtyRef.current) setPickupDateDraft(bRes.booking.pickupDate || "");
         if (!editingDestRef.current) setDestDraft(bRes.booking.toAddress || "");
+        if (!editingFromRef.current) setFromDraft(bRes.booking.fromAddress || "");
         if (!editingLuggageRef.current) setLuggageDraft(String(bRes.booking.luggage ?? 0));
         if (!editingTravelersRef.current) setTravelersDraft(String(bRes.booking.travelers ?? 1));
         if (!editingPhoneRef.current) setPhoneDraft(bRes.booking.travelerPhone || "");
@@ -1323,6 +1329,36 @@ export default function BookingDetailClient({
       pushToast("error", "Utas adatainak mentése sikertelen", err instanceof Error ? err.message : undefined);
     } finally {
       setTravelerInfoSaving(false);
+    }
+  }
+
+  async function handleSavePickupAddress() {
+    const next = fromDraft.trim();
+    if (!next) {
+      pushToast("error", "Hiányzó felvételi cím", "A felvételi cím nem lehet üres.");
+      return;
+    }
+    if (next === (booking.fromAddress || "")) {
+      setEditingFrom(false);
+      return;
+    }
+    try {
+      setFromSaving(true);
+      const res = await fetch(`/api/bookings/${bookingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fromAddress: next, fromType: looksLikeAirport(next) ? "airport" : "other" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.booking) throw new Error(data?.error || "Hiba");
+      setBooking(data.booking);
+      setFromDraft(data.booking.fromAddress || "");
+      setEditingFrom(false);
+      pushToast("success", "Felvételi cím módosítva", data.booking.fromAddress);
+    } catch (err) {
+      pushToast("error", "Felvételi cím mentése sikertelen", err instanceof Error ? err.message : undefined);
+    } finally {
+      setFromSaving(false);
     }
   }
 
@@ -1985,9 +2021,67 @@ export default function BookingDetailClient({
                   <div className="text-[10px] font-black tracking-wider uppercase text-emerald-600 mb-1">
                     Honnan
                   </div>
-                  <div className="font-bold text-slate-900 text-[14px] leading-snug">
-                    {booking.fromAddress}
-                  </div>
+                  {editingFrom ? (
+                    <div className="space-y-2">
+                      <textarea
+                        value={fromDraft}
+                        onChange={(e) => setFromDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            void handleSavePickupAddress();
+                          } else if (e.key === "Escape") {
+                            setFromDraft(booking.fromAddress || "");
+                            setEditingFrom(false);
+                          }
+                        }}
+                        rows={2}
+                        autoFocus
+                        aria-label="Felvételi cím"
+                        className="w-full rounded-xl border border-emerald-300 bg-white px-3 py-2 text-[14px] font-bold text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-100 resize-none"
+                      />
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void handleSavePickupAddress()}
+                          disabled={fromSaving}
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-slate-800 px-3.5 py-2 text-[10px] font-black tracking-[0.14em] uppercase text-white transition hover:bg-slate-900 disabled:opacity-60"
+                        >
+                          {fromSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                          Mentés
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFromDraft(booking.fromAddress || "");
+                            setEditingFrom(false);
+                          }}
+                          disabled={fromSaving}
+                          className="rounded-xl border border-slate-200 px-3.5 py-2 text-[10px] font-black tracking-[0.14em] uppercase text-slate-500 transition hover:bg-slate-50"
+                        >
+                          Mégse
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="group flex items-start gap-2">
+                      <div className="font-bold text-slate-900 text-[14px] leading-snug">
+                        {booking.fromAddress}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFromDraft(booking.fromAddress || "");
+                          setEditingFrom(true);
+                        }}
+                        title="Felvételi cím módosítása"
+                        aria-label="Felvételi cím módosítása"
+                        className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-emerald-600 hover:border-emerald-300 transition"
+                      >
+                        <PencilLine className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                   {booking.fromType === "airport" && booking.flightNumber && (
                     <div className="mt-3">
                       <div className="text-[10px] font-black tracking-wider uppercase text-sky-600 mb-1">

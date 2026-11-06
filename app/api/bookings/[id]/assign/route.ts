@@ -11,6 +11,7 @@ import { createAuditLog } from "@/lib/audit-logs";
 import { getDriversCollection, updateDriver } from "@/lib/drivers";
 import { getVehicleCollection, updateVehicle } from "@/lib/vehicles";
 import { ObjectId } from "mongodb";
+import { startsWithin, tripsOverlap } from "@/lib/assignment-conflicts";
 
 export const dynamic = "force-dynamic";
 
@@ -54,19 +55,29 @@ export async function POST(
     if (!shouldRelease) {
       const forceOverride = body.forceOverride === true;
       const bookings = await getBookingsCollection();
-      const activeAssignments = await bookings.find({
+      const otherAssignments = await bookings.find({
         _id: { $ne: new ObjectId(id) },
-        // Hozzárendelés önmagában nem változtat státuszt, ezért minden nem lezárt, kiosztott út foglalja az erőforrást
         status: { $nin: ["completed", "cancelled"] },
         $or: [
           { assignedDriverId: body.driverId },
           { assignedVehicleId: body.vehicleId },
         ],
-      } as any).limit(10).toArray();
+      } as any).limit(500).toArray();
+      // Csak az időben átfedő út számít ütközésnek – egy sofőrnek/autónak lehet több (más időpontú) útja is.
+      const conflicts = otherAssignments.filter((other: any) => tripsOverlap(existing, other));
 
-      if (activeAssignments.length > 0 && !forceOverride) {
+      if (conflicts.length > 0 && !forceOverride) {
+        const c: any = conflicts[0];
+        const who =
+          c.assignedDriverId === body.driverId && c.assignedVehicleId === body.vehicleId
+            ? "A sofőr és a jármű"
+            : c.assignedDriverId === body.driverId
+              ? "A sofőr"
+              : "A jármű";
         return NextResponse.json(
-          { error: "A sofőr vagy a jármű már egy másik aktív útra van kiosztva. Manuális felülbírálással folytathatod." },
+          {
+            error: `${who} ebben az időben már egy másik útra van kiosztva (#${c.bookingCode}, ${c.pickupDate} ${c.pickupTime || ""}). Manuális felülbírálással folytathatod.`,
+          },
           { status: 409 }
         );
       }
@@ -85,14 +96,16 @@ export async function POST(
       if (!vehicle) {
         return NextResponse.json({ error: "A kiválasztott jármű nem található." }, { status: 404 });
       }
-      if (driver.driverStatus === "on_route" && !forceOverride) {
+      // Az "úton van" állapot csak a közeli (6 órán belül induló) útnál akadály.
+      const startsSoon = startsWithin(existing, 6 * 60 * 60 * 1000);
+      if (driver.driverStatus === "on_route" && startsSoon && !forceOverride) {
         return NextResponse.json(
           { error: "A sofőr jelenleg úton van. Manuális felülbírálással folytathatod." },
           { status: 409 }
         );
       }
       if (
-        (vehicle.status === "on_route" || vehicle.condition === "not_working") &&
+        ((vehicle.status === "on_route" && startsSoon) || vehicle.condition === "not_working") &&
         !forceOverride
       ) {
         return NextResponse.json(

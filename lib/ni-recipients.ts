@@ -19,6 +19,14 @@ export const NI_SUPERVISOR_EMAILS: string[] = (
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** "a@x.com, b@y.com; c@z.com" → ["a@x.com", "b@y.com", "c@z.com"] (csak az érvényes címek). */
+export function splitEmails(value?: string | null): string[] {
+  return String(value || "")
+    .split(/[\s,;]+/)
+    .map((e) => e.trim())
+    .filter((e) => EMAIL_PATTERN.test(e));
+}
+
 export function isNiBooking(booking: {
   portal?: string | null;
   companyName?: string | null;
@@ -45,7 +53,8 @@ export function niCopyRecipients(booking: {
     out.push(email.trim());
   };
   add(booking.travelerEmail);
-  add(booking.secondTravelerEmail);
+  // A második utas mezőben több cím is lehet (vesszővel / pontosvesszővel / szóközzel elválasztva).
+  for (const extra of splitEmails(booking.secondTravelerEmail)) add(extra);
   add(booking.adminEmail || booking.userEmail);
   add(LOCATION_SUPPORT_EMAIL);
   for (const supervisor of NI_SUPERVISOR_EMAILS) add(supervisor);

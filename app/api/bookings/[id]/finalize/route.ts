@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { getCurrentSession } from "@/lib/auth";
-import { getBookingById, updateBooking } from "@/lib/bookings";
+import { getBookingById, getBookingsCollection, updateBooking } from "@/lib/bookings";
 import { createAuditLog } from "@/lib/audit-logs";
 import { sendEmail } from "@/lib/nodemailer";
 import {
@@ -143,6 +143,23 @@ export async function POST(
 
       if (!travelerEmailResult.success) {
         emailWarnings.push("A foglalás véglegesítve lett, de az utas e-mail kiküldése nem sikerült.");
+      }
+
+      // Az "Utas értesítve" sáv a diszpécser felületen ebből dolgozik. Ha egy korábbi sikeres értesítés
+      // után az újabb kiküldés bukik el, az utas a régi adatokat ismeri — ezt is jelezni kell.
+      try {
+        const col = await getBookingsCollection();
+        await col.updateOne({ _id: new ObjectId(id) } as any, {
+          $set: {
+            passengerNotified: travelerEmailResult.success ? true : !!booking.passengerNotified,
+            passengerNotifyFailed: !travelerEmailResult.success,
+            passengerNotifiedAt: Date.now(),
+            passengerNotifiedBy: actor,
+            passengerNotifiedTo: booking.travelerEmail,
+          },
+        });
+      } catch (markError) {
+        console.error("[finalize] passenger notified flag failed", markError);
       }
 
       // NI: az admin, a Location Support és az NI felügyelő is megkapja a véglegesítést.

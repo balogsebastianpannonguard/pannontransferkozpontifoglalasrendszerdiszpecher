@@ -67,6 +67,16 @@ export interface Booking {
   plannedVehicleName?: string;
   driverNotified?: boolean;
   driverAcknowledged?: boolean;
+  /** Az utas (foglaló) megkapta-e a "Véglegesítés" visszaigazoló e-mailt. */
+  passengerNotified?: boolean;
+  /** Az utolsó utas-értesítési kísérlet időpontja (sikeres vagy sikertelen). */
+  passengerNotifiedAt?: number;
+  /** Ki küldte ki az utolsó utas-értesítést (diszpécser neve / e-mail címe). */
+  passengerNotifiedBy?: string;
+  /** Melyik címre ment ki az utolsó utas-értesítés. */
+  passengerNotifiedTo?: string;
+  /** Az utolsó utas-értesítés kiküldése sikertelen volt. */
+  passengerNotifyFailed?: boolean;
   price?: number;
   /** A `price` pénzneme – nincs megadva esetén HUF. */
   priceCurrency?: Currency;

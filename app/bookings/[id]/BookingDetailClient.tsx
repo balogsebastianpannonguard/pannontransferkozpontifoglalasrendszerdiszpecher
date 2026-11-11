@@ -58,6 +58,8 @@ import {
   PencilLine,
   Trash2,
   ShieldAlert,
+  MailCheck,
+  MailX,
 } from "lucide-react";
 
 const HUN_MONTHS = [
@@ -178,6 +180,38 @@ function relativeTime(timestamp: number, now: number): string {
   const w = Math.floor(d / 7);
   if (w < 5) return `${w} hete`;
   return new Date(timestamp).toLocaleDateString("hu-HU");
+}
+
+type PassengerNotice = {
+  state: "notified" | "failed" | "no-email" | "pending";
+  at?: number;
+  by?: string;
+  to?: string;
+  previouslyNotified?: boolean;
+};
+
+/**
+ * Az "Utas értesítve" sáv állapota. Az új foglalásoknál a finalize API által mentett passenger* mezőkből,
+ * a funkció előtt véglegesítetteknél az auditTrail "Véglegesítve (utas értesítve)" bejegyzéséből.
+ */
+function passengerNotice(booking: Booking): PassengerNotice {
+  if (booking.passengerNotifiedAt) {
+    return {
+      state: booking.passengerNotifyFailed ? "failed" : "notified",
+      at: booking.passengerNotifiedAt,
+      by: booking.passengerNotifiedBy,
+      to: booking.passengerNotifiedTo,
+      previouslyNotified: !!booking.passengerNotified,
+    };
+  }
+  const legacy = [...(booking.auditTrail || [])]
+    .reverse()
+    .find((e) => e.details === "Véglegesítve (utas értesítve)");
+  if (legacy && booking.travelerEmail) {
+    return { state: "notified", at: legacy.timestamp, by: legacy.actor, to: booking.travelerEmail };
+  }
+  if (!booking.travelerEmail?.trim()) return { state: "no-email" };
+  return { state: "pending" };
 }
 
 const AUDIT_FIELD_LABELS: Record<string, string> = {
@@ -1916,6 +1950,79 @@ export default function BookingDetailClient({
                       </div>
                     )}
                   </div>
+                  {(() => {
+                    const p = passengerNotice(booking);
+                    const tone =
+                      p.state === "notified"
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : p.state === "failed"
+                        ? "bg-red-50 text-red-700 border-red-300"
+                        : p.state === "no-email"
+                        ? "bg-amber-50 text-amber-700 border-amber-200"
+                        : "bg-slate-50 text-slate-400 border-slate-200";
+                    return (
+                      <div className="relative group">
+                        <motion.span
+                          key={`passenger-${p.state}-${p.at ?? 0}`}
+                          initial={p.state === "notified" ? { scale: 0.82, opacity: 0.5 } : false}
+                          animate={p.state === "notified" ? { scale: [0.82, 1.08, 1], opacity: 1 } : { opacity: 1 }}
+                          transition={{ duration: 0.55, ease: "easeOut" }}
+                          className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl border text-[11px] font-black tracking-wider uppercase cursor-default ${tone}`}
+                        >
+                          {p.state === "notified" ? (
+                            <><MailCheck className="w-3.5 h-3.5" /> Utas értesítve</>
+                          ) : p.state === "failed" ? (
+                            <><MailX className="w-3.5 h-3.5" /> Utas e-mail sikertelen</>
+                          ) : p.state === "no-email" ? (
+                            <><MailX className="w-3.5 h-3.5" /> Nincs utas e-mail</>
+                          ) : (
+                            <><Mail className="w-3.5 h-3.5" /> Utas még nem értesítve</>
+                          )}
+                        </motion.span>
+                        <div className="pointer-events-none absolute left-0 top-full mt-2 w-72 rounded-2xl bg-slate-900 text-white shadow-2xl p-3 opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all z-30">
+                          <div className="text-[10px] font-black tracking-[0.16em] uppercase text-slate-400 mb-2">Utas értesítése</div>
+                          <div className="space-y-1.5 text-[12px]">
+                            {p.state === "notified" || p.state === "failed" ? (
+                              <>
+                                {p.state === "failed" && (
+                                  <div className="font-bold text-red-300">
+                                    {p.previouslyNotified
+                                      ? "Az utolsó kiküldés nem sikerült — az utas egy korábbi visszaigazolást kapott meg."
+                                      : "A visszaigazoló e-mail kiküldése nem sikerült. Nyomj újra a Véglegesítésre."}
+                                  </div>
+                                )}
+                                {p.at && (
+                                  <div className="flex justify-between gap-3">
+                                    <span className="text-slate-400">Mikor</span>
+                                    <span className="font-bold text-right">
+                                      {new Date(p.at).toLocaleString("hu-HU", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                      <span className="text-slate-400 font-normal"> · {relativeTime(p.at, now)}</span>
+                                    </span>
+                                  </div>
+                                )}
+                                {p.by && (
+                                  <div className="flex justify-between gap-3">
+                                    <span className="text-slate-400">Ki küldte</span>
+                                    <span className="font-bold truncate">{p.by}</span>
+                                  </div>
+                                )}
+                                {p.to && (
+                                  <div className="flex justify-between gap-3">
+                                    <span className="text-slate-400">Címzett</span>
+                                    <span className="font-bold truncate">{p.to}</span>
+                                  </div>
+                                )}
+                              </>
+                            ) : p.state === "no-email" ? (
+                              <div>Az utasnak nincs e-mail címe, ezért a Véglegesítés nem tud neki visszaigazolást küldeni. Értesítsd telefonon.</div>
+                            ) : (
+                              <div>Az utas még nem kapott visszaigazolást. A <strong>Véglegesítés</strong> gomb küldi ki neki az e-mailt.</div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
               <div className="mt-5 flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border-2 border-blue-200 bg-blue-50/70 px-5 py-3.5 shadow-sm">

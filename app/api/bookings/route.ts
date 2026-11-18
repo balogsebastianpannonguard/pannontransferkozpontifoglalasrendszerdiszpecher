@@ -1,3 +1,4 @@
+import { sendBookingReceivedEmail } from "@/lib/booking-received";
 import { isNiBooking } from "@/lib/ni-recipients";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth";
@@ -105,6 +106,9 @@ export async function POST(request: NextRequest) {
         travelerName: booking.travelerName,
       }),
     });
+
+    // Az utas e-mailben értesül, hogy megkaptuk az utat (cég arculata, a foglalás nyelve szerint).
+    await sendBookingReceivedEmail(booking._id ? String(booking._id) : undefined);
 
     return NextResponse.json({ booking }, { status: 201 });
   } catch (err) {

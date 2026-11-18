@@ -46,7 +46,6 @@ import { ClientsView } from "./ClientsView";
 import GlobalSearch, { type SearchPage } from "./GlobalSearch";
 import { DocumentationView } from "./DocumentationView";
 import { FeedbackView } from "./FeedbackView";
-import PriceApprovalWidget from "./PriceApprovalWidget";
 import type { PartnerMeta } from "@/lib/partner-meta";
 import { getPartnerColorClasses, resolvePartnerMeta } from "@/lib/partner-meta";
 import { formatPrice, type Currency } from "@/lib/currency";
@@ -121,6 +120,10 @@ interface DemoBooking {
   year: number;
   time: string;
   client: string;
+  /** Csak az utas neve (a cég külön jelenik meg a csempén) */
+  travelerLabel: string;
+  driver?: string;
+  assignedVehicle?: string;
   route: string;
   vehicle: string;
   pax: number;
@@ -289,6 +292,48 @@ function tileGradient(b: { status: BookingStatus }) {
 function tileLabel(b: { category: BookingCategory; partnerMeta?: PartnerMeta | null; companyName?: string }) {
   if (isUnconfiguredCompany(b)) return (b.companyName || "").trim();
   return categoryLabel(b.category, b.partnerMeta);
+}
+
+
+/** Naptár csempe tartalma: óra + cég, utas neve, és mindig látható sofőr + autó. */
+function CalendarTileBody({ b }: { b: DemoBooking }) {
+  const company = (b.companyName || "").trim();
+  return (
+    <>
+      <div className="flex items-center justify-between gap-1.5">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="font-mono font-black tabular-nums tracking-tight opacity-95">{b.time}</span>
+          {company && (
+            <span className="truncate rounded bg-white/20 px-1 text-[8px] font-extrabold uppercase leading-[13px] tracking-wide">
+              {company}
+            </span>
+          )}
+        </div>
+        {b.advance && b.addedBy ? (
+          <span className="shrink-0 rounded bg-white/25 px-1 text-[8px] font-black leading-[12px] tracking-wide">{actorInitials(b.addedBy)}</span>
+        ) : (
+          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${b.status === "in-progress" ? "animate-pulse" : ""} bg-white/90`} />
+        )}
+      </div>
+      <div className="truncate font-bold">{b.travelerLabel}</div>
+      <div className="-ml-2 -mr-1.5 -mb-1 mt-1 flex items-center gap-2 rounded-b-lg bg-black/20 px-2 py-[3px] text-[9px] font-semibold leading-tight">
+        {b.driver || b.assignedVehicle ? (
+          <>
+            <span className="flex min-w-0 items-center gap-1" title="Sofőr">
+              <UserCircle2 className="h-2.5 w-2.5 shrink-0 opacity-80" />
+              <span className="truncate">{b.driver || "–"}</span>
+            </span>
+            <span className="flex min-w-0 items-center gap-1" title="Autó">
+              <CarFront className="h-2.5 w-2.5 shrink-0 opacity-80" />
+              <span className="truncate">{b.assignedVehicle || "–"}</span>
+            </span>
+          </>
+        ) : (
+          <span className="italic opacity-70">Még nincs kiosztva</span>
+        )}
+      </div>
+    </>
+  );
 }
 
 /** "szucs.eva@pannonguard.hu" / "szucs.eva" → "Szucs Eva" */
@@ -973,6 +1018,12 @@ export default function DispatcherDashboardClient({
           b.advanceEntry && (!b.travelerName || b.travelerName === "Nincs megadva")
             ? `${b.companyName || "Előre felvett út"} · ${b.travelers} fő`
             : b.travelerName + (b.companyName ? ` · ${b.companyName}` : ""),
+        travelerLabel:
+          b.advanceEntry && (!b.travelerName || b.travelerName === "Nincs megadva")
+            ? `${b.travelers} fő`
+            : b.travelerName,
+        driver: b.assignedDriverName || undefined,
+        assignedVehicle: b.assignedVehicleName || undefined,
         route: b.fromAddress + " → " + b.toAddress,
         vehicle: b.assignedVehicleName || "Hozzárendelés függőben",
         pax: b.travelers,
@@ -1452,13 +1503,6 @@ export default function DispatcherDashboardClient({
             </ul>
           </nav>
 
-          {/* Ár jóváhagyás - csak adminoknak, bal oldalt (nem ugrál fel a naptár fölött) */}
-          {user.role === "admin" && (
-            <div className="px-4 pb-3">
-              <PriceApprovalWidget userRole={user.role} />
-            </div>
-          )}
-
           {/* User block */}
           <div className="px-4 py-3 border-t border-slate-200/80 bg-gradient-to-br from-slate-50/90 to-white/90 backdrop-blur-xl">
             {user.requireTwoFactor && !user.twoFactorEnabled && (
@@ -1864,7 +1908,7 @@ export default function DispatcherDashboardClient({
                           </div>
                           {/* Bookings list */}
                           <div className="flex-1 space-y-1.5 overflow-hidden">
-                            {bookings.slice(0, 4).map((b) => {
+                            {bookings.slice(0, 3).map((b) => {
                               const isNewBadge = isNewBooking(b);
                               return (
                                 <div
@@ -1882,20 +1926,12 @@ export default function DispatcherDashboardClient({
                                       ÚJ
                                     </span>
                                   )}
-                                  <div className="flex items-center justify-between gap-1">
-                                    <span className="font-mono font-black tabular-nums tracking-tight opacity-95">{b.time}</span>
-                                    {b.advance && b.addedBy ? (
-                                      <span className="rounded bg-white/25 px-1 text-[8px] font-black leading-[12px] tracking-wide">{actorInitials(b.addedBy)}</span>
-                                    ) : (
-                                      <span className={`w-1.5 h-1.5 rounded-full ${b.status === "in-progress" ? "animate-pulse" : ""} bg-white/90`} />
-                                    )}
-                                  </div>
-                                  <div className="truncate font-bold">{b.client}</div>
+                                  <CalendarTileBody b={b} />
                                 </div>
                               );
                             })}
-                            {bookings.length > 4 && (
-                              <div className="text-[10px] font-bold text-slate-500 px-1">+{bookings.length - 4} további…</div>
+                            {bookings.length > 3 && (
+                              <div className="text-[10px] font-bold text-slate-500 px-1">+{bookings.length - 3} további…</div>
                             )}
                           </div>
                           {/* CLICK POPOVER — portálban, a cella fölé (vagy ha ott nincs hely, alá) */}
@@ -2188,15 +2224,7 @@ export default function DispatcherDashboardClient({
                                       ÚJ
                                     </span>
                                   )}
-                                  <div className="flex items-center justify-between gap-1">
-                                    <span className="font-mono font-black tabular-nums tracking-tight opacity-95">{b.time}</span>
-                                    {b.advance && b.addedBy ? (
-                                      <span className="rounded bg-white/25 px-1 text-[8px] font-black leading-[12px] tracking-wide">{actorInitials(b.addedBy)}</span>
-                                    ) : (
-                                      <span className={`w-1.5 h-1.5 rounded-full ${b.status === "in-progress" ? "animate-pulse" : ""} bg-white/90`} />
-                                    )}
-                                  </div>
-                                  <div className="truncate font-bold">{b.client}</div>
+                                  <CalendarTileBody b={b} />
                                 </div>
                               );
                             })}

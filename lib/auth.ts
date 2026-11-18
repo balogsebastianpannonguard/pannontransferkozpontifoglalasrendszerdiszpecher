@@ -122,7 +122,18 @@ export async function getDispatcherProfile(user?: DispatcherUser): Promise<Dispa
   };
 }
 
+// Tartósan bejelentkezve maradó felhasználók (csak ők; mindenki másnál változatlan a lejárat).
+const ALWAYS_LOGGED_IN_EMAILS = ["andras6508@gmail.com"];
+const ALWAYS_LOGGED_IN_MAX_AGE = 60 * 60 * 24 * 400; // 400 nap (böngészők felső korlátja)
+
+export function isAlwaysLoggedIn(email?: string | null): boolean {
+  return !!email && ALWAYS_LOGGED_IN_EMAILS.includes(email.trim().toLowerCase());
+}
+
 export function createSessionToken(user: DispatcherUser, remember: boolean = true): string {
+  if (isAlwaysLoggedIn(user.email)) {
+    return jwt.sign(user as object, DISPATCHER_COOKIE_SECRET, { expiresIn: ALWAYS_LOGGED_IN_MAX_AGE });
+  }
   const expiresIn = remember ? "3d" : "12h";
   return jwt.sign(user as object, DISPATCHER_COOKIE_SECRET, { expiresIn });
 }
@@ -137,6 +148,17 @@ export function verifySessionToken(token: string): DispatcherUser | null {
 
 export async function setSessionCookie(token: string, remember: boolean = true) {
   const cookieStore = await cookies();
+  const decoded = jwt.decode(token) as { email?: string } | null;
+  if (isAlwaysLoggedIn(decoded?.email)) {
+    cookieStore.set(AUTH_COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: ALWAYS_LOGGED_IN_MAX_AGE,
+    });
+    return;
+  }
   cookieStore.set(AUTH_COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

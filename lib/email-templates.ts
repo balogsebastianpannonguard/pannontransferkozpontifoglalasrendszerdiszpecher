@@ -1396,3 +1396,143 @@ export function buildBookingModificationEmail(params: {
       </td></tr>${trackButton}<tr><td style="padding:18px 30px;background:#f8fafc;color:#64748b;font-size:12px;">This message was generated automatically by the Pannon Transfer system.</td></tr>
     </table></td></tr></table></body></html>`;
 }
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * "Megkaptuk és fogadjuk az utat" - kellemes hangvételű, partner-független visszaigazoló levél
+ * (nem tartalmaz árat, sofőrt vagy autót). Bármelyik foglaláshoz használható.
+ */
+export function buildBookingReceivedEmail(params: {
+  bookingCode: string;
+  travelerName: string;
+  pickupDate: string;
+  pickupTime: string;
+  fromAddress: string;
+  toAddress: string;
+  flightNumber?: string;
+  travelers: number;
+  luggage?: number;
+  companyName?: string;
+  language?: "hu" | "en";
+}): string {
+  const en = params.language === "en";
+  const e = escapeHtml;
+  const t = en
+    ? {
+        title: "We have received your trip",
+        greeting: `Dear ${e(params.travelerName)},`,
+        lead: "Thank you for your booking – we have received your trip and we are delighted to welcome you on board.",
+        body: "Our dispatch team has already taken it in hand. We will make sure everything is prepared so that your journey is smooth, comfortable and stress-free.",
+        badge: "RECEIVED · ACCEPTED",
+        code: "BOOKING CODE",
+        details: "YOUR TRIP",
+        date: "Date",
+        time: "Pick-up time",
+        from: "From",
+        to: "To",
+        flight: "Flight number",
+        pax: "Passengers",
+        luggage: "Luggage",
+        pcs: "pcs",
+        ppl: "pers.",
+        next: "What happens next?",
+        nextBody:
+          "As soon as your driver and vehicle are assigned, we will send you a separate email with all the details. If anything changes, simply reply to this email or call us – we are happy to help.",
+        closing: "We look forward to seeing you soon!",
+        sign: "Warm regards,",
+        team: "The Pannon Transfer team",
+      }
+    : {
+        title: "Megkaptuk az utat",
+        greeting: `Kedves ${e(params.travelerName)}!`,
+        lead: "Köszönjük a foglalást – az utat megkaptuk, és nagy örömmel fogadjuk.",
+        body: "A diszpécser csapatunk már dolgozik rajta, hogy az utazása zökkenőmentes, kényelmes és gondtalan legyen.",
+        badge: "MEGKAPTUK · FOGADJUK",
+        code: "FOGLALÁS KÓD",
+        details: "AZ ÖN UTAZÁSA",
+        date: "Dátum",
+        time: "Felvételi idő",
+        from: "Indulás",
+        to: "Érkezés",
+        flight: "Járatszám",
+        pax: "Utasok száma",
+        luggage: "Csomagok",
+        pcs: "db",
+        ppl: "fő",
+        next: "Mi történik ezután?",
+        nextBody:
+          "Amint kiosztjuk a sofőrt és az autót, külön levélben elküldjük az összes részletet. Ha bármi változna, egyszerűen válaszoljon erre a levélre, vagy hívjon minket – szívesen segítünk.",
+        closing: "Várjuk szeretettel!",
+        sign: "Üdvözlettel,",
+        team: "a Pannon Transfer csapata",
+      };
+
+  const label = (text: string) =>
+    `<td style="font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:600;color:#7A7A7A;letter-spacing:1.5px;text-transform:uppercase;padding-bottom:4px;">${text}</td>`;
+  const value = (text: string) =>
+    `<td style="font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:600;color:#1A1A1A;line-height:1.5;padding-bottom:16px;">${text}</td>`;
+
+  return `<!DOCTYPE html>
+<html lang="${en ? "en" : "hu"}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${t.title} · #${e(params.bookingCode)} · Pannon Transfer</title>
+</head>
+<body style="margin:0;padding:0;background-color:#FAF8F5;font-family:Arial,Helvetica,sans-serif;min-width:100%;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#FAF8F5;padding:48px 16px;">
+<tr><td align="center">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px;">
+<tr><td align="center" style="background-color:#0B1A2A;border-radius:12px 12px 0 0;padding:28px 0;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:36px;height:36px;border:4px solid #C9A962;border-radius:4px;"><tr><td align="center" valign="middle" style="font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:700;color:#C9A962;">P</td></tr></table>
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#C9A962;letter-spacing:4px;text-transform:uppercase;padding-top:8px;">PANNON TRANSFER</div>
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:9px;font-weight:500;color:#7A7A7A;letter-spacing:6px;text-transform:uppercase;padding-top:3px;">EXECUTIVE TRAVEL</div>
+</td></tr>
+<tr><td style="height:1px;background-color:#C9A962;font-size:0;line-height:0;"></td></tr>
+<tr><td style="background-color:#FFFFFF;border-left:1px solid #E8E3DA;border-right:1px solid #E8E3DA;padding:36px 48px 8px 48px;">
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:700;color:#1A1A1A;line-height:1.3;">${t.title}</div>
+<div style="padding-top:18px;font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1A1A1A;line-height:1.7;">${t.greeting}</div>
+<div style="padding-top:10px;font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#4A4A4A;line-height:1.7;">${t.lead}</div>
+<div style="padding-top:10px;font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#4A4A4A;line-height:1.7;">${t.body}</div>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:24px;"><tr>
+<td style="background-color:#FAF6EE;border:1px solid #E6D9B8;border-radius:999px;padding:9px 20px;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:600;color:#C9A962;letter-spacing:2px;text-transform:uppercase;">${t.code}&nbsp;&nbsp;<span style="font-size:15px;font-weight:700;color:#1A1A1A;letter-spacing:0;">#${e(params.bookingCode)}</span></td>
+<td width="10"></td>
+<td style="background-color:#F4F7F4;border:1px solid #D9E2D9;border-radius:999px;padding:11px 18px;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:600;color:#3A523A;letter-spacing:1.5px;text-transform:uppercase;">✓ ${t.badge}</td>
+</tr></table>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:28px;background-color:#FFFFFF;border:1px solid #E8E3DA;border-radius:8px;"><tr><td style="padding:28px 32px 12px 32px;">
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:600;color:#C9A962;letter-spacing:2px;text-transform:uppercase;padding-bottom:20px;">${t.details}</div>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>${label(t.date)}</tr><tr>${value(e(params.pickupDate))}</tr>
+<tr>${label(t.time)}</tr><tr><td style="font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:700;color:#C9A962;padding-bottom:16px;">${e(params.pickupTime)}</td></tr>
+<tr>${label(t.from)}</tr><tr>${value(e(params.fromAddress))}</tr>
+<tr>${label(t.to)}</tr><tr>${value(e(params.toAddress))}</tr>
+${params.flightNumber ? `<tr>${label(t.flight)}</tr><tr>${value(e(params.flightNumber))}</tr>` : ""}
+<tr>${label(t.pax)}</tr><tr>${value(`${params.travelers} ${t.ppl}${params.luggage ? ` &nbsp;·&nbsp; ${params.luggage} ${t.pcs} ${t.luggage.toLowerCase()}` : ""}`)}</tr>
+</table>
+</td></tr></table>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:24px;background-color:#FAF6EE;border-left:3px solid #C9A962;border-radius:0 8px 8px 0;"><tr><td style="padding:18px 24px;">
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:600;color:#C9A962;letter-spacing:1.5px;text-transform:uppercase;padding-bottom:8px;">${t.next}</div>
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#4A4A4A;line-height:1.7;">${t.nextBody}</div>
+</td></tr></table>
+<div style="padding-top:28px;font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1A1A1A;line-height:1.7;">${t.closing}</div>
+<div style="padding-top:14px;padding-bottom:36px;font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#4A4A4A;line-height:1.7;">${t.sign}<br><strong style="color:#1A1A1A;">${t.team}</strong></div>
+</td></tr>
+<tr><td style="height:1px;background-color:#C9A962;font-size:0;line-height:0;"></td></tr>
+<tr><td align="center" style="background-color:#0B1A2A;border-radius:0 0 12px 12px;padding:32px 48px;">
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;color:#C9A962;letter-spacing:3px;text-transform:uppercase;">PANNON TRANSFER</div>
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#7A7A7A;line-height:1.6;padding-top:10px;">✉ minimalwebsoft@gmail.com &nbsp;·&nbsp; ☏ +36 30 665 4135</div>
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#7A7A7A;line-height:1.6;padding-top:12px;">© 2026 Pannon Transfer Executive Travel.</div>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}

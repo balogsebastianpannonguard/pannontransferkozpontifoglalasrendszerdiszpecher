@@ -61,13 +61,18 @@ function beep(c: AudioContext, out: GainNode, freq: number, start: number, lengt
  * Hangos, kb. 3 másodperces riasztó dallam (háromszor ismételt "di-dam-di-dam").
  * Visszaadja, hogy sikerült-e lejátszani (zárolt hangnál false).
  */
-export async function playAlertSound(): Promise<boolean> {
+export async function playAlertSound(single = false): Promise<boolean> {
   const c = getContext();
   if (!c || !master) return false;
   if (c.state !== "running") {
     // Zárolt (még nem volt interakció) lapon a resume nem teljesül — ne várjunk rá a végtelenségig.
     await Promise.race([c.resume().catch(() => {}), new Promise((r) => setTimeout(r, 400))]);
     if (!isAlertAudioReady()) return false;
+  }
+  if (single) {
+    // Egyetlen rövid csippanás.
+    beep(c, master, 1318.5, c.currentTime + 0.03, 0.22);
+    return true;
   }
   const notes = [1318.5, 987.8, 1318.5, 987.8];
   const noteLength = 0.2;

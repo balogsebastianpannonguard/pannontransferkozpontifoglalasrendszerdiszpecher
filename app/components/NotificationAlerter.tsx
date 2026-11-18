@@ -130,6 +130,7 @@ export default function NotificationAlerter() {
   const soundOnRef = useRef(true);
   const ringingRef = useRef(false);
   const urgentRef = useRef(false);
+  const singleBeepRef = useRef(false);
   const reringCount = useRef(0);
   const baseTitle = useRef("");
   const lastAckWrite = useRef(0);
@@ -210,8 +211,9 @@ export default function NotificationAlerter() {
     if (soundOnRef.current) {
       if (!isAlertAudioReady()) await new Promise((r) => window.setTimeout(r, 1500));
       if (isAlertAudioReady() && events.some((e) => tryClaim(`sound:${e.id}`))) {
-        const played = await playAlertSound();
-        if (played) {
+        const played = await playAlertSound(singleBeepRef.current);
+        // Egyetlen csippanásnál nincs "csengetés" állapot és nincs ismétlés.
+        if (played && !singleBeepRef.current) {
           ringingRef.current = true;
           urgentRef.current = urgentRef.current || urgent;
           reringCount.current = 0;
@@ -251,6 +253,7 @@ export default function NotificationAlerter() {
       if (!res.ok) return;
       const data = await res.json();
       // Rövid átfedés, hogy a lekérdezés közben írt esemény se essen ki; az azonosító kiszűri a duplát.
+      singleBeepRef.current = data?.singleBeep === true;
       lastPoll.current = Date.now() - 5_000;
       const events: AlertEvent[] = Array.isArray(data?.notifications) ? data.notifications : [];
       const fresh = events.filter((e) => e?.id && !seen.current.has(e.id));

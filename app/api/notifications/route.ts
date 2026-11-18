@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentSession } from "@/lib/auth";
+import { getCurrentSession, isAlwaysLoggedIn } from "@/lib/auth";
 import { getBookingsCollection } from "@/lib/bookings";
 import { getMongoDb } from "@/lib/mongodb";
 import crypto from "crypto";
@@ -228,6 +228,8 @@ export async function GET(request: Request) {
       recentBookings,
       partnerModifications,
       notifications,
+      // Csak András fiókjánál: egyetlen rövid csippanás, ismétlés nélkül.
+      singleBeep: isAlwaysLoggedIn(user.email),
     });
   } catch (err) {
     console.error("[notifications GET error]", err);

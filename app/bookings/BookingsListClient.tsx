@@ -659,6 +659,24 @@ export default function BookingsListClient({
                             )}
                           </div>
                         </div>
+                        {(b.additionalPassengers?.length ?? 0) > 0 && (
+                          <div>
+                            <div className="flex items-center gap-1.5 text-[10px] font-black tracking-[0.2em] uppercase text-slate-400 mb-2">
+                              <Users2 className="w-3.5 h-3.5" />
+                              TOVÁBBI UTASOK ({b.additionalPassengers!.length})
+                            </div>
+                            <div className="text-[13px] font-semibold text-slate-700 space-y-1">
+                              {b.additionalPassengers!.map((p, i) => (
+                                <div key={`ap-${i}`}>
+                                  <div>{i + 2}. {p.name}</div>
+                                  {p.pickupAddress && (
+                                    <div className="text-[12px] font-bold text-amber-700">Felvétel: {p.pickupAddress}</div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         <div>
                           <div className="flex items-center gap-1.5 text-[10px] font-black tracking-[0.2em] uppercase text-slate-400 mb-2">
                             <Building2 className="w-3.5 h-3.5" />

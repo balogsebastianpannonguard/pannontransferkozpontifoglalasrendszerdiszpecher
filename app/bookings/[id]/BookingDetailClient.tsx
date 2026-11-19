@@ -2915,6 +2915,52 @@ export default function BookingDetailClient({
                     </div>
                   </div>
                 )}
+
+                {(booking.additionalPassengers?.length ?? 0) > 0 && (
+                  <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50/70 to-white p-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Users2 className="w-4 h-4 text-slate-500" />
+                      <span className="text-[10px] font-black tracking-[0.2em] uppercase text-slate-500">
+                        További utasok ({booking.additionalPassengers!.length})
+                      </span>
+                    </div>
+                    <div className="space-y-3">
+                      {booking.additionalPassengers!.map((p, i) => (
+                        <div key={`ap-${i}`} className="rounded-xl bg-white border border-slate-200 p-3 shadow-sm">
+                          <div className="text-[13px] font-black text-slate-800">
+                            {i + 2}. {p.name}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            {p.email && (
+                              <a
+                                href={`mailto:${p.email}`}
+                                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-[12px] font-bold text-slate-700 hover:text-blue-600 hover:border-blue-200 transition"
+                              >
+                                <Mail className="w-3.5 h-3.5 text-slate-500" />
+                                <span className="truncate">{p.email}</span>
+                              </a>
+                            )}
+                            {p.phone && (
+                              <a
+                                href={`tel:${p.phone.replace(/[^\d+]/g, "")}`}
+                                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-[12px] font-bold text-slate-700 hover:text-slate-900 hover:border-slate-300 transition"
+                              >
+                                <Phone className="w-3.5 h-3.5 text-slate-500" />
+                                <span className="truncate">{p.phone}</span>
+                              </a>
+                            )}
+                          </div>
+                          {p.pickupAddress && (
+                            <div className="mt-2 inline-flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-[12px] font-bold text-amber-800">
+                              <MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                              <span>Felvételi hely: {p.pickupAddress}</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 </>
                 )}
 

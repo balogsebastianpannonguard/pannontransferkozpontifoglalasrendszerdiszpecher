@@ -1,4 +1,5 @@
 import { resolvePartnerMeta } from "@/lib/partner-meta";
+import { readAdditionalPassengers } from "@/lib/passengers";
 
 /**
  * NI (National Instruments / Emerson) foglalásoknál az utason kívül mindig értesítést kap:
@@ -40,6 +41,7 @@ export function isNiBooking(booking: {
 export function niCopyRecipients(booking: {
   travelerEmail?: string | null;
   secondTravelerEmail?: string | null;
+  additionalPassengers?: unknown;
   adminEmail?: string | null;
   userEmail?: string | null;
 }): string[] {
@@ -55,6 +57,8 @@ export function niCopyRecipients(booking: {
   add(booking.travelerEmail);
   // A második utas mezőben több cím is lehet (vesszővel / pontosvesszővel / szóközzel elválasztva).
   for (const extra of splitEmails(booking.secondTravelerEmail)) add(extra);
+  // A további utasok (ha megadták az e-mail címüket) ugyanazt a levelet kapják, mint az utas.
+  for (const passenger of readAdditionalPassengers(booking.additionalPassengers)) add(passenger.email);
   add(booking.adminEmail || booking.userEmail);
   add(LOCATION_SUPPORT_EMAIL);
   for (const supervisor of NI_SUPERVISOR_EMAILS) add(supervisor);

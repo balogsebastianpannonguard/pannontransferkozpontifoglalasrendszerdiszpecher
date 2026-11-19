@@ -2,6 +2,7 @@ import { ObjectId, Filter } from "mongodb";
 import { getMongoDb } from "./mongodb";
 import type { Currency } from "./currency";
 import { once } from "./once";
+import type { AdditionalPassenger } from "./passengers";
 
 // BookingStatus display logic lives in ./booking-status (no server-only
 // deps) so it stays importable from client components. Re-exported here
@@ -40,6 +41,8 @@ export interface Booking {
   customerType?: 'individual' | 'company';
   secondTravelerEmail?: string;
   secondTravelerPhone?: string;
+  /** További utasok a fő utason kívül (név kötelező; e-mail, telefon, eltérő felvételi hely opcionális) – a partnerportál tölti ki. */
+  additionalPassengers?: AdditionalPassenger[];
   companyName?: string;
   paymentMethod: PaymentMethod;
   transferType: TransferType;

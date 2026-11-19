@@ -92,6 +92,7 @@ export async function POST(
           luggage: booking.luggage,
           assignedVehicleName: booking.assignedVehicleName,
           comment: booking.comment,
+          additionalPassengers: booking.additionalPassengers,
         });
         const driverEmailResult = await sendEmail({
           to: assignedDriver.email,
@@ -127,6 +128,7 @@ export async function POST(
         price: booking.price,
         priceCurrency: booking.priceCurrency,
         comment: booking.comment,
+        additionalPassengers: booking.additionalPassengers,
         trackUrl: buildTrackUrl(booking.bookingTrackToken),
         language: booking.language,
       });

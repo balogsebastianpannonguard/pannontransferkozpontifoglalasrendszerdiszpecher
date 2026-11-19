@@ -1,3 +1,4 @@
+import { buildAdditionalPassengersHtml, type AdditionalPassenger } from "./passengers";
 import { formatPrice } from "./currency";
 
 export function buildCustomerConfirmationEmail(params: {
@@ -362,6 +363,7 @@ export function buildTravelerFinalizedEmail(params: {
   price?: number;
   priceCurrency?: string;
   comment?: string;
+  additionalPassengers?: AdditionalPassenger[];
   trackUrl?: string;
   language?: "hu" | "en";
 }): string {
@@ -582,7 +584,7 @@ ${flightNumber ? `<div style="font-family:Arial,Helvetica,sans-serif;font-size:1
 </td>
 </tr>
 </table>
-${comment ? `<div style="margin-top:18px;padding:16px;border-radius:10px;background-color:#F8FAFC;border:1px solid #E2E8F0;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#475569;line-height:1.6;"><strong style="color:#0B1A2A;">Megjegyzés:</strong><br>${comment}</div>` : ""}
+${buildAdditionalPassengersHtml(params.additionalPassengers, false)}${comment ? `<div style="margin-top:18px;padding:16px;border-radius:10px;background-color:#F8FAFC;border:1px solid #E2E8F0;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#475569;line-height:1.6;"><strong style="color:#0B1A2A;">Megjegyzés:</strong><br>${comment}</div>` : ""}
 </td>
 </tr>
 </table>
@@ -819,7 +821,7 @@ ${flightNumber ? `<div style="font-family:Arial,Helvetica,sans-serif;font-size:1
 </td>
 </tr>
 </table>
-${comment ? `<div style="margin-top:18px;padding:16px;border-radius:10px;background-color:#F8FAFC;border:1px solid #E2E8F0;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#475569;line-height:1.6;"><strong style="color:#0B1A2A;">Note:</strong><br>${comment}</div>` : ""}
+${buildAdditionalPassengersHtml(params.additionalPassengers, true)}${comment ? `<div style="margin-top:18px;padding:16px;border-radius:10px;background-color:#F8FAFC;border:1px solid #E2E8F0;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#475569;line-height:1.6;"><strong style="color:#0B1A2A;">Note:</strong><br>${comment}</div>` : ""}
 </td>
 </tr>
 </table>
@@ -878,6 +880,7 @@ export function buildDriverAssignmentEmail(params: {
   luggage: number;
   assignedVehicleName?: string;
   comment?: string;
+  additionalPassengers?: AdditionalPassenger[];
 }): string {
   const {
     bookingCode,
@@ -928,7 +931,7 @@ export function buildDriverAssignmentEmail(params: {
             <tr><td style="padding:9px 0;border-bottom:1px solid #e2e8f0;color:#64748b;">Utasok / csomagok</td><td align="right" style="padding:9px 0;border-bottom:1px solid #e2e8f0;font-weight:700;">${travelers} fő · ${luggage} db</td></tr>
             <tr><td style="padding:9px 0;color:#64748b;">Jármű</td><td align="right" style="padding:9px 0;font-weight:700;">${assignedVehicleName || "Nincs megadva"}</td></tr>
           </table>
-          ${comment ? `<div style="margin-top:18px;padding:14px 16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;font-size:13px;line-height:1.6;"><strong>Diszpécseri megjegyzés:</strong><br>${comment}</div>` : ""}
+          ${buildAdditionalPassengersHtml(params.additionalPassengers, false)}${comment ? `<div style="margin-top:18px;padding:14px 16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;font-size:13px;line-height:1.6;"><strong>Diszpécseri megjegyzés:</strong><br>${comment}</div>` : ""}
           <div style="margin-top:24px;padding:14px 16px;background:#ecfdf5;border:1px solid #bbf7d0;border-radius:10px;color:#166534;font-size:13px;line-height:1.6;">Kérjük, nyisd meg a sofőri felületet, ellenőrizd az adatokat, majd nyomd meg a „Láttam az utat” gombot.</div>
         </td></tr>
         <tr><td style="padding:20px 32px;background:#f8fafc;color:#64748b;font-size:12px;">Pannon Transfer · Ez az üzenet automatikusan készült.</td></tr>

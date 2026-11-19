@@ -21,6 +21,7 @@ export interface SearchableBooking {
   assignedDriverName?: string;
   assignedVehicleName?: string;
   comment?: string;
+  additionalPassengers?: Array<{ name: string; email?: string; phone?: string; pickupAddress?: string }>;
   status: BookingStatus;
 }
 
@@ -208,6 +209,7 @@ export default function GlobalSearch({
         { text: b.toAddress || "", weight: 4 },
         { text: b.pickupDate, weight: 4 },
         { text: formatDate(b.pickupDate), weight: 4 },
+        { text: (b.additionalPassengers || []).map((p) => `${p.name} ${p.email || ""} ${p.phone || ""}`).join(" "), weight: 6 },
         { text: b.comment || "", weight: 2 },
         { text: getStatusDisplay(b.status).label, weight: 3 },
       ]);
